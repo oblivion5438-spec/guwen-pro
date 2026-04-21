@@ -2014,24 +2014,143 @@ function showTeamSettings() {
   }
 }
 
-function renderInvite() {
+async function renderInvite() {
   var code = currentMember ? (currentMember.invite_code || '—') : '—';
+  var plan = currentMember ? (currentMember.plan || 'free') : 'free';
+  var planPrice = plan === 'team' ? 1980 : plan === 'pro' ? 980 : 0;
   var el = document.getElementById('member-content');
-  var html = '<div style="font-size:16px;font-weight:600;margin-bottom:12px">邀請碼 / 折扣</div>';
-  html += '<div style="background:linear-gradient(135deg,rgba(200,81,26,.1),rgba(184,128,32,.05));border:0.5px solid rgba(200,81,26,.3);border-radius:12px;padding:16px;margin-bottom:10px">';
-  html += '<div style="font-size:13px;color:var(--acc);margin-bottom:8px">我的專屬邀請碼</div>';
-  html += '<div style="font-size:24px;font-weight:700;letter-spacing:3px;font-family:monospace;color:var(--yel);margin-bottom:10px">' + code + '</div>';
-  html += '<div style="display:flex;gap:6px;flex-wrap:wrap">';
-  html += '<button class="btn-sm" onclick="navigator.clipboard.writeText(\'' + code + '\').then(function(){alert(\'已複製邀請碼\')})">複製邀請碼</button>';
-  html += '<button class="btn-sm" onclick="shareInviteToLine(\'' + code + '\')">分享到 LINE</button>';
-  html += '</div></div>';
-  html += '<div class="card"><div class="ct">折扣機制</div>';
-  html += '<div class="ri"><span class="rl">5–9人有效</span><span class="rv" style="color:var(--yel)">每月 -$200</span></div>';
-  html += '<div class="ri"><span class="rl">10–14人有效</span><span class="rv" style="color:var(--acc)">每月 -$400</span></div>';
-  html += '<div class="ri"><span class="rl">15人以上</span><span class="rv" style="color:var(--grn)">每月 -$600（上限）</span></div>';
-  html += '<div style="font-size:13px;color:var(--t3);margin-top:8px">僅計算付費有效會員，基本免費版不計入</div></div>';
-  el.innerHTML = html;
+  el.innerHTML = '<div style="text-align:center;padding:20px;color:var(--t2)">載入中…</div>';
+
+  // 查詢已邀請的會員
+  var invitedRes = await sb.from('members')
+    .select('id,name,plan,created_at')
+    .eq('invited_by', currentUser.id);
+  var invitedMembers = invitedRes.data || [];
+  // 有效付費人數（非 free）
+  var paidCount = invitedMembers.filter(function(m){ return m.plan !== 'free'; }).length;
+  // 折扣計算
+  var discount = paidCount >= 15 ? 600 : paidCount >= 10 ? 400 : paidCount >= 5 ? 200 : 0;
+  var actualFee = Math.max(0, planPrice - discount);
+  // 進度條百分比（最多到15人）
+  var progressPct = Math.min(100, (paidCount / 15) * 100);
+
+  var linkUrl = BASE_URL + '/app.html?ref=' + code;
+
+  var h = '';
+
+  // ── 標題列 ──
+  h += '<div style="margin-bottom:16px">';
+  h += '<div style="font-size:20px;font-weight:700">邀請碼 / 折扣機制</div>';
+  h += '<div style="font-size:14px;color:var(--t2);margin-top:3px">邀請5位以上會員，每位折抵月費 $200</div>';
+  h += '</div>';
+
+  // ── 邀請碼主卡片 ──
+  h += '<div style="background:linear-gradient(135deg,rgba(200,81,26,.15),rgba(184,128,32,.08));border:0.5px solid rgba(200,81,26,.4);border-radius:14px;padding:18px;margin-bottom:14px">';
+  h += '<div style="font-size:13px;color:var(--acc);margin-bottom:4px">🎁 我的專屬邀請碼</div>';
+  h += '<div style="font-size:13px;color:var(--t2);line-height:1.6;margin-bottom:12px">將邀請碼分享給其他貸款顧問，邀請他們加入顧問PRO。累計5人以上每月折抵 $200，10人以上折抵 $400，上限 $600/月</div>';
+  // 邀請碼大字 + 複製按鈕
+  h += '<div style="display:flex;align-items:center;gap:10px;background:rgba(0,0,0,.3);border-radius:10px;padding:14px 16px;margin-bottom:12px">';
+  h += '<div style="flex:1;font-size:26px;font-weight:800;letter-spacing:4px;font-family:monospace;color:var(--yel)">' + code + '</div>';
+  h += '<button onclick="navigator.clipboard.writeText(\'' + code + '\').then(function(){var b=document.getElementById(\'copy-code-btn\');b.textContent=\'✓ 已複製\';b.style.background=\'var(--grn)\';setTimeout(function(){b.textContent=\'複製\';b.style.background=\'var(--acc)\';},2000)})" id="copy-code-btn" style="padding:10px 20px;background:var(--acc);color:#FFF;border:none;border-radius:8px;font-size:15px;font-weight:600;cursor:pointer;font-family:var(--sans);flex-shrink:0">複製</button>';
+  h += '</div>';
+  // 分享按鈕列
+  h += '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px">';
+  h += '<button onclick="shareInviteToLine(\'' + code + '\')" style="flex:1;min-width:100px;padding:10px;background:rgba(0,195,0,.15);border:0.5px solid rgba(0,195,0,.4);border-radius:8px;color:#4CD44C;cursor:pointer;font-family:var(--sans);font-size:14px;font-weight:500">分享到 LINE</button>';
+  h += '<button onclick="navigator.clipboard.writeText(\'' + linkUrl + '\').then(function(){alert(\'已複製推廣連結\')})" style="flex:1;min-width:100px;padding:10px;background:rgba(42,106,184,.15);border:0.5px solid rgba(42,106,184,.4);border-radius:8px;color:var(--blu);cursor:pointer;font-family:var(--sans);font-size:14px;font-weight:500">複製連結</button>';
+  h += '<button onclick="inviteBySMS(\'' + code + '\')" style="flex:1;min-width:100px;padding:10px;background:rgba(255,255,255,.06);border:0.5px solid var(--bdr2);border-radius:8px;color:var(--t1);cursor:pointer;font-family:var(--sans);font-size:14px;font-weight:500">簡訊邀請</button>';
+  h += '</div>';
+  // 進度條
+  h += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">';
+  h += '<div style="font-size:13px;color:var(--t2)">已邀請進度</div>';
+  h += '<div style="font-size:14px;font-weight:600;color:var(--acc)">' + paidCount + '/5 人（達標）</div>';
+  h += '</div>';
+  h += '<div style="background:rgba(255,255,255,.08);border-radius:6px;height:8px;overflow:hidden;margin-bottom:6px">';
+  h += '<div style="height:100%;border-radius:6px;background:linear-gradient(90deg,var(--acc),var(--yel));width:' + progressPct + '%;transition:width .5s"></div>';
+  h += '</div>';
+  h += '<div style="display:flex;justify-content:space-between;font-size:12px;color:var(--t3)">';
+  h += '<span>0人</span><span>5人（首門檻）</span><span>10人（次門檻）</span><span>15人+</span>';
+  h += '</div>';
+  h += '</div>';
+
+  // ── 折扣計算卡片 ──
+  h += '<div class="card" style="margin-bottom:14px">';
+  h += '<div class="ct">折扣計算 <span style="font-size:13px;color:var(--t2);font-weight:400">每月自動套用</span></div>';
+  h += '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px">';
+  var tiers = [
+    {range:'5-9人邀請', disc:'-$200', active: paidCount>=5&&paidCount<10},
+    {range:'10-14人邀請', disc:'-$400', active: paidCount>=10&&paidCount<15},
+    {range:'15人以上', disc:'-$600', active: paidCount>=15, note:'/月（上限）'},
+  ];
+  tiers.forEach(function(t) {
+    var bg = t.active ? 'background:var(--al);border-color:var(--acc)' : 'background:rgba(255,255,255,.04);border-color:var(--bdr)';
+    h += '<div style="' + bg + ';border:0.5px solid;border-radius:10px;padding:14px 10px;text-align:center">';
+    h += '<div style="font-size:13px;color:var(--t2);margin-bottom:6px">' + t.range + '</div>';
+    h += '<div style="font-size:24px;font-weight:800;color:' + (t.active?'var(--acc)':'var(--t1)') + '">' + t.disc + '</div>';
+    h += '<div style="font-size:13px;color:var(--t3)">' + (t.note||'/月') + '</div>';
+    h += '</div>';
+  });
+  h += '</div>';
+
+  if (planPrice > 0) {
+    h += '<div style="background:rgba(255,255,255,.04);border-radius:10px;padding:14px">';
+    h += '<div style="font-size:14px;font-weight:600;margin-bottom:10px">本月費用試算（' + (plan==='team'?'團隊版 $1,980/月':'進階版 $980/月') + '）</div>';
+    [
+      ['原始月費', '$' + planPrice.toLocaleString(), 'var(--t1)'],
+      ['邀請人數（' + paidCount + '人）', paidCount >= 5 ? '達標5人以上' : '未達5人', paidCount>=5?'var(--grn)':'var(--t3)'],
+      ['邀請碼折扣', discount > 0 ? '-$' + discount : '—', 'var(--red)'],
+    ].forEach(function(row) {
+      h += '<div class="ri"><span class="rl" style="font-size:14px">' + row[0] + '</span><span class="rv" style="color:' + row[2] + ';font-size:14px">' + row[1] + '</span></div>';
+    });
+    h += '<div style="display:flex;justify-content:space-between;padding-top:10px;border-top:0.5px solid var(--bdr);margin-top:4px">';
+    h += '<span style="font-size:16px;font-weight:600">本月實際月費</span>';
+    h += '<span style="font-size:20px;font-weight:800;color:var(--acc)">$' + actualFee.toLocaleString() + '</span>';
+    h += '</div></div>';
+  } else {
+    h += '<div class="ib-yel" style="font-size:14px">升級至進階版或團隊版後可享受邀請折扣</div>';
+  }
+  h += '</div>';
+
+  // ── 已邀請會員名單 ──
+  h += '<div class="card">';
+  h += '<div class="ct">已邀請會員名單 <span class="badge b-gray">' + invitedMembers.length + '人</span></div>';
+  if (invitedMembers.length === 0) {
+    h += '<div style="text-align:center;padding:20px;color:var(--t2)">還沒有邀請任何會員</div>';
+  } else {
+    h += '<table style="width:100%;border-collapse:collapse;font-size:14px">';
+    h += '<tr style="border-bottom:0.5px solid var(--bdr);color:var(--t2)">';
+    h += '<th style="text-align:left;padding:8px 6px;font-weight:400">會員名稱</th>';
+    h += '<th style="text-align:center;padding:8px 6px;font-weight:400">加入時間</th>';
+    h += '<th style="text-align:center;padding:8px 6px;font-weight:400">方案</th>';
+    h += '<th style="text-align:center;padding:8px 6px;font-weight:400">狀態</th>';
+    h += '</tr>';
+    invitedMembers.forEach(function(m) {
+      var planLbl = m.plan==='team'?'團隊版':m.plan==='pro'?'進階版':'基本版';
+      var planCol = m.plan==='free'?'b-gray':'b-acc';
+      var isPaid = m.plan !== 'free';
+      h += '<tr style="border-bottom:0.5px solid var(--bdr)">';
+      h += '<td style="padding:10px 6px;font-weight:500">' + (m.name||'—') + ' 顧問</td>';
+      h += '<td style="text-align:center;padding:10px 6px;color:var(--t2)">' + new Date(m.created_at).toLocaleDateString('zh-TW') + '</td>';
+      h += '<td style="text-align:center;padding:10px 6px"><span class="badge ' + planCol + '">' + planLbl + '</span></td>';
+      h += '<td style="text-align:center;padding:10px 6px"><span style="color:' + (isPaid?'var(--grn)':'var(--t3)') + '">' + (isPaid?'有效':'免費版') + '</span></td>';
+      h += '</tr>';
+    });
+    h += '</table>';
+  }
+  h += '</div>';
+
+  el.innerHTML = h;
 }
+
+function inviteBySMS(code) {
+  var url = BASE_URL + '/app.html?ref=' + code;
+  var msg = '邀請你加入顧問PRO貸款評估平台，使用邀請碼 ' + code + ' 註冊：' + url;
+  if (navigator.share) {
+    navigator.share({ text: msg });
+  } else {
+    navigator.clipboard.writeText(msg).then(function(){ alert('已複製邀請訊息，請貼到簡訊傳送'); });
+  }
+}
+
 
 // ══════════════════════════════
 // AI 評分規則
