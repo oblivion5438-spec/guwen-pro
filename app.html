@@ -592,7 +592,12 @@ function calcScores(lead) {
     propStatus = propRatio <= propThresholds.t1 ? 'ok' : propRatio <= propThresholds.t2 ? 'warn' : 'bad';
   }
 
-  return { bank:bank, car:car, bike:bike, phone:phone, pawn:pawn, propRatio:propRatio, propStatus:propStatus, maxLoan:maxLoan, lateWarning:lateWarning, bankRejBlock: (bankRejCount>=4 && R.bankRej4Block) };
+  var noSalary = (salary <= 0);
+  var bankBlocked = (bank === 0 && ((hasAlert && R.bankAlertBlock) || (bankRejCount >= 4 && R.bankRej4Block)));
+  var bankNoData = (bank === 0 && !bankBlocked && noSalary);
+  var noPawn = !lead.has_pawn_borrow;
+
+  return { bank:bank, car:car, bike:bike, phone:phone, pawn:pawn, propRatio:propRatio, propStatus:propStatus, maxLoan:maxLoan, lateWarning:lateWarning, bankRejBlock: (bankRejCount>=4 && R.bankRej4Block), bankBlocked:bankBlocked, bankNoData:bankNoData, noSalary:noSalary, noPawn:noPawn };
 }
 
 function scoreColor(s) {
@@ -604,18 +609,43 @@ function scoreBarColor(s) {
 
 function buildProbCards(scores) {
   var items = [
-    ['銀行信貸', scores.bank], ['汽車貸款', scores.car], ['機車貸款', scores.bike],
-    ['商品手機貸', scores.phone], ['當鋪借貸', scores.pawn]
+    ['銀行信貸', scores.bank, 'bank'],
+    ['汽車貸款', scores.car, 'fin'],
+    ['機車貸款', scores.bike, 'fin'],
+    ['商品手機貸', scores.phone, 'fin'],
+    ['當鋪借貸', scores.pawn, 'pawn'],
   ];
   var html = '';
   items.forEach(function(item) {
-    var n = item[0], s = item[1];
-    var vc = s > 0 ? scoreColor(s) : 'p-none';
-    var bc = s > 0 ? scoreBarColor(s) : 'pb-none';
+    var n = item[0], s = item[1], type = item[2];
+    var label, vc, bc;
+    if (type === 'bank') {
+      if (scores.bankBlocked) {
+        label = '封鎖'; vc = 'p-red'; bc = 'pb-red';
+      } else if (scores.bankNoData) {
+        label = '未填薪水'; vc = 'p-none'; bc = 'pb-none';
+      } else {
+        label = s > 0 ? s + '%' : '—';
+        vc = s > 0 ? scoreColor(s) : 'p-none';
+        bc = s > 0 ? scoreBarColor(s) : 'pb-none';
+      }
+    } else if (type === 'fin') {
+      if (scores.noSalary) {
+        label = '未填薪水'; vc = 'p-none'; bc = 'pb-none';
+      } else {
+        label = s > 0 ? s + '%' : '無';
+        vc = s > 0 ? scoreColor(s) : 'p-none';
+        bc = s > 0 ? scoreBarColor(s) : 'pb-none';
+      }
+    } else { // pawn
+      label = scores.noPawn ? '無' : (s > 0 ? s + '%' : '—');
+      vc = s > 0 ? scoreColor(s) : 'p-none';
+      bc = s > 0 ? scoreBarColor(s) : 'pb-none';
+    }
     html += '<div class="pcard">';
     html += '<div class="pcard-n">' + n + '</div>';
-    html += '<div class="pcard-v ' + vc + '">' + (s > 0 ? s + '%' : '—') + '</div>';
-    html += '<div class="pb-w"><div class="pb-f ' + bc + '" style="width:' + s + '%"></div></div>';
+    html += '<div class="pcard-v ' + vc + '">' + label + '</div>';
+    html += '<div class="pb-w"><div class="pb-f ' + bc + '" style="width:' + (s||0) + '%"></div></div>';
     html += '</div>';
   });
   if (scores.propRatio !== null) {
@@ -2006,7 +2036,7 @@ function clientStep3() {
   incomeCard.innerHTML =
     '<div style="font-size:16px;font-weight:600;margin-bottom:10px">💼 收入狀況</div>' +
     '<div class="frow2">' +
-      '<div class="frow"><div class="flbl">月薪（元）</div><input class="fi" id="c-salary" type="number" placeholder="40000" inputmode="numeric"></div>' +
+      '<div class="frow"><div class="flbl">月薪（萬）</div><input class="fi" id="c-salary" type="number" placeholder="4" inputmode="numeric" step="0.1"></div>' +
       '<div class="frow"><div class="flbl">有無薪轉</div><select class="fi" id="c-transfer"><option value="true">有薪轉</option><option value="false">無薪轉</option></select></div>' +
     '</div>' +
     '<div class="frow2" style="margin-top:8px">' +
@@ -2186,10 +2216,11 @@ function toggleLaborYears(val) {
 }
 
 function updateClientMaxLoan() {
-  var sal = parseInt(document.getElementById('c-salary') ? document.getElementById('c-salary').value : 0) || 0;
+  var salWan = parseFloat(document.getElementById('c-salary') ? document.getElementById('c-salary').value : 0) || 0;
+  var sal = Math.round(salWan * 10000); // 萬換元
   var hasTransfer = document.getElementById('c-transfer') ? document.getElementById('c-transfer').value === 'true' : false;
   var ccLimitWan = parseFloat(document.getElementById('c-cc-limit') ? document.getElementById('c-cc-limit').value : 0) || 0;
-  var ccLimit = ccLimitWan * 10000; // 萬換元
+  var ccLimit = Math.round(ccLimitWan * 10000);
   var max = hasTransfer && sal > 0 ? Math.max(0, sal * 22 - ccLimit) : 0;
   var el = document.getElementById('c-max-loan');
   if (el) el.textContent = max > 0 ? '$' + max.toLocaleString() : (sal > 0 ? '（需有薪轉才計算）' : '—');
@@ -2298,7 +2329,8 @@ async function submitClientForm() {
   if (!clientMember) return;
   showLoading('評估中…');
   var g = function(id) { var el = document.getElementById(id); return el ? el.value || '' : ''; };
-  var salary = parseInt(g('c-salary')) || null;
+  var salaryWan = parseFloat(g('c-salary')) || null;
+  var salary = salaryWan ? Math.round(salaryWan * 10000) : null;
   var ccLimitWan = parseFloat(g('c-cc-limit')) || 0;
   var ccLimitYuan = Math.round(ccLimitWan * 10000);
   var laborType = g('c-labor-type') || 'none';
@@ -2390,18 +2422,41 @@ async function submitClientForm() {
     scoreCard.appendChild(maxDiv);
   }
 
-  // 補保人建議
-  if (scores.bank > 0 && scores.bank < scoreRules.scoreGuarantorThreshold) {
-    var guarantorDiv = document.createElement('div');
-    guarantorDiv.className = 'ib-yel';
-    guarantorDiv.style.marginTop = '8px';
-    guarantorDiv.innerHTML = '💡 銀行信貸評分較低，建議與顧問討論是否補保人';
-    scoreCard.appendChild(guarantorDiv);
+  // 補保人建議（只有汽車/機車/手機貸分數低才建議）
+  var finScores = [scores.car, scores.bike, scores.phone].filter(function(s) { return s > 0; });
+  if (finScores.length > 0) {
+    var avgFin = finScores.reduce(function(a,b){return a+b;},0) / finScores.length;
+    if (avgFin < scoreRules.scoreGuarantorThreshold) {
+      var guarantorDiv = document.createElement('div');
+      guarantorDiv.className = 'ib-yel';
+      guarantorDiv.style.marginTop = '8px';
+      guarantorDiv.innerHTML = '💡 汽車/機車/商品貸評分較低，建議與顧問討論是否安排保人';
+      scoreCard.appendChild(guarantorDiv);
+    }
   }
 
   var disclaimer = document.createElement('div');
   disclaimer.style.cssText = 'font-size:12px;color:var(--t3);margin-top:8px;line-height:1.5';
   disclaimer.textContent = '此為初步評估參考，不代表任何核貸承諾，實際條件以金融機構審核為準。';
+  scoreCard.appendChild(disclaimer);
+
+  // 未填資訊提示
+  var missingItems = [];
+  if (scores.noSalary) missingItems.push('月薪');
+  if (!scoreData.credit_card_age || scoreData.credit_card_age === 'none') missingItems.push('信用卡資訊');
+  if (missingItems.length > 0) {
+    var missingDiv = document.createElement('div');
+    missingDiv.className = 'ib-yel';
+    missingDiv.style.marginTop = '8px';
+    missingDiv.innerHTML = '⚠️ 以下資訊未填，部分評估顯示「未填薪水」：<strong>' + missingItems.join('、') + '</strong>';
+    var backBtn = document.createElement('button');
+    backBtn.style.cssText = 'display:block;margin-top:8px;padding:6px 16px;background:transparent;border:0.5px solid var(--yel);border-radius:7px;color:var(--yel);cursor:pointer;font-family:var(--sans);font-size:14px';
+    backBtn.textContent = '← 返回補充資料';
+    backBtn.onclick = function() { renderClientStep(3); };
+    missingDiv.appendChild(backBtn);
+    scoreCard.appendChild(missingDiv);
+  }
+
   scoreCard.appendChild(disclaimer);
   el.appendChild(scoreCard);
 
@@ -2416,7 +2471,20 @@ async function submitClientForm() {
   var msgCard = document.createElement('div');
   msgCard.className = 'card';
   msgCard.innerHTML = '<div class="ct">💬 留言給顧問</div>' +
-    '<div style="font-size:14px;color:var(--t2);margin-bottom:8px">有任何問題或補充說明，可以在這裡留言給 ' + advisorName + ' 顧問</div>' +
+    '<div style="font-size:14px;color:var(--t2);margin-bottom:10px">有任何問題或補充說明，可以在這裡留言給 ' + advisorName + ' 顧問</div>' +
+    '<div class="frow" style="margin-bottom:10px">' +
+      '<div class="flbl">方便聯繫的時間</div>' +
+      '<select class="fi" id="client-contact-time">' +
+        '<option value="">不指定</option>' +
+        '<option>早上 9–12 點</option>' +
+        '<option>下午 12–15 點</option>' +
+        '<option>下午 15–18 點</option>' +
+        '<option>晚上 18–21 點</option>' +
+        '<option>週一至週五</option>' +
+        '<option>週末假日</option>' +
+        '<option>任何時間皆可</option>' +
+      '</select>' +
+    '</div>' +
     '<textarea class="fi" id="client-message" rows="4" style="resize:none" placeholder="例如：我有一台車想詢問汽車貸款，方便時請聯繫我…"></textarea>' +
     '<div style="font-size:13px;color:var(--t3);margin-top:6px">您的聯絡資訊已包含在填寫的資料中</div>';
   el.appendChild(msgCard);
@@ -2428,11 +2496,12 @@ async function submitClientForm() {
   sendBtn.textContent = '送出留言';
   sendBtn.onclick = async function() {
     var msg = document.getElementById('client-message') ? document.getElementById('client-message').value.trim() : '';
+    var contactTime = document.getElementById('client-contact-time') ? document.getElementById('client-contact-time').value : '';
     if (!msg) { alert('請輸入留言內容'); return; }
     sendBtn.disabled = true;
     sendBtn.textContent = '送出中…';
-    // 更新 advisor_note
-    await sb.from('leads').update({ advisor_note: '【客戶留言】' + msg }).eq('id', r.data.id);
+    var fullMsg = (contactTime ? '【方便聯繫：' + contactTime + '】\n' : '') + msg;
+    await sb.from('leads').update({ advisor_note: (payload.advisor_note ? payload.advisor_note + '\n' : '') + '【客戶留言】' + fullMsg }).eq('id', r.data.id);
     msgCard.innerHTML = '<div class="ct">💬 留言給顧問</div>' +
       '<div class="ib-grn" style="font-size:14px">✓ 留言已送出！' + advisorName + ' 顧問會盡快回覆您。</div>';
     el.removeChild(sendBtn);
