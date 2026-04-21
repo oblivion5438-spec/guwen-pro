@@ -1856,7 +1856,7 @@ function clientStep1() {
     '</div>' +
     '<div style="background:var(--card);border:0.5px solid var(--bdr);border-radius:8px;padding:10px 12px">' +
       '<div style="font-weight:500;color:var(--t1);margin-bottom:4px">本次蒐集告知事項</div>' +
-      '蒐集目的：貸款資格評估<br>蒐集項目：姓名、年齡、地址、收入、負債狀況<br>保存期限：5年<br>利用對象：您選擇的顧問<br>聯絡窗口：privacy@guwenpro.io' +
+      '蒐集目的：貸款資格評估<br>蒐集項目：姓名、年齡、地址、收入、負債狀況<br>保存期限：5年<br>利用對象：您選擇的顧問' +
     '</div>';
   card.appendChild(lawDetail);
 
@@ -2010,11 +2010,14 @@ function clientStep3() {
       '<div class="frow"><div class="flbl">有無薪轉</div><select class="fi" id="c-transfer"><option value="true">有薪轉</option><option value="false">無薪轉</option></select></div>' +
     '</div>' +
     '<div class="frow2" style="margin-top:8px">' +
-      '<div class="frow"><div class="flbl">勞保年資</div><select class="fi" id="c-labor"><option value="none">未投保</option><option value="6m+">6個月以上</option><option value="1y+">1年以上</option></select></div>' +
+      '<div class="frow"><div class="flbl">投保單位</div><select class="fi" id="c-labor-type" onchange="toggleLaborYears(this.value)"><option value="none">沒保（無投保）</option><option value="labor">勞保（一般公司）</option><option value="guild">公會保（職業工會）</option><option value="fish">漁保</option><option value="farm">農保</option><option value="national">國保（國民年金）</option></select></div>' +
+      '<div id="c-labor-years-row" style="display:none;margin-top:8px">' +
+      '<div class="frow"><div class="flbl">總投保年資（選填）</div><input class="fi" id="c-labor-years" type="number" placeholder="" inputmode="numeric" step="0.5"></div>' +
+      '<div style="font-size:12px;color:var(--t3);margin-top:4px">忘記可不填，填入有助提升評估準確度</div></div>' +
       '<div class="frow"><div class="flbl">信用卡持卡時間</div><select class="fi" id="c-cc"><option value="none">無卡</option><option value="3m+">3個月以上</option><option value="6m+">6個月以上</option><option value="1y+">1年以上</option></select></div>' +
     '</div>' +
     '<div class="frow2" style="margin-top:8px">' +
-      '<div class="frow"><div class="flbl">信用卡總額度（元）</div><input class="fi" id="c-cc-limit" type="number" placeholder="100000" inputmode="numeric"></div>' +
+      '<div class="frow"><div class="flbl">信用卡總額度（萬）</div><input class="fi" id="c-cc-limit" type="number" placeholder="10" inputmode="numeric" step="0.1"></div>' +
       '<div class="frow"><div class="flbl">信用卡張數</div><input class="fi" id="c-cc-count" type="number" placeholder="2" inputmode="numeric"></div>' +
     '</div>' +
     '<div class="frow2" style="margin-top:8px">' +
@@ -2174,10 +2177,16 @@ function addClientLoanRow(type, hasPenalty) {
 
 
 
+function toggleLaborYears(val) {
+  var row = document.getElementById('c-labor-years-row');
+  if (row) row.style.display = (val && val !== 'none') ? 'block' : 'none';
+}
+
 function updateClientMaxLoan() {
   var sal = parseInt(document.getElementById('c-salary') ? document.getElementById('c-salary').value : 0) || 0;
   var hasTransfer = document.getElementById('c-transfer') ? document.getElementById('c-transfer').value === 'true' : false;
-  var ccLimit = parseInt(document.getElementById('c-cc-limit') ? document.getElementById('c-cc-limit').value : 0) || 0;
+  var ccLimitWan = parseFloat(document.getElementById('c-cc-limit') ? document.getElementById('c-cc-limit').value : 0) || 0;
+  var ccLimit = ccLimitWan * 10000; // 萬換元
   var max = hasTransfer && sal > 0 ? Math.max(0, sal * 22 - ccLimit) : 0;
   var el = document.getElementById('c-max-loan');
   if (el) el.textContent = max > 0 ? '$' + max.toLocaleString() : (sal > 0 ? '（需有薪轉才計算）' : '—');
@@ -2299,10 +2308,10 @@ async function submitClientForm() {
     fund_purpose: g('c-purpose'),
     monthly_salary: salary,
     has_salary_transfer: g('c-transfer') === 'true',
-    labor_insurance_years: g('c-labor'),
+    labor_insurance_type: g('c-labor-type') || 'none',
+    labor_insurance_years: g('c-labor-years') || null,
     credit_card_age: g('c-cc'),
-    credit_card_limit: parseInt(g('c-cc-limit')) || 0,
-    credit_card_count: parseInt(g('c-cc-count')) || 0,
+    credit_card_limit: Math.round((parseFloat(g('c-cc-limit')) || 0) * 10000),
     has_car_license: g('c-car-lic') === 'true',
     has_bike_license: g('c-bike-lic') === 'true',
     has_property: g('c-property') === 'true',
