@@ -21,7 +21,7 @@
   --blu:#2A6AB8;--bl:rgba(42,106,184,.12);
   --serif:'Georgia',serif;--sans:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
 }
-html,body{height:100%;background:var(--bg);color:var(--t0);font-family:var(--sans);overflow-x:hidden}
+html,body{height:100%;background:var(--bg);color:var(--t0);font-family:var(--sans);overflow-x:hidden;font-size:16px}
 
 /* ── LAYOUT ── */
 #app{height:100%;display:flex;flex-direction:column}
@@ -29,24 +29,24 @@ html,body{height:100%;background:var(--bg);color:var(--t0);font-family:var(--san
 .page.active{display:flex;flex-direction:column}
 
 /* ── AUTH PAGES ── */
-.auth-wrap{min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px}
-.auth-logo{font-size:28px;font-weight:800;margin-bottom:8px;letter-spacing:-.5px}
+.auth-wrap{min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px;width:100%}
+.auth-logo{font-size:34px;font-weight:800;margin-bottom:8px;letter-spacing:-.5px;text-align:center}
 .auth-logo span{color:var(--acc)}
-.auth-sub{font-size:13px;color:var(--t2);margin-bottom:32px}
-.auth-box{background:var(--card);border:0.5px solid var(--bdr2);border-radius:14px;padding:28px 24px;width:100%;max-width:400px}
-.auth-title{font-size:18px;font-weight:600;margin-bottom:20px}
+.auth-sub{font-size:16px;color:var(--t2);margin-bottom:32px;text-align:center}
+.auth-box{background:var(--card);border:0.5px solid var(--bdr2);border-radius:16px;padding:32px 28px;width:100%;max-width:440px}
+.auth-title{font-size:20px;font-weight:600;margin-bottom:20px}
 .auth-tabs{display:flex;border-bottom:0.5px solid var(--bdr);margin-bottom:20px}
-.auth-tab{flex:1;padding:8px;font-size:13px;cursor:pointer;color:var(--t2);border:none;background:none;font-family:var(--sans);border-bottom:2px solid transparent;margin-bottom:-0.5px;transition:all .15s}
+.auth-tab{flex:1;padding:10px;font-size:15px;cursor:pointer;color:var(--t2);border:none;background:none;font-family:var(--sans);border-bottom:2px solid transparent;margin-bottom:-0.5px;transition:all .15s}
 .auth-tab.on{color:var(--acc);border-bottom-color:var(--acc);font-weight:500}
-.frow{display:flex;flex-direction:column;gap:4px;margin-bottom:14px}
-.flbl{font-size:11px;color:var(--t1);font-weight:500}
-.fi{width:100%;padding:10px 12px;background:var(--inp);border:0.5px solid var(--bdr2);border-radius:8px;color:var(--inpt);font-size:14px;font-family:var(--sans);transition:border-color .15s;-webkit-appearance:none}
+.frow{display:flex;flex-direction:column;gap:5px;margin-bottom:16px}
+.flbl{font-size:13px;color:var(--t1);font-weight:500}
+.fi{width:100%;padding:12px 14px;background:var(--inp);border:0.5px solid var(--bdr2);border-radius:9px;color:var(--inpt);font-size:15px;font-family:var(--sans);transition:border-color .15s;-webkit-appearance:none}
 .fi:focus{outline:none;border-color:var(--acc)}
 .fg2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .btn-p{width:100%;padding:12px;background:var(--acc);color:#FFF;border:none;border-radius:9px;font-size:14px;font-weight:500;cursor:pointer;font-family:var(--sans);transition:all .2s;margin-top:4px}
 .btn-p:hover{background:var(--acc2)}
 .btn-p:disabled{opacity:.5;cursor:not-allowed}
-.btn-sm{padding:6px 12px;background:transparent;color:var(--t1);border:0.5px solid var(--bdr2);border-radius:7px;font-size:12px;cursor:pointer;font-family:var(--sans);transition:all .15s}
+.btn-sm{padding:7px 14px;background:transparent;color:var(--t1);border:0.5px solid var(--bdr2);border-radius:7px;font-size:13px;cursor:pointer;font-family:var(--sans);transition:all .15s}
 .btn-sm:hover{border-color:var(--t2)}
 .btn-grn{padding:8px 16px;background:var(--grn);color:#FFF;border:none;border-radius:8px;font-size:12px;font-weight:500;cursor:pointer;font-family:var(--sans)}
 .auth-hint{font-size:11px;color:var(--t2);text-align:center;margin-top:14px;line-height:1.5}
@@ -58,7 +58,7 @@ html,body{height:100%;background:var(--bg);color:var(--t0);font-family:var(--san
 .top-logo{font-size:17px;font-weight:800;letter-spacing:-.3px}
 .top-logo span{color:var(--acc)}
 .top-right{display:flex;align-items:center;gap:8px}
-.badge{display:inline-block;font-size:9px;padding:2px 7px;border-radius:20px;font-weight:500}
+.badge{display:inline-block;font-size:11px;padding:3px 9px;border-radius:20px;font-weight:500}
 .b-acc{background:var(--al);color:var(--acc)}
 .b-grn{background:var(--gl);color:var(--grn)}
 .b-red{background:var(--rl);color:var(--red)}
@@ -76,12 +76,12 @@ html,body{height:100%;background:var(--bg);color:var(--t0);font-family:var(--san
 /* ── CONTENT ── */
 .content{padding:14px 16px;flex:1}
 .card{background:var(--card);border:0.5px solid var(--bdr);border-radius:12px;padding:12px 14px;margin-bottom:10px}
-.ct{font-size:12px;font-weight:600;color:var(--t0);margin-bottom:8px;display:flex;align-items:center;justify-content:space-between;gap:5px;flex-wrap:wrap}
-.ri{display:flex;justify-content:space-between;align-items:flex-start;padding:5px 0;border-bottom:0.5px solid var(--bdr);font-size:11px;gap:6px}
+.ct{font-size:14px;font-weight:600;color:var(--t0);margin-bottom:8px;display:flex;align-items:center;justify-content:space-between;gap:5px;flex-wrap:wrap}
+.ri{display:flex;justify-content:space-between;align-items:flex-start;padding:6px 0;border-bottom:0.5px solid var(--bdr);font-size:13px;gap:6px}
 .ri:last-child{border-bottom:none}
-.rl{color:var(--t2);font-size:10px;flex-shrink:0;min-width:70px}
-.rv{font-weight:500;color:var(--t0);text-align:right;flex:1}
-.sl{font-size:10px;font-weight:600;color:var(--t1);margin:8px 0 5px;padding-bottom:3px;border-bottom:0.5px solid var(--bdr)}
+.rl{color:var(--t2);font-size:13px;flex-shrink:0;min-width:85px}
+.rv{font-weight:500;color:var(--t0);text-align:right;flex:1;font-size:14px}
+.sl{font-size:12px;font-weight:600;color:var(--t1);margin:10px 0 6px;padding-bottom:4px;border-bottom:0.5px solid var(--bdr)}
 .ib-acc{background:var(--al);border:0.5px solid rgba(200,81,26,.3);border-radius:8px;padding:8px 11px;font-size:11px;color:var(--acc);line-height:1.5;margin-bottom:8px}
 .ib-grn{background:var(--gl);border:0.5px solid rgba(45,138,78,.3);border-radius:8px;padding:8px 11px;font-size:11px;color:var(--grn);line-height:1.5;margin-bottom:8px}
 .ib-red{background:var(--rl);border:0.5px solid rgba(192,64,48,.3);border-radius:8px;padding:8px 11px;font-size:11px;color:var(--red);line-height:1.5;margin-bottom:8px}
@@ -90,15 +90,15 @@ html,body{height:100%;background:var(--bg);color:var(--t0);font-family:var(--san
 /* ── STATS ── */
 .stat-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:10px}
 .stat-card{background:var(--card);border:0.5px solid var(--bdr);border-radius:10px;padding:11px 13px}
-.stat-l{font-size:10px;color:var(--t2);margin-bottom:3px}
-.stat-v{font-size:20px;font-weight:700;color:var(--t0)}
+.stat-l{font-size:13px;color:var(--t2);margin-bottom:3px}
+.stat-v{font-size:24px;font-weight:700;color:var(--t0)}
 .stat-s{font-size:9px;color:var(--t3);margin-top:2px}
 
 /* ── PROB CARDS ── */
 .prob-row{display:grid;grid-template-columns:repeat(3,1fr);gap:5px;margin-bottom:6px}
 .prob-row-2{display:grid;grid-template-columns:repeat(3,1fr);gap:5px}
 .pcard{border:0.5px solid var(--bdr);border-radius:8px;padding:7px;text-align:center;background:var(--inp)}
-.pcard-n{font-size:8px;color:var(--t3);margin-bottom:3px}
+.pcard-n{font-size:10px;color:var(--t3);margin-bottom:3px}
 .pcard-v{font-size:15px;font-weight:700}
 .pb-w{height:3px;background:rgba(255,255,255,.1);border-radius:2px;overflow:hidden;margin-top:3px}
 .pb-f{height:100%;border-radius:2px}
@@ -113,13 +113,13 @@ html,body{height:100%;background:var(--bg);color:var(--t0);font-family:var(--san
 .lead-item:hover{border-color:var(--bdr2)}
 .lead-av{width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;flex-shrink:0}
 .lead-info{flex:1;min-width:0}
-.lead-name{font-size:13px;font-weight:500;color:var(--t0)}
-.lead-sub{font-size:10px;color:var(--t2);margin-top:2px}
+.lead-name{font-size:15px;font-weight:500;color:var(--t0)}
+.lead-sub{font-size:13px;color:var(--t2);margin-top:2px}
 .lead-right{display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex-shrink:0}
 
 /* ── FORM ── */
 .form-section{background:var(--card);border:0.5px solid var(--bdr);border-radius:12px;padding:14px;margin-bottom:10px}
-.fs-title{font-size:11px;font-weight:600;color:var(--t1);margin-bottom:10px;padding-bottom:6px;border-bottom:0.5px solid var(--bdr);display:flex;align-items:center;gap:6px}
+.fs-title{font-size:13px;font-weight:600;color:var(--t1);margin-bottom:10px;padding-bottom:6px;border-bottom:0.5px solid var(--bdr);display:flex;align-items:center;gap:6px}
 .frow2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .frow.full{grid-column:1/-1}
 .req{color:var(--acc);font-size:10px}
@@ -130,8 +130,8 @@ html,body{height:100%;background:var(--bg);color:var(--t0);font-family:var(--san
 .tgl-row.opted-blu{border-color:var(--blu)}
 .tgl-row.req-row{opacity:.7;pointer-events:none}
 .tgl-info{flex:1}
-.tgl-t{font-size:11px;font-weight:500;color:var(--t0)}
-.tgl-s{font-size:10px;color:var(--t2);margin-top:2px;line-height:1.4}
+.tgl-t{font-size:13px;font-weight:500;color:var(--t0)}
+.tgl-s{font-size:12px;color:var(--t2);margin-top:2px;line-height:1.4}
 .tgl{width:32px;height:18px;border-radius:9px;background:var(--bdr2);position:relative;cursor:pointer;transition:background .2s;flex-shrink:0;display:inline-block;margin-top:2px}
 .tgl.on{background:var(--grn)}
 .tgl.on-blu{background:var(--blu)}
@@ -180,8 +180,8 @@ html,body{height:100%;background:var(--bg);color:var(--t0);font-family:var(--san
   .ds-logo{padding:16px 16px 12px;border-bottom:0.5px solid var(--bdr);font-size:18px;font-weight:800}
   .ds-logo span{color:var(--acc)}
   .ds-navs{padding:8px 8px 0}
-  .ds-lbl{font-size:9px;color:var(--t3);padding:0 7px;margin:6px 0 3px;text-transform:uppercase;letter-spacing:.07em}
-  .ds-ni{display:flex;align-items:center;gap:7px;padding:7px 9px;border-radius:8px;cursor:pointer;font-size:12px;color:var(--t2);background:transparent;border:none;font-family:var(--sans);width:100%;text-align:left;transition:all .12s}
+  .ds-lbl{font-size:11px;color:var(--t3);padding:0 7px;margin:6px 0 3px;text-transform:uppercase;letter-spacing:.07em}
+  .ds-ni{display:flex;align-items:center;gap:7px;padding:9px 11px;border-radius:8px;cursor:pointer;font-size:14px;color:var(--t2);background:transparent;border:none;font-family:var(--sans);width:100%;text-align:left;transition:all .12s}
   .ds-ni:hover{background:rgba(255,255,255,.04);color:var(--t0)}
   .ds-ni.on{background:var(--al);color:var(--acc);font-weight:500}
   .desktop-main{flex:1;overflow-y:auto;display:flex;flex-direction:column}
@@ -254,7 +254,7 @@ html,body{height:100%;background:var(--bg);color:var(--t0);font-family:var(--san
         <div class="fg2">
           <div class="frow">
             <div class="flbl">所在縣市</div>
-            <select class="fi" id="reg-city">
+            <select class="fi" id="reg-city" onchange="updateDistricts()">
               <option value="">選擇縣市</option>
               <option>台北市</option><option>新北市</option><option>桃園市</option>
               <option>台中市</option><option>台南市</option><option>高雄市</option>
@@ -267,8 +267,9 @@ html,body{height:100%;background:var(--bg);color:var(--t0);font-family:var(--san
           </div>
           <div class="frow">
             <div class="flbl">行政區</div>
-            <input class="fi" id="reg-district" placeholder="例：信義區">
+            <select class="fi" id="reg-district"><option value="">請先選縣市</option></select>
           </div>
+
         </div>
         <div class="frow">
           <div class="flbl">密碼 <span class="req">*</span></div>
@@ -276,7 +277,7 @@ html,body{height:100%;background:var(--bg);color:var(--t0);font-family:var(--san
         </div>
 
         <!-- 服務須知 -->
-        <div style="background:var(--inp);border-radius:8px;padding:10px 12px;font-size:10px;color:var(--t2);line-height:1.6;max-height:80px;overflow-y:auto;margin:10px 0">
+        <div style="background:var(--inp);border-radius:8px;padding:12px 14px;font-size:13px;color:var(--t2);line-height:1.6;max-height:100px;overflow-y:auto;margin:10px 0">
           <strong style="color:var(--t0)">會員服務須知摘要</strong><br>
           本平台供貸款顧問使用。您有義務依個資法保護客戶個人資料，不得超出授權範圍使用、不得轉售客戶資料。違規者停權並保留法律追訴權。完整條款請見服務條款頁面。
         </div>
@@ -655,11 +656,17 @@ async function renderDash() {
     <div class="card">
       <div class="ct">我的推廣連結</div>
       <div style="background:var(--inp);border-radius:8px;padding:10px 12px;font-size:12px;font-family:monospace;color:var(--acc);word-break:break-all;margin-bottom:8px">
-        ${window.location.origin}/?ref=${currentMember?.invite_code || 'LOADING'}
+        ${window.location.origin}/app.html?ref=${currentMember?.invite_code || 'LOADING'}
       </div>
-      <div style="display:flex;gap:6px;flex-wrap:wrap">
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px">
         <button class="btn-sm" onclick="copyLink()">複製連結</button>
         <button class="btn-sm" onclick="shareToLine()">分享到 LINE</button>
+        <button class="btn-sm" onclick="toggleQR()">顯示 QR Code</button>
+      </div>
+      <div id="qr-wrap" style="display:none;text-align:center;padding:12px 0">
+        <canvas id="qr-canvas" width="180" height="180" style="border-radius:8px;background:white;padding:8px"></canvas>
+        <div style="font-size:10px;color:var(--t2);margin-top:6px">掃描加入顧問PRO評估</div>
+        <button class="btn-sm" style="margin-top:6px" onclick="downloadQR()">下載 QR Code</button>
       </div>
     </div>
   `;
@@ -738,8 +745,8 @@ function renderAddLead() {
         <div class="frow"><div class="flbl">機車駕照</div><select class="fi" id="n-bike-lic"><option value="true">有</option><option value="false">無</option></select></div>
       </div>
       <div class="frow2">
-        <div class="frow"><div class="flbl">名下不動產</div><select class="fi" id="n-property"><option value="false">無</option><option value="true">有</option></select></div>
-        <div class="frow"><div class="flbl">有無抵押品</div><select class="fi" id="n-collateral"><option value="false">無</option><option value="true">有</option></select></div>
+        <div class="frow"><div class="flbl">名下不動產</div><select class="fi" id="n-property" onchange="togglePropFields(this.value)"><option value="false">無</option><option value="true">有</option></select></div>
+        <div class="frow"><div class="flbl">有無抵押品</div><select class="fi" id="n-collateral"><option value="false">無</option><option value="true">有實物抵押</option></select></div>
       </div>
     </div>
 
@@ -748,6 +755,109 @@ function renderAddLead() {
       <div class="frow2">
         <div class="frow"><div class="flbl">銀行端未過件距今</div><select class="fi" id="n-bank-rej"><option value="none">無</option><option value="<1m">未滿1個月</option><option value="1-3m">1–3個月</option><option value="3-6m">3–6個月</option></select></div>
         <div class="frow"><div class="flbl">融資端未過件距今</div><select class="fi" id="n-fin-rej"><option value="none">無</option><option value="<1m">未滿1個月</option><option value="1-3m">1–3個月</option><option value="3-6m">3–6個月</option></select></div>
+      </div>
+    </div>
+
+    <div class="form-section">
+      <div class="fs-title">🏦 銀行信用貸款</div>
+      <div style="font-size:10px;color:var(--t2);margin-bottom:8px">無則留空</div>
+      <div class="frow2">
+        <div class="frow"><div class="flbl">貸款金額（元）</div><input class="fi" id="n-bank-amt" type="number" placeholder="300000" inputmode="numeric"></div>
+        <div class="frow"><div class="flbl">月繳金額（元）</div><input class="fi" id="n-bank-pay" type="number" placeholder="8000" inputmode="numeric"></div>
+      </div>
+      <div class="frow2">
+        <div class="frow"><div class="flbl">已繳期數</div><input class="fi" id="n-bank-paid" type="number" placeholder="12" inputmode="numeric"></div>
+        <div class="frow"><div class="flbl">繳款狀況</div><select class="fi" id="n-bank-status"><option value="normal">正常</option><option value="overdue">遲繳</option></select></div>
+      </div>
+      <div class="frow"><div class="flbl">貸款銀行/機構</div><input class="fi" id="n-bank-inst" placeholder="例：玉山銀行"></div>
+    </div>
+
+    <div class="form-section">
+      <div class="fs-title">🚗 汽車貸款</div>
+      <div style="font-size:10px;color:var(--t2);margin-bottom:8px">無則留空</div>
+      <div class="frow2">
+        <div class="frow"><div class="flbl">貸款金額（元）</div><input class="fi" id="n-car-amt" type="number" placeholder="600000" inputmode="numeric"></div>
+        <div class="frow"><div class="flbl">月繳金額（元）</div><input class="fi" id="n-car-pay" type="number" placeholder="12000" inputmode="numeric"></div>
+      </div>
+      <div class="frow2">
+        <div class="frow"><div class="flbl">違約金（元）</div><input class="fi" id="n-car-penalty" type="number" placeholder="18000" inputmode="numeric"></div>
+        <div class="frow"><div class="flbl">繳款狀況</div><select class="fi" id="n-car-status"><option value="normal">正常</option><option value="overdue">遲繳</option></select></div>
+      </div>
+      <div class="frow"><div class="flbl">貸款公司</div><input class="fi" id="n-car-inst" placeholder="例：和潤企業"></div>
+    </div>
+
+    <div class="form-section">
+      <div class="fs-title">🛵 機車貸款</div>
+      <div style="font-size:10px;color:var(--t2);margin-bottom:8px">無則留空</div>
+      <div class="frow2">
+        <div class="frow"><div class="flbl">貸款金額（元）</div><input class="fi" id="n-bike-amt" type="number" placeholder="45000" inputmode="numeric"></div>
+        <div class="frow"><div class="flbl">月繳金額（元）</div><input class="fi" id="n-bike-pay" type="number" placeholder="2500" inputmode="numeric"></div>
+      </div>
+      <div class="frow2">
+        <div class="frow"><div class="flbl">違約金（元）</div><input class="fi" id="n-bike-penalty" type="number" placeholder="0" inputmode="numeric"></div>
+        <div class="frow"><div class="flbl">繳款狀況</div><select class="fi" id="n-bike-status"><option value="normal">正常</option><option value="overdue">遲繳</option></select></div>
+      </div>
+      <div class="frow"><div class="flbl">貸款公司</div><input class="fi" id="n-bike-inst" placeholder="例：裕融企業"></div>
+    </div>
+
+    <div class="form-section">
+      <div class="fs-title">📱 商品貸／手機貸</div>
+      <div style="font-size:10px;color:var(--t2);margin-bottom:8px">無則留空</div>
+      <div class="frow2">
+        <div class="frow"><div class="flbl">貸款金額（元）</div><input class="fi" id="n-phone-amt" type="number" placeholder="30000" inputmode="numeric"></div>
+        <div class="frow"><div class="flbl">月繳金額（元）</div><input class="fi" id="n-phone-pay" type="number" placeholder="3000" inputmode="numeric"></div>
+      </div>
+      <div class="frow2">
+        <div class="frow"><div class="flbl">違約金（元）</div><input class="fi" id="n-phone-penalty" type="number" placeholder="0" inputmode="numeric"></div>
+        <div class="frow"><div class="flbl">繳款狀況</div><select class="fi" id="n-phone-status"><option value="normal">正常</option><option value="overdue">遲繳</option></select></div>
+      </div>
+      <div class="frow"><div class="flbl">貸款公司</div><input class="fi" id="n-phone-inst" placeholder="例：中租零顧"></div>
+    </div>
+
+    <div class="form-section">
+      <div class="fs-title">🏪 當鋪／民間借貸</div>
+      <div style="font-size:10px;color:var(--t2);margin-bottom:8px">無則留空</div>
+      <div class="frow2">
+        <div class="frow"><div class="flbl">借款金額（元）</div><input class="fi" id="n-pawn-amt" type="number" placeholder="100000" inputmode="numeric"></div>
+        <div class="frow"><div class="flbl">月繳利息（元）</div><input class="fi" id="n-pawn-pay" type="number" placeholder="5000" inputmode="numeric"></div>
+      </div>
+      <div class="frow2">
+        <div class="frow"><div class="flbl">月利率（%）</div><input class="fi" id="n-pawn-rate" type="number" placeholder="5" step="0.1" inputmode="decimal"></div>
+        <div class="frow"><div class="flbl">繳款狀況</div><select class="fi" id="n-pawn-status"><option value="normal">正常</option><option value="overdue">遲繳</option></select></div>
+      </div>
+    </div>
+
+    <div class="form-section" id="prop-section" style="display:none">
+      <div class="fs-title">🏠 不動產貸款</div>
+      <div style="font-size:10px;color:var(--t2);margin-bottom:8px">請填寫有的胎數，無則留空</div>
+      <div style="font-size:11px;font-weight:500;color:var(--t2);margin-bottom:6px;padding-bottom:4px;border-bottom:0.5px solid var(--bdr)">會員估價</div>
+      <div class="frow"><div class="flbl">不動產估價（元）<span class="req">*</span></div><input class="fi" id="n-prop-val" type="number" placeholder="12000000" inputmode="numeric"></div>
+      <div style="font-size:11px;font-weight:500;color:var(--t2);margin:10px 0 6px;padding-bottom:4px;border-bottom:0.5px solid var(--bdr)">一胎</div>
+      <div class="frow2">
+        <div class="frow"><div class="flbl">貸款餘額（元）</div><input class="fi" id="n-prop1-amt" type="number" placeholder="5800000" inputmode="numeric"></div>
+        <div class="frow"><div class="flbl">月繳（元）</div><input class="fi" id="n-prop1-pay" type="number" placeholder="25000" inputmode="numeric"></div>
+      </div>
+      <div class="frow2">
+        <div class="frow"><div class="flbl">違約金（元）</div><input class="fi" id="n-prop1-penalty" type="number" placeholder="0" inputmode="numeric"></div>
+        <div class="frow"><div class="flbl">銀行/機構</div><input class="fi" id="n-prop1-inst" placeholder="例：台灣銀行"></div>
+      </div>
+      <div style="font-size:11px;font-weight:500;color:var(--t2);margin:10px 0 6px;padding-bottom:4px;border-bottom:0.5px solid var(--bdr)">二胎（若有）</div>
+      <div class="frow2">
+        <div class="frow"><div class="flbl">貸款餘額（元）</div><input class="fi" id="n-prop2-amt" type="number" placeholder="2200000" inputmode="numeric"></div>
+        <div class="frow"><div class="flbl">月繳（元）</div><input class="fi" id="n-prop2-pay" type="number" placeholder="10000" inputmode="numeric"></div>
+      </div>
+      <div class="frow2">
+        <div class="frow"><div class="flbl">違約金（元）</div><input class="fi" id="n-prop2-penalty" type="number" placeholder="0" inputmode="numeric"></div>
+        <div class="frow"><div class="flbl">銀行/機構</div><input class="fi" id="n-prop2-inst" placeholder="例：地方銀行"></div>
+      </div>
+      <div style="font-size:11px;font-weight:500;color:var(--yel);margin:10px 0 6px;padding-bottom:4px;border-bottom:0.5px solid var(--bdr)">三胎（若有，通常為民間）</div>
+      <div class="frow2">
+        <div class="frow"><div class="flbl">貸款餘額（元）</div><input class="fi" id="n-prop3-amt" type="number" placeholder="0" inputmode="numeric"></div>
+        <div class="frow"><div class="flbl">月繳（元）</div><input class="fi" id="n-prop3-pay" type="number" placeholder="0" inputmode="numeric"></div>
+      </div>
+      <div class="frow2">
+        <div class="frow"><div class="flbl">違約金（元）</div><input class="fi" id="n-prop3-penalty" type="number" placeholder="0" inputmode="numeric"></div>
+        <div class="frow"><div class="flbl">機構</div><input class="fi" id="n-prop3-inst" placeholder="例：民間"></div>
       </div>
     </div>
 
@@ -763,38 +873,75 @@ function renderAddLead() {
   `;
 }
 
+function togglePropFields(val) {
+  document.getElementById('prop-section').style.display = val === 'true' ? 'block' : 'none';
+}
+
+function getVal(id) { const el = document.getElementById(id); return el ? el.value : ''; }
+function getInt(id) { const el = document.getElementById(id); return el ? parseInt(el.value) || 0 : 0; }
+function getFloat(id) { const el = document.getElementById(id); return el ? parseFloat(el.value) || 0 : 0; }
+
 async function saveLead() {
-  const name = document.getElementById('n-name').value.trim();
-  const amount = document.getElementById('n-amount').value;
+  const name = getVal('n-name').trim();
+  const amount = getVal('n-amount');
   if (!name) { document.getElementById('add-err').textContent = '請填寫客戶姓名'; document.getElementById('add-err').style.display = 'block'; return; }
   document.getElementById('add-err').style.display = 'none';
   showLoading('儲存中…');
+
+  const hasProp = getVal('n-property') === 'true';
+  const propVal = getInt('n-prop-val');
+  const prop1 = getInt('n-prop1-amt');
+  const prop2 = getInt('n-prop2-amt');
+  const prop3 = getInt('n-prop3-amt');
+  const totalPropDebt = prop1 + prop2 + prop3;
+  const propRatio = hasProp && propVal > 0 ? parseFloat((totalPropDebt / propVal * 100).toFixed(1)) : null;
+
   const payload = {
     member_id: currentUser.id,
     name,
-    age: parseInt(document.getElementById('n-age').value) || null,
-    work_type: document.getElementById('n-work').value,
-    alert_status: document.getElementById('n-alert').value,
-    address: document.getElementById('n-addr').value,
-    huji_address: document.getElementById('n-huji').value,
+    age: parseInt(getVal('n-age')) || null,
+    work_type: getVal('n-work'),
+    alert_status: getVal('n-alert'),
+    address: getVal('n-addr'),
+    huji_address: getVal('n-huji'),
     required_amount: parseInt(amount) || null,
-    fund_purpose: document.getElementById('n-purpose').value,
-    monthly_salary: parseInt(document.getElementById('n-salary').value) || null,
-    has_salary_transfer: document.getElementById('n-transfer').value === 'true',
-    labor_insurance_years: document.getElementById('n-labor').value,
-    credit_card_age: document.getElementById('n-cc').value,
-    has_car_license: document.getElementById('n-car-lic').value === 'true',
-    has_bike_license: document.getElementById('n-bike-lic').value === 'true',
-    has_property: document.getElementById('n-property').value === 'true',
-    has_collateral: document.getElementById('n-collateral').value === 'true',
-    bank_recent_reject: document.getElementById('n-bank-rej').value,
-    finance_recent_reject: document.getElementById('n-fin-rej').value,
-    advisor_note: document.getElementById('n-note').value,
-    status: 'new'
+    fund_purpose: getVal('n-purpose'),
+    monthly_salary: parseInt(getVal('n-salary')) || null,
+    has_salary_transfer: getVal('n-transfer') === 'true',
+    labor_insurance_years: getVal('n-labor'),
+    credit_card_age: getVal('n-cc'),
+    has_car_license: getVal('n-car-lic') === 'true',
+    has_bike_license: getVal('n-bike-lic') === 'true',
+    has_property: hasProp,
+    has_collateral: getVal('n-collateral') === 'true',
+    bank_recent_reject: getVal('n-bank-rej'),
+    finance_recent_reject: getVal('n-fin-rej'),
+    advisor_note: getVal('n-note'),
+    status: 'new',
+    property_ratio: propRatio,
+    property_valuation: hasProp ? propVal : null,
+    property_loan1: prop1 || null,
+    property_loan2: prop2 || null,
+    property_loan3: prop3 || null,
   };
+
   const { data, error } = await sb.from('leads').insert(payload).select().single();
+  if (error) { hideLoading(); document.getElementById('add-err').textContent = '儲存失敗：' + error.message; document.getElementById('add-err').style.display = 'block'; return; }
+
+  // 儲存各類貸款
+  const loans = [];
+  if (getInt('n-bank-amt') > 0) loans.push({ lead_id: data.id, loan_type: 'credit', institution_name: getVal('n-bank-inst'), institution_type: 'bank', balance: getInt('n-bank-amt'), monthly_payment: getInt('n-bank-pay'), payment_status: getVal('n-bank-status') });
+  if (getInt('n-car-amt') > 0) loans.push({ lead_id: data.id, loan_type: 'car_new', institution_name: getVal('n-car-inst'), institution_type: 'finance', balance: getInt('n-car-amt'), monthly_payment: getInt('n-car-pay'), penalty_fee: getInt('n-car-penalty'), payment_status: getVal('n-car-status') });
+  if (getInt('n-bike-amt') > 0) loans.push({ lead_id: data.id, loan_type: 'bike', institution_name: getVal('n-bike-inst'), institution_type: 'finance', balance: getInt('n-bike-amt'), monthly_payment: getInt('n-bike-pay'), penalty_fee: getInt('n-bike-penalty'), payment_status: getVal('n-bike-status') });
+  if (getInt('n-phone-amt') > 0) loans.push({ lead_id: data.id, loan_type: 'phone', institution_name: getVal('n-phone-inst'), institution_type: 'finance', balance: getInt('n-phone-amt'), monthly_payment: getInt('n-phone-pay'), penalty_fee: getInt('n-phone-penalty'), payment_status: getVal('n-phone-status') });
+  if (getInt('n-pawn-amt') > 0) loans.push({ lead_id: data.id, loan_type: 'pawn', institution_type: 'civil', balance: getInt('n-pawn-amt'), monthly_payment: getInt('n-pawn-pay'), payment_status: getVal('n-pawn-status') });
+  if (prop1 > 0) loans.push({ lead_id: data.id, loan_type: 'property_1st', institution_name: getVal('n-prop1-inst'), institution_type: 'bank', balance: prop1, monthly_payment: getInt('n-prop1-pay'), penalty_fee: getInt('n-prop1-penalty') });
+  if (prop2 > 0) loans.push({ lead_id: data.id, loan_type: 'property_2nd', institution_name: getVal('n-prop2-inst'), institution_type: 'bank', balance: prop2, monthly_payment: getInt('n-prop2-pay'), penalty_fee: getInt('n-prop2-penalty') });
+  if (prop3 > 0) loans.push({ lead_id: data.id, loan_type: 'property_3rd', institution_name: getVal('n-prop3-inst'), institution_type: 'civil', balance: prop3, monthly_payment: getInt('n-prop3-pay'), penalty_fee: getInt('n-prop3-penalty') });
+
+  if (loans.length > 0) await sb.from('lead_loans').insert(loans);
+
   hideLoading();
-  if (error) { document.getElementById('add-err').textContent = '儲存失敗：' + error.message; document.getElementById('add-err').style.display = 'block'; return; }
   leads.unshift(data);
   showLeadDetail(data.id);
 }
@@ -881,16 +1028,144 @@ async function saveNote(id) {
   alert('備註已儲存');
 }
 
+let financeTab = 'overview';
+let fixedExpenses = [
+  { id:1, icon:'🏠', name:'房貸', amount:18500, due_day:22, remind_days:5 },
+  { id:2, icon:'📱', name:'手機費', amount:699, due_day:5, remind_days:3 },
+  { id:3, icon:'🚗', name:'車貸', amount:8200, due_day:28, remind_days:5 },
+  { id:4, icon:'💡', name:'水電費', amount:1800, due_day:15, remind_days:3 },
+];
+let extraIncome = [];
+let extraExpenses = [];
+let editingExpense = null;
+
 function renderFinance() {
   const el = document.getElementById('member-content');
+  const totalFixed = fixedExpenses.reduce((s,e)=>s+e.amount,0);
+  const totalExtraIn = extraIncome.reduce((s,e)=>s+e.amount,0);
+  const totalExtraOut = extraExpenses.reduce((s,e)=>s+e.amount,0);
+  const revenue = 284000;
+  const netBalance = revenue + totalExtraIn - totalFixed - totalExtraOut;
+  const today = new Date();
+
   el.innerHTML = `
-    <div style="font-size:14px;font-weight:600;margin-bottom:12px">收支理財工具</div>
-    <div class="ib-yel">此功能正在建置中，下一個版本上線。</div>
-    <div class="card">
-      <div class="ct">固定費用設定</div>
-      <div style="font-size:12px;color:var(--t2);padding:10px 0">即將推出：設定房貸、電話費等固定費用，系統自動提醒繳款日期。</div>
+    <div style="font-size:14px;font-weight:600;margin-bottom:10px">收支理財工具</div>
+    <div style="display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap">
+      ${['overview','expenses','remind'].map(t=>`<button onclick="financeTab='${t}';renderFinance()" style="padding:6px 14px;border-radius:20px;font-size:12px;cursor:pointer;border:0.5px solid ${financeTab===t?'var(--acc)':'var(--bdr2)'};background:${financeTab===t?'var(--al)':'transparent'};color:${financeTab===t?'var(--acc)':'var(--t1)'};font-family:var(--sans)">${t==='overview'?'本月總覽':t==='expenses'?'固定費用':t==='remind'?'繳款提醒':''}</button>`).join('')}
     </div>
+
+    ${financeTab==='overview' ? `
+    <div style="background:var(--card);border:0.5px solid rgba(200,81,26,.3);border-radius:12px;padding:14px;margin-bottom:10px">
+      <div class="ri"><span style="color:var(--t2);font-size:11px">業績收入（本月）</span><span style="color:var(--grn);font-weight:600">$${revenue.toLocaleString()}</span></div>
+      <div class="ri"><span style="color:var(--t2);font-size:11px">額外收入</span><span style="color:var(--grn);font-weight:600">+$${totalExtraIn.toLocaleString()} <button onclick="addExtraItem('income')" style="font-size:10px;padding:2px 7px;border-radius:5px;border:0.5px solid var(--bdr2);background:transparent;color:var(--t2);cursor:pointer;font-family:var(--sans);margin-left:5px">+ 新增</button></span></div>
+      ${extraIncome.map((e,i)=>`<div style="display:flex;justify-content:space-between;font-size:10px;padding:3px 12px;color:var(--t2)"><span>${e.name}</span><span>+$${e.amount.toLocaleString()} <span onclick="extraIncome.splice(${i},1);renderFinance()" style="color:var(--red);cursor:pointer;margin-left:4px">✕</span></span></div>`).join('')}
+      <div class="ri"><span style="color:var(--t2);font-size:11px">固定支出</span><span style="color:var(--red);font-weight:600">-$${totalFixed.toLocaleString()}</span></div>
+      <div class="ri"><span style="color:var(--t2);font-size:11px">臨時支出</span><span style="color:var(--red);font-weight:600">-$${totalExtraOut.toLocaleString()} <button onclick="addExtraItem('expense')" style="font-size:10px;padding:2px 7px;border-radius:5px;border:0.5px solid var(--bdr2);background:transparent;color:var(--t2);cursor:pointer;font-family:var(--sans);margin-left:5px">+ 新增</button></span></div>
+      ${extraExpenses.map((e,i)=>`<div style="display:flex;justify-content:space-between;font-size:10px;padding:3px 12px;color:var(--t2)"><span>${e.icon||'💳'} ${e.name}</span><span>-$${e.amount.toLocaleString()} <span onclick="extraExpenses.splice(${i},1);renderFinance()" style="color:var(--red);cursor:pointer;margin-left:4px">✕</span></span></div>`).join('')}
+      <div style="display:flex;justify-content:space-between;padding-top:10px;border-top:0.5px solid rgba(200,81,26,.2);margin-top:6px">
+        <span style="font-size:14px;font-weight:600">本月結餘</span>
+        <span style="font-size:18px;font-weight:700;color:${netBalance>0?'var(--acc)':'var(--red)'}">$${netBalance.toLocaleString()}</span>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">
+      <div class="stat-card"><div class="stat-l">支出佔收入</div><div class="stat-v" style="color:var(--yel);font-size:16px">${Math.round((totalFixed+totalExtraOut)/(revenue+totalExtraIn)*100)}%</div><div class="stat-s">建議 ≤30%</div></div>
+      <div class="stat-card"><div class="stat-l">固定支出</div><div class="stat-v" style="font-size:16px">$${Math.round(totalFixed/1000)}k</div><div class="stat-s">/月</div></div>
+      <div class="stat-card"><div class="stat-l">可用結餘</div><div class="stat-v" style="color:var(--grn);font-size:16px">$${Math.round(netBalance/1000)}k</div><div class="stat-s">本月</div></div>
+    </div>
+    ` : ''}
+
+    ${financeTab==='expenses' ? `
+    <div class="card">
+      <div class="ct">固定費用清單 <button onclick="showAddExpense()" class="btn-sm">+ 新增</button></div>
+      ${fixedExpenses.map(e=>`
+        <div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:0.5px solid var(--bdr)">
+          <span style="font-size:18px">${e.icon}</span>
+          <div style="flex:1">
+            <div style="font-size:12px;font-weight:500">${e.name}</div>
+            <div style="font-size:10px;color:var(--t2)">每月 ${e.due_day} 日 · 提前 ${e.remind_days} 天提醒</div>
+          </div>
+          <div style="text-align:right">
+            <div style="font-size:13px;font-weight:600;color:var(--acc)">$${e.amount.toLocaleString()}</div>
+          </div>
+          <button onclick="removeExpense(${e.id})" style="font-size:11px;padding:3px 8px;border-radius:5px;border:0.5px solid rgba(192,64,48,.3);background:transparent;color:var(--red);cursor:pointer;font-family:var(--sans)">刪除</button>
+        </div>`).join('')}
+      <div style="display:flex;justify-content:space-between;padding-top:10px;border-top:0.5px solid var(--bdr);margin-top:4px">
+        <span style="font-size:12px;color:var(--t2)">固定支出合計</span>
+        <span style="font-size:14px;font-weight:600;color:var(--red)">-$${totalFixed.toLocaleString()}/月</span>
+      </div>
+    </div>
+    <div id="add-expense-form" style="display:none">
+      <div class="card">
+        <div class="ct">新增固定費用</div>
+        <div class="frow2">
+          <div class="frow"><div class="flbl">圖示 Emoji</div><input class="fi" id="exp-icon" placeholder="🏠" maxlength="2" value="💳"></div>
+          <div class="frow"><div class="flbl">項目名稱</div><input class="fi" id="exp-name" placeholder="房貸"></div>
+        </div>
+        <div class="frow2">
+          <div class="frow"><div class="flbl">金額（元）</div><input class="fi" id="exp-amount" type="number" placeholder="18500" inputmode="numeric"></div>
+          <div class="frow"><div class="flbl">每月幾號繳</div><input class="fi" id="exp-day" type="number" placeholder="22" min="1" max="31" inputmode="numeric"></div>
+        </div>
+        <div class="frow"><div class="flbl">提前幾天提醒</div><select class="fi" id="exp-remind"><option value="3">3天前</option><option value="5">5天前</option><option value="7">7天前</option></select></div>
+        <div style="display:flex;gap:6px;margin-top:6px">
+          <button class="btn-sm" onclick="document.getElementById('add-expense-form').style.display='none'">取消</button>
+          <button class="btn-p" onclick="saveExpense()" style="flex:1">新增</button>
+        </div>
+      </div>
+    </div>
+    ` : ''}
+
+    ${financeTab==='remind' ? `
+    <div class="card">
+      <div class="ct">本月繳款提醒</div>
+      ${fixedExpenses.map(e=>{
+        const due = new Date(today.getFullYear(), today.getMonth(), e.due_day);
+        const diff = Math.ceil((due - today) / (1000*60*60*24));
+        const color = diff <= 3 ? 'red' : diff <= 7 ? 'yel' : 'grn';
+        const label = diff < 0 ? '已過期' : diff === 0 ? '今天到期' : `剩 ${diff} 天`;
+        return `<div style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--${color}-l);border-radius:8px;margin-bottom:6px">
+          <span style="font-size:18px">${e.icon}</span>
+          <div style="flex:1">
+            <div style="font-size:12px;font-weight:500">${e.name}</div>
+            <div style="font-size:10px;color:var(--t2)">每月 ${e.due_day} 日 · ${label}</div>
+          </div>
+          <span style="font-size:13px;font-weight:600;color:var(--${color})">$${e.amount.toLocaleString()}</span>
+        </div>`;
+      }).join('')}
+      <div style="display:flex;justify-content:space-between;padding-top:8px;border-top:0.5px solid var(--bdr);margin-top:4px">
+        <span style="font-size:11px;color:var(--t2)">本月合計應繳</span>
+        <span style="font-size:14px;font-weight:600;color:var(--acc)">$${totalFixed.toLocaleString()}</span>
+      </div>
+    </div>
+    ` : ''}
   `;
+}
+
+function showAddExpense() {
+  document.getElementById('add-expense-form').style.display = 'block';
+}
+function saveExpense() {
+  const icon = document.getElementById('exp-icon').value || '💳';
+  const name = document.getElementById('exp-name').value.trim();
+  const amount = parseInt(document.getElementById('exp-amount').value) || 0;
+  const due_day = parseInt(document.getElementById('exp-day').value) || 1;
+  const remind_days = parseInt(document.getElementById('exp-remind').value) || 3;
+  if (!name || !amount) return;
+  fixedExpenses.push({ id: Date.now(), icon, name, amount, due_day, remind_days });
+  document.getElementById('add-expense-form').style.display = 'none';
+  renderFinance();
+}
+function removeExpense(id) {
+  fixedExpenses = fixedExpenses.filter(e => e.id !== id);
+  renderFinance();
+}
+function addExtraItem(type) {
+  const name = prompt(type==='income'?'額外收入項目名稱：':'臨時支出項目名稱：');
+  if (!name) return;
+  const amt = parseInt(prompt('金額（元）：'));
+  if (!amt) return;
+  if (type==='income') extraIncome.push({ name, amount: amt });
+  else extraExpenses.push({ icon:'💳', name, amount: amt });
+  renderFinance();
 }
 
 function renderInvite() {
@@ -989,6 +1264,73 @@ function hideLoading() {
 function showPage(name) {
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.getElementById('page-' + name).classList.add('active');
+}
+
+// ════════════════════════════════════════
+// 行政區資料
+// ════════════════════════════════════════
+const DISTRICTS = {"台北市":["中正區","大同區","中山區","松山區","大安區","萬華區","信義區","士林區","北投區","內湖區","南港區","文山區"],"新北市":["板橋區","三重區","中和區","永和區","新莊區","新店區","樹林區","鶯歌區","三峽區","淡水區","汐止區","瑞芳區","土城區","蘆洲區","五股區","泰山區","林口區","深坑區","石碇區","坪林區","三芝區","石門區","八里區","平溪區","雙溪區","貢寮區","金山區","萬里區","烏來區"],"桃園市":["桃園區","中壢區","大溪區","楊梅區","蘆竹區","大園區","龜山區","八德區","龍潭區","平鎮區","新屋區","觀音區","復興區"],"台中市":["中區","東區","南區","西區","北區","北屯區","西屯區","南屯區","太平區","大里區","霧峰區","烏日區","豐原區","后里區","石岡區","東勢區","和平區","新社區","潭子區","大雅區","神岡區","大肚區","沙鹿區","龍井區","梧棲區","清水區","大甲區","外埔區","大安區"],"台南市":["中西區","東區","南區","北區","安平區","安南區","永康區","歸仁區","新化區","左鎮區","玉井區","楠西區","南化區","仁德區","關廟區","龍崎區","官田區","麻豆區","佳里區","西港區","七股區","將軍區","學甲區","北門區","新營區","後壁區","白河區","東山區","六甲區","下營區","柳營區","鹽水區","善化區","大內區","山上區","新市區","安定區"],"高雄市":["新興區","前金區","苓雅區","鹽埕區","鼓山區","旗津區","前鎮區","三民區","楠梓區","小港區","左營區","仁武區","大社區","岡山區","路竹區","阿蓮區","田寮區","燕巢區","橋頭區","梓官區","彌陀區","永安區","湖內區","鳳山區","大寮區","林園區","鳥松區","大樹區","旗山區","美濃區","六龜區","內門區","杉林區","甲仙區","桃源區","那瑪夏區","茂林區","茄萣區"],"基隆市":["仁愛區","信義區","中正區","中山區","安樂區","暖暖區","七堵區"],"新竹市":["東區","北區","香山區"],"新竹縣":["竹北市","竹東鎮","新埔鎮","關西鎮","湖口鄉","新豐鄉","芎林鄉","橫山鄉","北埔鄉","寶山鄉","峨眉鄉","尖石鄉","五峰鄉"],"苗栗縣":["苗栗市","頭份市","竹南鎮","後龍鎮","通霄鎮","苑裡鎮","造橋鄉","西湖鄉","頭屋鄉","公館鄉","銅鑼鄉","三義鄉","三灣鄉","南庄鄉","大湖鄉","獅潭鄉","泰安鄉"],"彰化縣":["彰化市","鹿港鎮","和美鎮","線西鄉","伸港鄉","福興鄉","秀水鄉","花壇鄉","芬園鄉","員林市","溪湖鎮","田中鎮","大村鄉","埔鹽鄉","埔心鄉","永靖鄉","社頭鄉","二水鄉","北斗鎮","二林鎮","田尾鄉","埤頭鄉","芳苑鄉","大城鄉","竹塘鄉","溪州鄉"],"南投縣":["南投市","埔里鎮","草屯鎮","竹山鎮","集集鎮","名間鄉","鹿谷鄉","中寮鄉","魚池鄉","國姓鄉","水里鄉","信義鄉","仁愛鄉"],"雲林縣":["斗六市","斗南鎮","虎尾鎮","西螺鎮","土庫鎮","北港鎮","古坑鄉","大埤鄉","莿桐鄉","林內鄉","二崙鄉","崙背鄉","麥寮鄉","東勢鄉","褒忠鄉","台西鄉","元長鄉","四湖鄉","口湖鄉","水林鄉"],"嘉義市":["東區","西區"],"嘉義縣":["太保市","朴子市","布袋鎮","大林鎮","民雄鄉","溪口鄉","新港鄉","六腳鄉","東石鄉","義竹鄉","鹿草鄉","水上鄉","中埔鄉","竹崎鄉","梅山鄉","番路鄉","大埔鄉","阿里山鄉"],"屏東縣":["屏東市","潮州鎮","東港鎮","恆春鎮","萬丹鄉","長治鄉","麟洛鄉","九如鄉","里港鄉","鹽埔鄉","高樹鄉","萬巒鄉","內埔鄉","竹田鄉","新埤鄉","枋寮鄉","新園鄉","崁頂鄉","林邊鄉","南州鄉","佳冬鄉","琉球鄉","車城鄉","滿州鄉","枋山鄉","三地門鄉","霧台鄉","瑪家鄉","泰武鄉","來義鄉","春日鄉","獅子鄉","牡丹鄉"],"宜蘭縣":["宜蘭市","羅東鎮","蘇澳鎮","頭城鎮","礁溪鄉","壯圍鄉","員山鄉","冬山鄉","五結鄉","三星鄉","大同鄉","南澳鄉"],"花蓮縣":["花蓮市","鳳林鎮","玉里鎮","新城鄉","吉安鄉","壽豐鄉","光復鄉","豐濱鄉","瑞穗鄉","富里鄉","秀林鄉","萬榮鄉","卓溪鄉"],"台東縣":["台東市","成功鎮","關山鎮","卑南鄉","鹿野鄉","池上鄉","東河鄉","長濱鄉","太麻里鄉","大武鄉","綠島鄉","海端鄉","延平鄉","金峰鄉","達仁鄉","蘭嶼鄉"],"澎湖縣":["馬公市","湖西鄉","白沙鄉","西嶼鄉","望安鄉","七美鄉"],"金門縣":["金城鎮","金湖鎮","金沙鎮","金寧鄉","烈嶼鄉","烏坵鄉"],"連江縣":["南竿鄉","北竿鄉","莒光鄉","東引鄉"]};
+
+function updateDistricts() {
+  const city = document.getElementById('reg-city').value;
+  const sel = document.getElementById('reg-district');
+  sel.innerHTML = '<option value="">選擇行政區</option>';
+  if (DISTRICTS[city]) {
+    DISTRICTS[city].forEach(d => {
+      const opt = document.createElement('option');
+      opt.value = d; opt.textContent = d;
+      sel.appendChild(opt);
+    });
+  }
+}
+
+// ════════════════════════════════════════
+// QR Code 功能
+// ════════════════════════════════════════
+function toggleQR() {
+  const wrap = document.getElementById('qr-wrap');
+  if (!wrap) return;
+  if (wrap.style.display === 'none') {
+    wrap.style.display = 'block';
+    generateQR();
+  } else {
+    wrap.style.display = 'none';
+  }
+}
+
+function generateQR() {
+  const url = window.location.origin + '/app.html?ref=' + (currentMember?.invite_code || '');
+  const canvas = document.getElementById('qr-canvas');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  const size = 180;
+  ctx.fillStyle = 'white';
+  ctx.fillRect(0, 0, size, size);
+  // 簡易 QR 佔位（真實環境用 qrcode.js）
+  ctx.fillStyle = '#1A1A1A';
+  ctx.font = 'bold 11px monospace';
+  ctx.textAlign = 'center';
+  ctx.fillText('QR Code', size/2, 80);
+  ctx.font = '9px monospace';
+  ctx.fillStyle = '#C8511A';
+  const shortUrl = url.replace('https://','').substring(0,28)+'...';
+  ctx.fillText(shortUrl, size/2, 100);
+  // 載入 QR 庫
+  const script = document.createElement('script');
+  script.src = 'https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js';
+  script.onload = () => {
+    QRCode.toCanvas(canvas, url, { width:180, margin:1, color:{dark:'#1A1A1A',light:'#FFFFFF'} });
+  };
+  document.head.appendChild(script);
+}
+
+function downloadQR() {
+  const canvas = document.getElementById('qr-canvas');
+  if (!canvas) return;
+  const a = document.createElement('a');
+  a.download = '顧問PRO_QRCode.png';
+  a.href = canvas.toDataURL();
+  a.click();
 }
 
 // ════════════════════════════════════════
