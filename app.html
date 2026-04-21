@@ -1798,9 +1798,28 @@ async function initClientFlow(inviteCode) {
     return;
   }
   document.getElementById('client-content').innerHTML = '<div style="text-align:center;padding:40px;color:var(--t2)">載入顧問資訊…</div>';
-  var r = await sb.from('members').select('id,name,company,city,district,invite_code,plan').eq('invite_code', inviteCode).single();
+
+  // 清理邀請碼：移除空白，嘗試原始和大寫兩個版本
+  var codeRaw = (inviteCode || '').trim();
+  var codeUpper = codeRaw.toUpperCase();
+
+  var r = await sb.from('members').select('id,name,company,city,district,invite_code,plan').eq('invite_code', codeRaw).single();
+  if (!r.data && codeUpper !== codeRaw) {
+    r = await sb.from('members').select('id,name,company,city,district,invite_code,plan').eq('invite_code', codeUpper).single();
+  }
+
   if (!r.data) {
-    document.getElementById('client-content').innerHTML = '<div class="ib-red">邀請碼無效，請確認後再試。</div>';
+    document.getElementById('client-content').innerHTML =
+      '<div class="card" style="margin-top:20px">' +
+        '<div style="font-size:16px;font-weight:600;color:var(--red);margin-bottom:8px">❌ 邀請碼無效</div>' +
+        '<div style="font-size:14px;color:var(--t2);line-height:1.7;margin-bottom:10px">' +
+          '收到的邀請碼：<code style="background:var(--inp);padding:2px 6px;border-radius:4px">' + codeRaw + '</code><br><br>' +
+          '可能原因：<br>' +
+          '① 連結不完整，請顧問重新傳送<br>' +
+          '② 邀請碼已過期或不存在' +
+        '</div>' +
+        '<div style="font-size:13px;color:var(--t3)">如有疑問請直接聯繫您的顧問</div>' +
+      '</div>';
     return;
   }
   clientMember = r.data;
