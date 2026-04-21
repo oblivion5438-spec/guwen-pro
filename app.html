@@ -311,6 +311,7 @@ html,body{height:100%;background:var(--bg);color:var(--t0);font-family:var(--san
       <button class="ds-ni" onclick="navTo('leads',this)">👥 客戶名單</button>
       <button class="ds-ni" onclick="navTo('add-lead',this)">➕ 新增客戶</button>
       <button class="ds-ni" onclick="navTo('finance',this)">💰 收支理財</button>
+      <button class="ds-ni" onclick="navTo('team',this)">🏢 團隊管理</button>
       <button class="ds-ni" onclick="navTo('invite',this)">🎁 邀請碼</button>
       <button class="ds-ni" onclick="navTo('calc',this)">🧮 貸款試算</button>
       <button class="ds-ni" onclick="navTo('antifraud',this)">🛡️ 詐騙辨識</button>
@@ -815,7 +816,7 @@ function navTo(key, el) {
     'finance': renderFinance, 'invite': renderInvite, 'settings': renderSettings,
     'score-rules': renderScoreRules, 'prop-thresholds': renderPropThresholds,
     'appearance': renderAppearance, 'report': renderReport,
-    'calc': renderCalc, 'antifraud': renderAntiFraud
+    'calc': renderCalc, 'antifraud': renderAntiFraud, 'team': renderTeam
   };
   if (renders[key]) renders[key]();
 }
@@ -1407,6 +1408,479 @@ function removeExpense(id) {
 // ══════════════════════════════
 // 邀請碼
 // ══════════════════════════════
+// ══════════════════════════════
+// 團隊管理
+// ══════════════════════════════
+var teamData = null;      // 目前的團隊資料
+var teamMembers = [];     // 團隊成員列表
+var teamLeads = [];       // 所有成員的客戶（團長用）
+var teamTab = 'overview'; // overview | members | leads | finance
+var teamExpenses = [];    // 團隊開支
+
+async function renderTeam() {
+  var el = document.getElementById('member-content');
+  el.innerHTML = '<div style="text-align:center;padding:30px;color:var(--t2)">載入團隊資料…</div>';
+
+  // 查詢我是否已在團隊
+  var myTeam = await sb.from('team_members')
+    .select('*, teams(*)')
+    .eq('member_id', currentUser.id)
+    .eq('status', 'active')
+    .single();
+
+  if (!myTeam.data) {
+    renderTeamWelcome(el);
+    return;
+  }
+
+  teamData = myTeam.data.teams;
+  var myRole = myTeam.data.role;
+  var isLeader = myRole === 'leader';
+  var isAdmin = myRole === 'admin' || isLeader;
+
+  // 載入成員
+  var membersRes = await sb.from('team_members')
+    .select('*, members(id,name,email,company,invite_code,plan)')
+    .eq('team_id', teamData.id)
+    .eq('status', 'active');
+  teamMembers = membersRes.data || [];
+
+  if (isAdmin) {
+    // 載入所有成員的客戶
+    var memberIds = teamMembers.map(function(m){return m.member_id;});
+    if (memberIds.length > 0) {
+      var leadsRes = await sb.from('leads').select('*').in('member_id', memberIds).order('created_at', {ascending:false});
+      teamLeads = leadsRes.data || [];
+    }
+  } else {
+    teamLeads = leads; // 一般成員只看自己的
+  }
+
+  renderTeamMain(el, isLeader, isAdmin, myRole);
+}
+
+function renderTeamWelcome(el) {
+  el.innerHTML = '';
+  var card = document.createElement('div'); card.className = 'card';
+  card.innerHTML =
+    '<div style="text-align:center;padding:16px 0">' +
+      '<div style="font-size:40px;margin-bottom:10px">🏢</div>' +
+      '<div style="font-size:18px;font-weight:600;margin-bottom:6px">加入或建立團隊</div>' +
+      '<div style="font-size:14px;color:var(--t2);margin-bottom:16px;line-height:1.7">團隊版可以統一管理多位顧問的案件<br>查看整體業績與收支報表</div>' +
+    '</div>' +
+    '<div style="display:flex;flex-direction:column;gap:10px">' +
+      '<div id="create-team-form" style="background:var(--inp);border-radius:10px;padding:14px">' +
+        '<div style="font-size:15px;font-weight:600;margin-bottom:10px">🏗️ 建立新團隊（成為團長）</div>' +
+        '<div class="frow"><div class="flbl">團隊名稱</div><input class="fi" id="new-team-name" placeholder="例：XX貸款顧問團隊"></div>' +
+        '<button class="btn-p" style="width:100%;margin-top:10px" onclick="createTeam()">建立團隊</button>' +
+      '</div>' +
+      '<div style="background:var(--inp);border-radius:10px;padding:14px">' +
+        '<div style="font-size:15px;font-weight:600;margin-bottom:6px">📨 加入現有團隊</div>' +
+        '<div style="font-size:14px;color:var(--t2);margin-bottom:10px">請請團長傳送邀請後，在通知中接受邀請</div>' +
+        '<div id="pending-invites"></div>' +
+      '</div>' +
+    '</div>';
+  el.appendChild(card);
+  loadPendingInvites();
+}
+
+async function loadPendingInvites() {
+  var el = document.getElementById('pending-invites');
+  if (!el) return;
+  var res = await sb.from('team_members')
+    .select('*, teams(name)')
+    .eq('member_id', currentUser.id)
+    .eq('status', 'pending');
+  var invites = res.data || [];
+  if (invites.length === 0) {
+    el.innerHTML = '<div style="font-size:14px;color:var(--t3)">目前沒有待接受的邀請</div>';
+    return;
+  }
+  var h = '';
+  invites.forEach(function(inv) {
+    h += '<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:0.5px solid var(--bdr)">';
+    h += '<div><div style="font-size:15px;font-weight:500">' + (inv.teams ? inv.teams.name : '未知團隊') + '</div>';
+    h += '<div style="font-size:13px;color:var(--t2)">邀請加入</div></div>';
+    h += '<div style="display:flex;gap:6px">';
+    h += '<button class="btn-grn" style="font-size:13px;padding:5px 12px" onclick="acceptInvite(\'' + inv.id + '\')">接受</button>';
+    h += '<button class="btn-sm" style="font-size:13px;padding:5px 12px;color:var(--red)" onclick="declineInvite(\'' + inv.id + '\')">拒絕</button>';
+    h += '</div></div>';
+  });
+  el.innerHTML = h;
+}
+
+async function createTeam() {
+  var name = document.getElementById('new-team-name') ? document.getElementById('new-team-name').value.trim() : '';
+  if (!name) { alert('請輸入團隊名稱'); return; }
+  showLoading('建立團隊中…');
+  var r = await sb.from('teams').insert({ name: name, leader_id: currentUser.id }).select().single();
+  if (r.error) { hideLoading(); alert('建立失敗：' + r.error.message); return; }
+  await sb.from('team_members').insert({ team_id: r.data.id, member_id: currentUser.id, role: 'leader', status: 'active', joined_at: new Date().toISOString() });
+  hideLoading();
+  renderTeam();
+}
+
+async function acceptInvite(inviteId) {
+  await sb.from('team_members').update({ status: 'active', joined_at: new Date().toISOString() }).eq('id', inviteId);
+  renderTeam();
+}
+
+async function declineInvite(inviteId) {
+  await sb.from('team_members').update({ status: 'left' }).eq('id', inviteId);
+  loadPendingInvites();
+}
+
+function renderTeamMain(el, isLeader, isAdmin, myRole) {
+  el.innerHTML = '';
+
+  // 頂部資訊
+  var header = document.createElement('div');
+  header.style.cssText = 'display:flex;align-items:center;justify-content:space-between;margin-bottom:12px';
+  header.innerHTML =
+    '<div><div style="font-size:18px;font-weight:700">' + teamData.name + '</div>' +
+    '<div style="font-size:13px;color:var(--t2);margin-top:2px">' +
+      '<span class="badge ' + (isLeader?'b-acc':isAdmin?'b-yel':'b-gray') + '">' +
+      (isLeader?'團長':isAdmin?'管理員':'成員') + '</span>' +
+      ' · ' + teamMembers.length + ' 位成員' +
+    '</div></div>';
+  if (isLeader) {
+    var settBtn = document.createElement('button');
+    settBtn.className = 'btn-sm';
+    settBtn.textContent = '⚙️ 設定';
+    settBtn.onclick = function() { showTeamSettings(); };
+    header.appendChild(settBtn);
+  }
+  el.appendChild(header);
+
+  // Tab 選單
+  var tabs = [
+    {key:'overview', label:'總覽', icon:'📊'},
+    {key:'members', label:'成員', icon:'👥'},
+  ];
+  if (isAdmin) tabs.push({key:'leads', label:'客戶', icon:'📋'});
+  tabs.push({key:'finance', label:'收支', icon:'💰'});
+
+  var tabDiv = document.createElement('div');
+  tabDiv.style.cssText = 'display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap';
+  tabs.forEach(function(t) {
+    var btn = document.createElement('button');
+    btn.style.cssText = 'padding:7px 14px;border-radius:20px;font-size:14px;cursor:pointer;border:0.5px solid ' +
+      (teamTab===t.key?'var(--acc)':'var(--bdr2)') + ';background:' +
+      (teamTab===t.key?'var(--al)':'transparent') + ';color:' +
+      (teamTab===t.key?'var(--acc)':'var(--t1)') + ';font-family:var(--sans)';
+    btn.textContent = t.icon + ' ' + t.label;
+    btn.onclick = (function(key) { return function() { teamTab = key; renderTeamMain(el, isLeader, isAdmin, myRole); }; })(t.key);
+    tabDiv.appendChild(btn);
+  });
+  el.appendChild(tabDiv);
+
+  // 內容
+  if (teamTab === 'overview') renderTeamOverview(el, isLeader, isAdmin);
+  else if (teamTab === 'members') renderTeamMembers(el, isLeader, isAdmin);
+  else if (teamTab === 'leads') renderTeamLeads(el);
+  else if (teamTab === 'finance') renderTeamFinance(el, isLeader, isAdmin);
+}
+
+function renderTeamOverview(el, isLeader, isAdmin) {
+  var now = new Date();
+  var thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+  var lastMonthStart = new Date(now.getFullYear(), now.getMonth()-1, 1);
+  var lastMonthEnd   = thisMonthStart;
+  var lastQStart     = new Date(now.getFullYear(), now.getMonth()-3, 1);
+  var lastYStart     = new Date(now.getFullYear()-1, now.getMonth(), 1);
+  var lastYEnd       = new Date(now.getFullYear(), now.getMonth(), 1);
+
+  function countIn(arr, start, end) {
+    return arr.filter(function(l){var d=new Date(l.created_at);return d>=start&&d<end;}).length;
+  }
+  function closedIn(arr, start, end) {
+    return arr.filter(function(l){return l.status==='closed'&&new Date(l.created_at)>=start&&new Date(l.created_at)<end;}).length;
+  }
+
+  var thisLeads  = teamLeads.filter(function(l){return new Date(l.created_at)>=thisMonthStart;});
+  var total      = thisLeads.length;
+  var closed     = thisLeads.filter(function(l){return l.status==='closed';}).length;
+  var lmLeads    = countIn(teamLeads, lastMonthStart, lastMonthEnd);
+  var lmClosed   = closedIn(teamLeads, lastMonthStart, lastMonthEnd);
+  var lqLeads    = countIn(teamLeads, lastQStart, lastMonthEnd);
+  var lyLeads    = countIn(teamLeads, lastYStart, lastYEnd);
+
+  function arrowHtml(now, prev) {
+    if (prev===0) return now>0?'<span style="color:var(--grn)">↑ 新增</span>':'<span style="color:var(--t3)">—</span>';
+    var pct=Math.round((now-prev)/prev*100);
+    var col=pct>0?'var(--grn)':pct<0?'var(--red)':'var(--t3)';
+    return '<span style="color:'+col+'">'+(pct>0?'↑':'↓')+Math.abs(pct)+'%</span>';
+  }
+
+  // 統計卡
+  var statsDiv = document.createElement('div'); statsDiv.className = 'stat-grid';
+  statsDiv.innerHTML =
+    '<div class="stat-card"><div class="stat-l">本月新增</div><div class="stat-v">' + total + '</div><div class="stat-s">vs 前月 ' + lmLeads + ' 筆 ' + arrowHtml(total,lmLeads) + '</div></div>' +
+    '<div class="stat-card"><div class="stat-l">本月成交</div><div class="stat-v" style="color:var(--grn)">' + closed + '</div><div class="stat-s">vs 前月 ' + lmClosed + ' 筆 ' + arrowHtml(closed,lmClosed) + '</div></div>' +
+    '<div class="stat-card"><div class="stat-l">成員數</div><div class="stat-v">' + teamMembers.length + '</div><div class="stat-s">活躍成員</div></div>' +
+    '<div class="stat-card"><div class="stat-l">累計客戶</div><div class="stat-v">' + teamLeads.length + '</div><div class="stat-s">全部時間</div></div>';
+  el.appendChild(statsDiv);
+
+  // 比較表
+  var cmpCard = document.createElement('div'); cmpCard.className = 'card';
+  cmpCard.innerHTML = '<div class="ct">團隊業績比較</div>' +
+    '<table style="width:100%;border-collapse:collapse;font-size:14px">' +
+    '<tr style="border-bottom:0.5px solid var(--bdr);color:var(--t2)">' +
+    '<th style="text-align:left;padding:6px 4px;font-weight:400">期間</th>' +
+    '<th style="text-align:center;padding:6px 4px;font-weight:400">新增名單</th>' +
+    '<th style="text-align:center;padding:6px 4px;font-weight:400">成交</th>' +
+    '<th style="text-align:center;padding:6px 4px;font-weight:400">vs 本月</th></tr>' +
+    [['本月',total,closed,null],['前月',lmLeads,lmClosed,lmLeads],['前三月',lqLeads,'—',lqLeads],['去年同月',lyLeads,'—',lyLeads]].map(function(r,i){
+      var bg=i===0?'background:var(--al)':'';
+      var fw=i===0?'font-weight:600':'';
+      return '<tr style="border-bottom:0.5px solid var(--bdr);'+bg+'"><td style="padding:8px 4px;'+fw+'">'+r[0]+'</td><td style="text-align:center;padding:8px 4px;'+fw+'">'+r[1]+'</td><td style="text-align:center;padding:8px 4px;color:var(--grn);'+fw+'">'+r[2]+'</td><td style="text-align:center;padding:8px 4px">'+(r[3]!==null?arrowHtml(total,r[3]):'<span style="color:var(--acc)">基準月</span>')+'</td></tr>';
+    }).join('') + '</table>';
+  el.appendChild(cmpCard);
+
+  // 成員業績排行
+  if (isAdmin && teamMembers.length > 1) {
+    var rankCard = document.createElement('div'); rankCard.className = 'card';
+    var rankH = '<div class="ct">本月成員業績排行</div>';
+    var memberStats = teamMembers.map(function(tm) {
+      var mLeads = thisLeads.filter(function(l){return l.member_id===tm.member_id;});
+      return { name: tm.members?tm.members.name:'—', total: mLeads.length, closed: mLeads.filter(function(l){return l.status==='closed';}).length, role: tm.role };
+    }).sort(function(a,b){return b.closed-a.closed||b.total-a.total;});
+
+    memberStats.forEach(function(ms, i) {
+      var medal = i===0?'🥇':i===1?'🥈':i===2?'🥉':'　';
+      rankH += '<div style="display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:0.5px solid var(--bdr)">';
+      rankH += '<span style="font-size:18px;width:24px">' + medal + '</span>';
+      rankH += '<div style="flex:1"><div style="font-size:15px;font-weight:500">' + ms.name + '</div>';
+      rankH += '<div style="font-size:13px;color:var(--t2)">' + (ms.role==='leader'?'團長':ms.role==='admin'?'管理員':'成員') + '</div></div>';
+      rankH += '<div style="text-align:right"><div style="font-size:15px;font-weight:600;color:var(--grn)">' + ms.closed + ' 成交</div>';
+      rankH += '<div style="font-size:13px;color:var(--t2)">' + ms.total + ' 件</div></div></div>';
+    });
+    rankCard.innerHTML = rankH;
+    el.appendChild(rankCard);
+  }
+}
+
+function renderTeamMembers(el, isLeader, isAdmin) {
+  var card = document.createElement('div'); card.className = 'card';
+  var h = '<div class="ct">團隊成員 <span class="badge b-gray">' + teamMembers.length + '人</span></div>';
+
+  teamMembers.forEach(function(tm) {
+    var m = tm.members || {};
+    var isMe = tm.member_id === currentUser.id;
+    var memberLeads = teamLeads.filter(function(l){return l.member_id===tm.member_id;});
+    var now = new Date();
+    var thisMonthLeads = memberLeads.filter(function(l){return new Date(l.created_at)>=new Date(now.getFullYear(),now.getMonth(),1);});
+
+    h += '<div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:0.5px solid var(--bdr)">';
+    h += '<div style="width:38px;height:38px;border-radius:50%;background:var(--al);color:var(--acc);display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:600;flex-shrink:0">' + (m.name||'?').charAt(0) + '</div>';
+    h += '<div style="flex:1">';
+    h += '<div style="display:flex;align-items:center;gap:6px"><span style="font-size:15px;font-weight:500">' + (m.name||'—') + '</span>';
+    h += '<span class="badge ' + (tm.role==='leader'?'b-acc':tm.role==='admin'?'b-yel':'b-gray') + '">' + (tm.role==='leader'?'團長':tm.role==='admin'?'管理員':'成員') + '</span>';
+    if (isMe) h += '<span class="badge b-grn">我</span>';
+    h += '</div>';
+    h += '<div style="font-size:13px;color:var(--t2);margin-top:2px">本月 ' + thisLeads.filter(function(l){return l.member_id===tm.member_id;}).length + ' 件 · 成交 ' + thisLeads.filter(function(l){return l.member_id===tm.member_id&&l.status==='closed';}).length + ' 件</div>';
+    h += '</div>';
+
+    if (isLeader && !isMe) {
+      h += '<div style="display:flex;flex-direction:column;gap:4px">';
+      if (tm.role === 'member') {
+        h += '<button class="btn-sm" style="font-size:12px;padding:3px 8px" onclick="setMemberRole(\'' + tm.id + '\',\'admin\')">升管理員</button>';
+      } else if (tm.role === 'admin') {
+        h += '<button class="btn-sm" style="font-size:12px;padding:3px 8px" onclick="setMemberRole(\'' + tm.id + '\',\'member\')">降為成員</button>';
+      }
+      h += '<button class="btn-sm" style="font-size:12px;padding:3px 8px;color:var(--red);border-color:rgba(192,64,48,.3)" onclick="removeMember(\'' + tm.id + '\',\'' + (m.name||'') + '\')">移除</button>';
+      h += '</div>';
+    }
+    h += '</div>';
+  });
+  card.innerHTML = h;
+  el.appendChild(card);
+
+  // 邀請新成員（團長/管理員）
+  if (isAdmin) {
+    var invCard = document.createElement('div'); invCard.className = 'card';
+    invCard.innerHTML =
+      '<div class="ct">邀請新成員</div>' +
+      '<div class="frow"><div class="flbl">會員 Email</div><input class="fi" id="invite-email" type="email" placeholder="對方的登入 Email"></div>' +
+      '<button class="btn-p" style="width:100%;margin-top:10px" onclick="inviteMember()">發送邀請</button>' +
+      '<div style="font-size:13px;color:var(--t2);margin-top:8px">對方接受後正式加入團隊，一人只能加入一個團隊</div>';
+    el.appendChild(invCard);
+  }
+}
+
+async function setMemberRole(tmId, newRole) {
+  await sb.from('team_members').update({ role: newRole }).eq('id', tmId);
+  renderTeam();
+}
+
+async function removeMember(tmId, name) {
+  if (!confirm('確定移除「' + name + '」？')) return;
+  await sb.from('team_members').update({ status: 'left' }).eq('id', tmId);
+  renderTeam();
+}
+
+async function inviteMember() {
+  var email = document.getElementById('invite-email') ? document.getElementById('invite-email').value.trim() : '';
+  if (!email) { alert('請填寫 Email'); return; }
+  // 查找該 email 的 member
+  var res = await sb.from('members').select('id,name').eq('email', email).single();
+  if (!res.data) { alert('找不到此 Email 的會員，請確認對方已註冊'); return; }
+  if (res.data.id === currentUser.id) { alert('不能邀請自己'); return; }
+  // 確認對方沒有在其他團隊
+  var existing = await sb.from('team_members').select('id').eq('member_id', res.data.id).eq('status', 'active');
+  if (existing.data && existing.data.length > 0) { alert('該成員已在其他團隊，無法邀請'); return; }
+  // 發送邀請
+  await sb.from('team_members').insert({ team_id: teamData.id, member_id: res.data.id, role: 'member', status: 'pending' });
+  alert('✓ 已傳送邀請給 ' + res.data.name);
+  document.getElementById('invite-email').value = '';
+}
+
+function renderTeamLeads(el) {
+  var card = document.createElement('div'); card.className = 'card';
+  var h = '<div class="ct">所有成員客戶 <span class="badge b-gray">' + teamLeads.length + '筆</span></div>';
+  // 篩選器
+  h += '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px" id="team-leads-filter">';
+  h += '<button class="btn-sm" onclick="filterTeamLeads(\'all\')" id="tf-all" style="color:var(--acc)">全部</button>';
+  teamMembers.forEach(function(tm) {
+    if (tm.members) h += '<button class="btn-sm" onclick="filterTeamLeads(\'' + tm.member_id + '\')" id="tf-' + tm.member_id + '">' + tm.members.name + '</button>';
+  });
+  h += '</div><div id="team-leads-list"></div>';
+  card.innerHTML = h;
+  el.appendChild(card);
+  filterTeamLeads('all');
+}
+
+function filterTeamLeads(memberId) {
+  var list = document.getElementById('team-leads-list');
+  if (!list) return;
+  var filtered = memberId === 'all' ? teamLeads : teamLeads.filter(function(l){return l.member_id===memberId;});
+  if (filtered.length === 0) { list.innerHTML = '<div style="text-align:center;padding:16px;color:var(--t2)">沒有客戶資料</div>'; return; }
+  var h = '';
+  filtered.slice(0,30).forEach(function(l) {
+    var sc = calcScores(l);
+    var addrShort = '';
+    if (l.address) { var m=l.address.match(/^(.{2,3}[市縣])(.{2,4}[區鄉鎮])/); if(m) addrShort=m[1]+m[2]; }
+    // 找顧問姓名
+    var advisor = teamMembers.find(function(tm){return tm.member_id===l.member_id;});
+    var advisorName = advisor&&advisor.members ? advisor.members.name : '—';
+    h += '<div class="lead-item" style="border-left:3px solid var(--acc)">';
+    h += '<div style="width:36px;height:36px;border-radius:50%;background:var(--al);color:var(--acc);display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:600;flex-shrink:0">' + (l.name||'?').charAt(0) + '</div>';
+    h += '<div class="lead-info">';
+    h += '<div style="display:flex;align-items:center;gap:6px"><span class="lead-name">' + (l.name||'—') + '</span>';
+    if (addrShort) h += '<span style="font-size:12px;color:var(--t2)">' + addrShort + '</span>';
+    h += '</div>';
+    h += '<div style="font-size:13px;color:var(--t2);margin-top:1px">顧問：' + advisorName + ' · 信貸 <span style="color:var(--grn)">' + sc.bank + '%</span></div>';
+    h += '</div>';
+    h += '<span class="badge ' + (l.status==='closed'?'b-grn':'b-gray') + '">' + (l.status==='closed'?'成交':'進行中') + '</span>';
+    h += '</div>';
+  });
+  if (filtered.length > 30) h += '<div style="text-align:center;padding:10px;font-size:13px;color:var(--t2)">顯示前30筆，共' + filtered.length + '筆</div>';
+  list.innerHTML = h;
+}
+
+function renderTeamFinance(el, isLeader, isAdmin) {
+  var now = new Date();
+  var thisM = new Date(now.getFullYear(), now.getMonth(), 1);
+  var lastM = new Date(now.getFullYear(), now.getMonth()-1, 1);
+  var lastME = thisM;
+  var lastQ = new Date(now.getFullYear(), now.getMonth()-3, 1);
+  var lastY = new Date(now.getFullYear()-1, now.getMonth(), 1);
+  var lastYE = new Date(now.getFullYear(), now.getMonth(), 1);
+
+  function closedIn(start, end) {
+    return teamLeads.filter(function(l){return l.status==='closed'&&new Date(l.created_at)>=start&&new Date(l.created_at)<end;}).length;
+  }
+
+  var thisClosed = teamLeads.filter(function(l){return l.status==='closed'&&new Date(l.created_at)>=thisM;}).length;
+  var lastClosed = closedIn(lastM, lastME);
+  var totalExp = teamExpenses.reduce(function(s,e){return s+e.amount;},0);
+
+  function arrow(n,p) {
+    if(p===0) return n>0?'<span style="color:var(--grn)">↑新增</span>':'—';
+    var pct=Math.round((n-p)/p*100);
+    return '<span style="color:'+(pct>0?'var(--grn)':'var(--red)')+'\">'+(pct>0?'↑':'↓')+Math.abs(pct)+'%</span>';
+  }
+
+  // 成交比較
+  var perfCard = document.createElement('div'); perfCard.className = 'card';
+  perfCard.innerHTML = '<div class="ct">📈 成交業績比較</div>' +
+    '<div class="ri"><span class="rl">本月成交</span><span class="rv" style="color:var(--grn);font-size:18px;font-weight:700">' + thisClosed + ' 件</span></div>' +
+    '<div class="ri"><span class="rl">vs 前月</span><span class="rv">' + lastClosed + ' 件 ' + arrow(thisClosed,lastClosed) + '</span></div>' +
+    '<div class="ri"><span class="rl">vs 前三個月均</span><span class="rv">' + closedIn(lastQ,thisM) + ' 件 ' + arrow(thisClosed,closedIn(lastQ,thisM)) + '</span></div>' +
+    '<div class="ri"><span class="rl">vs 去年同月</span><span class="rv">' + closedIn(lastY,lastYE) + ' 件 ' + arrow(thisClosed,closedIn(lastY,lastYE)) + '</span></div>';
+  el.appendChild(perfCard);
+
+  // 公司開支
+  var expCard = document.createElement('div'); expCard.className = 'card';
+  var expH = '<div class="ct">💸 公司開支';
+  if (isAdmin) expH += ' <button class="btn-sm" onclick="showAddTeamExpense()">+ 新增</button>';
+  expH += '</div>';
+
+  if (teamExpenses.length === 0) {
+    expH += '<div style="text-align:center;padding:14px;color:var(--t2)">尚未記錄任何開支</div>';
+  } else {
+    teamExpenses.forEach(function(e,i) {
+      expH += '<div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:0.5px solid var(--bdr)">';
+      expH += '<span style="font-size:18px">' + (e.icon||'💳') + '</span>';
+      expH += '<div style="flex:1"><div style="font-size:15px;font-weight:500">' + e.name + '</div>';
+      expH += '<div style="font-size:13px;color:var(--t2)">' + (e.date||'') + '</div></div>';
+      expH += '<div style="font-size:15px;font-weight:600;color:var(--red)">-$' + e.amount.toLocaleString() + '</div>';
+      if (isAdmin) expH += '<button onclick="removeTeamExpense(' + i + ')" style="font-size:13px;padding:2px 8px;border-radius:5px;border:0.5px solid rgba(192,64,48,.3);background:transparent;color:var(--red);cursor:pointer;margin-left:4px;font-family:var(--sans)">刪</button>';
+      expH += '</div>';
+    });
+    expH += '<div style="display:flex;justify-content:space-between;padding-top:10px;border-top:0.5px solid var(--bdr);margin-top:4px"><span style="color:var(--t2)">本月合計</span><span style="font-weight:600;color:var(--red)">-$' + totalExp.toLocaleString() + '</span></div>';
+  }
+  expCard.innerHTML = expH;
+  el.appendChild(expCard);
+
+  // 新增開支表單（隱藏）
+  var addExpDiv = document.createElement('div'); addExpDiv.id = 'add-team-expense'; addExpDiv.style.display = 'none';
+  addExpDiv.className = 'card';
+  addExpDiv.innerHTML = '<div class="ct">新增開支項目</div>' +
+    '<div class="frow2"><div class="frow"><div class="flbl">圖示</div><input class="fi" id="te-icon" placeholder="💳" maxlength="2" value="💳"></div>' +
+    '<div class="frow"><div class="flbl">名稱</div><input class="fi" id="te-name" placeholder="辦公室租金"></div></div>' +
+    '<div class="frow2" style="margin-top:8px"><div class="frow"><div class="flbl">金額（元）</div><input class="fi" id="te-amount" type="number" placeholder="0" inputmode="numeric"></div>' +
+    '<div class="frow"><div class="flbl">日期</div><input class="fi" id="te-date" type="date"></div></div>' +
+    '<div style="display:flex;gap:6px;margin-top:8px">' +
+    '<button class="btn-sm" onclick="document.getElementById(\'add-team-expense\').style.display=\'none\'">取消</button>' +
+    '<button class="btn-p" onclick="saveTeamExpense()" style="flex:1">新增</button></div>';
+  el.appendChild(addExpDiv);
+}
+
+function showAddTeamExpense() {
+  var el = document.getElementById('add-team-expense');
+  if (el) { el.style.display='block'; var d=document.getElementById('te-date'); if(d) d.value=new Date().toISOString().split('T')[0]; }
+}
+function saveTeamExpense() {
+  var icon=document.getElementById('te-icon')?document.getElementById('te-icon').value:'💳';
+  var name=document.getElementById('te-name')?document.getElementById('te-name').value.trim():'';
+  var amount=parseInt(document.getElementById('te-amount')?document.getElementById('te-amount').value:0)||0;
+  var date=document.getElementById('te-date')?document.getElementById('te-date').value:'';
+  if(!name||!amount){alert('請填寫名稱和金額');return;}
+  teamExpenses.push({icon:icon,name:name,amount:amount,date:date});
+  var el=document.getElementById('add-team-expense'); if(el) el.style.display='none';
+  teamTab='finance';
+  var mainEl=document.getElementById('member-content');
+  // 重新渲染
+  var isLeader=teamMembers.find(function(tm){return tm.member_id===currentUser.id&&tm.role==='leader';});
+  var isAdmin=teamMembers.find(function(tm){return tm.member_id===currentUser.id&&(tm.role==='leader'||tm.role==='admin');});
+  renderTeamMain(mainEl, !!isLeader, !!isAdmin, isLeader?'leader':isAdmin?'admin':'member');
+}
+function removeTeamExpense(idx) {
+  teamExpenses.splice(idx,1);
+  var mainEl=document.getElementById('member-content');
+  var isLeader=teamMembers.find(function(tm){return tm.member_id===currentUser.id&&tm.role==='leader';});
+  var isAdmin=teamMembers.find(function(tm){return tm.member_id===currentUser.id&&(tm.role==='leader'||tm.role==='admin');});
+  renderTeamMain(mainEl, !!isLeader, !!isAdmin, isLeader?'leader':isAdmin?'admin':'member');
+}
+
+function showTeamSettings() {
+  var name = prompt('團隊名稱：', teamData ? teamData.name : '');
+  if (name && name.trim() && teamData) {
+    sb.from('teams').update({name: name.trim()}).eq('id', teamData.id).then(function(){renderTeam();});
+  }
+}
+
 function renderInvite() {
   var code = currentMember ? (currentMember.invite_code || '—') : '—';
   var el = document.getElementById('member-content');
