@@ -2307,17 +2307,21 @@ function clientStep4() {
 
   var btns = document.createElement('div'); btns.style.cssText = 'display:flex;gap:8px;margin-top:8px';
   var pb = document.createElement('button'); pb.className = 'btn-sm'; pb.textContent = '← 上一步'; pb.onclick = function() { renderClientStep(3); };
-  var nb = document.createElement('button'); nb.className = 'btn-p'; nb.style.flex = '1'; nb.textContent = '下一步 →'; nb.onclick = function() { renderClientStep(5); };
+  var nb = document.createElement('button'); nb.className = 'btn-p'; nb.style.flex = '1'; nb.textContent = '下一步 →'; nb.onclick = function() { saveClientFormData(); renderClientStep(5); };
   btns.appendChild(pb); btns.appendChild(nb); el.appendChild(btns);
 }
 
 function clientStep5() {
+  // 確保在渲染 step5 前已儲存（clientStepBase 會清空 DOM）
+  saveClientFormData();
   var el = clientStepBase(5);
-  var g = function(id) { var e = document.getElementById(id); return e ? e.value || '' : ''; };
-  var cName = g('c-name') || '（未填）';
-  var cAge  = g('c-age') || '';
-  var cAddr = g('c-addr') || '（未填）';
-  var cAmt  = parseInt(g('c-amount')||0).toLocaleString();
+  // 從 clientFormData 讀（DOM 已被清空）
+  var fd = clientFormData;
+  var cName   = fd['c-name']   || '（未填）';
+  var cAge    = fd['c-age']    || '';
+  var cAddr   = fd['c-addr']   || '（未填）';
+  var cAmt    = parseInt(fd['c-amount']||0).toLocaleString();
+  var cSalary = fd['c-salary'] ? fd['c-salary'] + ' 萬' : '（未填）';
   var card = document.createElement('div'); card.className = 'card';
   card.innerHTML =
     '<div style="font-size:16px;font-weight:600;margin-bottom:10px">確認送出</div>' +
@@ -2326,12 +2330,14 @@ function clientStep5() {
       '<div class="ri"><span class="rl">年齡</span><span class="rv">' + cAge + ' 歲</span></div>' +
       '<div class="ri"><span class="rl">居住地址</span><span class="rv" style="font-size:13px">' + cAddr + '</span></div>' +
       '<div class="ri"><span class="rl">需求資金</span><span class="rv">$' + cAmt + '</span></div>' +
+      '<div class="ri"><span class="rl">月薪</span><span class="rv" style="color:' + (fd['c-salary'] ? 'var(--grn)' : 'var(--red)') + '">' + cSalary + '</span></div>' +
     '</div>' +
     '<div style="background:var(--inp);border-radius:8px;padding:10px 12px;margin-bottom:8px">' +
       '<div class="ri"><span class="rl">MyData 所得</span><span class="rv"><span class="badge ' + (clientConsents.income?'b-blu':'b-gray') + '">' + (clientConsents.income?'已同意':'未同意') + '</span></span></div>' +
       '<div class="ri"><span class="rl">動產擔保</span><span class="rv"><span class="badge ' + (clientConsents.asset?'b-grn':'b-gray') + '">' + (clientConsents.asset?'已同意':'未同意') + '</span></span></div>' +
       '<div class="ri"><span class="rl">判決書查詢</span><span class="rv"><span class="badge ' + (clientConsents.verdict?'b-grn':'b-gray') + '">' + (clientConsents.verdict?'已同意':'未同意') + '</span></span></div>' +
     '</div>' +
+    (!fd['c-salary'] ? '<div class="ib-yel" style="font-size:14px">⚠️ 月薪未填，汽車/機車/手機貸將無法評估，建議返回填寫</div>' : '') +
     '<div style="font-size:13px;color:var(--t3);line-height:1.5;margin-bottom:10px">送出後系統立即 AI 評估，評估完成後可申請下載資料副本（個資法第3條）</div>';
   el.appendChild(card);
 
