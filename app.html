@@ -375,6 +375,20 @@ html,body{height:100%;background:var(--bg);color:var(--t0);font-family:var(--san
   <div style="flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;">
     <div class="content" id="client-content" style="max-width:500px;margin:0 auto;padding-bottom:40px"></div>
   </div>
+  <!-- 客戶端底部 tab -->
+  <div id="client-tabs" style="display:none;border-top:0.5px solid var(--bdr);background:var(--bg2);padding:8px 0 env(safe-area-inset-bottom,8px);">
+    <div style="display:flex;justify-content:space-around;max-width:500px;margin:0 auto">
+      <button class="c-tab-btn on" id="ctab-eval" onclick="switchClientTab('eval')" style="flex:1;background:none;border:none;padding:8px 4px;cursor:pointer;font-family:var(--sans)">
+        <div style="font-size:20px">📋</div><div style="font-size:11px;color:var(--acc)">評估</div>
+      </button>
+      <button class="c-tab-btn" id="ctab-calc" onclick="switchClientTab('calc')" style="flex:1;background:none;border:none;padding:8px 4px;cursor:pointer;font-family:var(--sans)">
+        <div style="font-size:20px">🧮</div><div style="font-size:11px;color:var(--t2)">試算</div>
+      </button>
+      <button class="c-tab-btn" id="ctab-antifraud" onclick="switchClientTab('antifraud')" style="flex:1;background:none;border:none;padding:8px 4px;cursor:pointer;font-family:var(--sans)">
+        <div style="font-size:20px">🛡️</div><div style="font-size:11px;color:var(--t2)">防詐</div>
+      </button>
+    </div>
+  </div>
 </div>
 
 </div><!-- #app -->
@@ -1761,6 +1775,7 @@ async function initClientFlow(inviteCode) {
   clientMember = r.data;
   var nameEl = document.getElementById('client-advisor-name');
   if (nameEl) nameEl.textContent = r.data.name + ' 顧問';
+  showClientTabs();
   renderClientStep(0);
 }
 
@@ -2262,6 +2277,170 @@ function addClientLoanRow(type, hasPenalty) {
 }
 
 
+
+// ══ 客戶端 Tab 切換 ══
+var currentClientTab = 'eval';
+var savedClientTabContent = null; // 暫存評估頁面內容
+
+function switchClientTab(tab) {
+  var prev = currentClientTab;
+  currentClientTab = tab;
+  // 更新按鈕樣式
+  ['eval','calc','antifraud'].forEach(function(t) {
+    var btn = document.getElementById('ctab-' + t);
+    if (!btn) return;
+    var lbl = btn.querySelector('div:last-child');
+    if (t === tab) {
+      if (lbl) lbl.style.color = 'var(--acc)';
+    } else {
+      if (lbl) lbl.style.color = 'var(--t2)';
+    }
+  });
+  var el = document.getElementById('client-content');
+  if (tab === 'eval') {
+    // 還原暫存的評估頁面
+    if (savedClientTabContent) {
+      el.innerHTML = savedClientTabContent;
+    }
+  } else {
+    // 離開評估頁前先存
+    if (prev === 'eval' && el) savedClientTabContent = el.innerHTML;
+    if (tab === 'calc') renderClientCalc();
+    else if (tab === 'antifraud') renderClientAntifraud();
+  }
+}
+
+function showClientTabs() {
+  var tabs = document.getElementById('client-tabs');
+  if (tabs) tabs.style.display = 'block';
+}
+
+// ══ 客戶端貸款試算 ══
+function renderClientCalc() {
+  var el = document.getElementById('client-content');
+  el.innerHTML = '';
+
+  var card = document.createElement('div'); card.className = 'card';
+  card.innerHTML =
+    '<div style="font-size:18px;font-weight:600;margin-bottom:6px">🧮 貸款月繳試算</div>' +
+    '<div style="font-size:13px;color:var(--t2);margin-bottom:14px">輸入條件，立即計算每月應繳金額</div>' +
+    '<div class="frow"><div class="flbl">貸款金額（萬元）</div>' +
+      '<input class="fi" id="cc-amt" type="number" placeholder="50" inputmode="numeric" step="1" oninput="calcClientLoan()"></div>' +
+    '<div class="frow2" style="margin-top:10px">' +
+      '<div class="frow"><div class="flbl">年利率（%）</div>' +
+        '<input class="fi" id="cc-rate" type="number" placeholder="6.0" step="0.1" value="6" oninput="calcClientLoan()"></div>' +
+      '<div class="frow"><div class="flbl">貸款年限</div>' +
+        '<select class="fi" id="cc-years" onchange="calcClientLoan()">' +
+          '<option value="1">1年</option><option value="2">2年</option><option value="3" selected>3年</option>' +
+          '<option value="5">5年</option><option value="7">7年</option><option value="10">10年</option>' +
+          '<option value="20">20年</option><option value="30">30年</option>' +
+        '</select></div>' +
+    '</div>' +
+    '<div style="background:linear-gradient(135deg,var(--al),rgba(200,81,26,.05));border:0.5px solid rgba(200,81,26,.3);border-radius:10px;padding:16px;margin-top:14px;text-align:center">' +
+      '<div style="font-size:14px;color:var(--t2);margin-bottom:4px">每月應繳</div>' +
+      '<div style="font-size:38px;font-weight:700;color:var(--acc)" id="cc-monthly">—</div>' +
+      '<div style="font-size:13px;color:var(--t2);margin-top:4px" id="cc-detail"></div>' +
+    '</div>' +
+    '<div style="background:var(--rl);border:0.5px solid rgba(192,64,48,.2);border-radius:8px;padding:10px 12px;font-size:13px;color:var(--t2);margin-top:12px;line-height:1.7">' +
+      '⚠️ 以上試算<strong>僅供估算參考</strong>，不代表任何核貸承諾。實際月繳金額、利率及條件，以金融機構審核核定為準，本工具不構成貸款建議。' +
+    '</div>';
+  el.appendChild(card);
+}
+
+function calcClientLoan() {
+  var amtWan = parseFloat(document.getElementById('cc-amt') ? document.getElementById('cc-amt').value : 0) || 0;
+  var amt = amtWan * 10000;
+  var rate = parseFloat(document.getElementById('cc-rate') ? document.getElementById('cc-rate').value : 6) || 6;
+  var years = parseInt(document.getElementById('cc-years') ? document.getElementById('cc-years').value : 3) || 3;
+  var mEl = document.getElementById('cc-monthly');
+  var dEl = document.getElementById('cc-detail');
+  if (!mEl || amt <= 0) { if (mEl) mEl.textContent = '—'; return; }
+  var mr = rate / 100 / 12;
+  var n = years * 12;
+  var payment = mr === 0 ? amt / n : amt * mr * Math.pow(1+mr,n) / (Math.pow(1+mr,n)-1);
+  var total = payment * n;
+  var interest = total - amt;
+  mEl.textContent = '$' + Math.round(payment).toLocaleString();
+  if (dEl) dEl.innerHTML = '總還款 $' + Math.round(total).toLocaleString() + '　利息 $' + Math.round(interest).toLocaleString() + '　共 ' + n + ' 期';
+}
+
+// ══ 客戶端防詐工具 ══
+function renderClientAntifraud() {
+  var el = document.getElementById('client-content');
+  el.innerHTML = '';
+
+  // 防詐知識
+  var knowledgeCard = document.createElement('div'); knowledgeCard.className = 'card';
+  knowledgeCard.innerHTML =
+    '<div style="font-size:18px;font-weight:600;margin-bottom:6px">🛡️ 防詐貸款知識</div>' +
+    '<div style="font-size:13px;color:var(--t2);margin-bottom:12px">遇到以下情況請立即停止並撥打 165</div>';
+
+  var fraudSigns = [
+    ['🚨 要求預付費用', '正規金融機構不會在撥款前要求支付任何費用，包含「手續費」「保證金」「開戶費」「稅金」等，一旦要求先付費就是詐騙。'],
+    ['🚨 保證核貸', '任何貸款都需要經過金融機構審核，沒有任何人可以「保證」核貸，說保證過件的都是謊言。'],
+    ['🚨 索取帳號密碼或 OTP', '正規顧問或銀行絕不要求您提供網銀密碼、OTP 驗證碼、或操作 ATM，提出這種要求就是詐騙。'],
+    ['🚨 要求操作 ATM 或轉帳', '以「解除分期」「帳戶異常」「退款」等名義要求操作 ATM 或轉帳，是車手詐騙手法。'],
+    ['🚨 不看信用記錄任何人都可貸', '正規銀行和融資公司一定會審查信用，說「無論信用多差都能過件」是吸引受害者的話術。'],
+    ['✅ 正確做法', '向有牌照的銀行、融資公司或持有金管會核准的信貸業務辦理；透過本平台聯繫您的顧問確認身份。'],
+  ];
+
+  fraudSigns.forEach(function(item) {
+    var div = document.createElement('div');
+    div.style.cssText = 'padding:10px 0;border-bottom:0.5px solid var(--bdr)';
+    var isOk = item[0].startsWith('✅');
+    div.innerHTML =
+      '<div style="font-size:15px;font-weight:600;color:' + (isOk?'var(--grn)':'var(--red)') + ';margin-bottom:4px">' + item[0] + '</div>' +
+      '<div style="font-size:14px;color:var(--t2);line-height:1.6">' + item[1] + '</div>';
+    knowledgeCard.appendChild(div);
+  });
+
+  var callBtn = document.createElement('a');
+  callBtn.href = 'tel:165';
+  callBtn.style.cssText = 'display:block;text-align:center;padding:12px;background:var(--red);color:#FFF;border-radius:9px;font-size:16px;font-weight:600;text-decoration:none;margin-top:12px';
+  callBtn.textContent = '📞 撥打 165 反詐騙專線';
+  knowledgeCard.appendChild(callBtn);
+  el.appendChild(knowledgeCard);
+
+  // 公司評論查詢
+  var searchCard = document.createElement('div'); searchCard.className = 'card';
+  searchCard.innerHTML =
+    '<div style="font-size:18px;font-weight:600;margin-bottom:4px">🔍 公司評論查詢</div>' +
+    '<div style="font-size:13px;color:var(--t2);margin-bottom:10px">輸入公司名稱，前往 Google 搜尋評論與相關新聞</div>' +
+    '<div class="frow"><div class="flbl">公司名稱</div>' +
+      '<input class="fi" id="ca-company" placeholder="例：某某金融股份有限公司" type="text"></div>' +
+    '<div id="ca-search-btns" style="display:flex;flex-direction:column;gap:8px;margin-top:10px">' +
+      '</div>' +
+    '<div style="background:var(--yl);border:0.5px solid rgba(184,128,32,.3);border-radius:8px;padding:10px 12px;font-size:13px;color:var(--t2);margin-top:10px;line-height:1.7">' +
+      '⚠️ 網路評論不一定為真實，可能包含競業惡意評價或假好評。查詢結果<strong>僅供參考</strong>，建議多方查證，並以金管會公告之合法名單為準。' +
+    '</div>';
+  el.appendChild(searchCard);
+
+  // 建立查詢按鈕
+  var companyInp = searchCard.querySelector('#ca-company');
+  var btnsDiv = searchCard.querySelector('#ca-search-btns');
+
+  var searchDefs = [
+    {icon:'🔍', label:'Google 搜尋評論', url:'https://www.google.com/search?q=', suffix:'+評論+詐騙'},
+    {icon:'📰', label:'新聞搜尋', url:'https://www.google.com/search?tbm=nws&q=', suffix:''},
+    {icon:'🏛️', label:'金管會合法業者查詢', url:'https://www.banking.gov.tw/', suffix:'', noCompany:true},
+    {icon:'📋', label:'公司登記查詢（政府）', url:'https://findbiz.nat.gov.tw/fts/query/QueryBar/queryInit.do?request_locale=zh_TW', suffix:'', noCompany:true},
+  ];
+
+  searchDefs.forEach(function(def) {
+    var btn = document.createElement('button');
+    btn.style.cssText = 'display:flex;align-items:center;gap:8px;padding:10px 14px;background:var(--inp);border:0.5px solid var(--bdr);border-radius:8px;cursor:pointer;font-family:var(--sans);font-size:14px;color:var(--t1);text-align:left;width:100%';
+    btn.innerHTML = '<span style="font-size:18px">' + def.icon + '</span><span>' + def.label + '</span><span style="margin-left:auto;color:var(--t3)">→</span>';
+    btn.onclick = (function(d) {
+      return function() {
+        var company = companyInp ? companyInp.value.trim() : '';
+        if (!d.noCompany && !company) { alert('請先輸入公司名稱'); return; }
+        var url = d.noCompany ? d.url : d.url + encodeURIComponent(company + d.suffix);
+        window.open(url, '_blank');
+      };
+    })(def);
+    btnsDiv.appendChild(btn);
+  });
+}
 
 function toggleLaborYears(val) {
   var row = document.getElementById('c-labor-years-row');
