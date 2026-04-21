@@ -1,0 +1,1000 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="theme-color" content="#111111">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<title>顧問PRO</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+:root{
+  --bg:#111111;--bg2:#1A1A1A;--card:#242424;--bdr:rgba(255,255,255,.08);--bdr2:rgba(255,255,255,.15);
+  --inp:#2E2E2E;--inpt:#EEE;
+  --t0:#FFF;--t1:#CCC;--t2:#888;--t3:#555;
+  --acc:#C8511A;--acc2:#E8712A;--al:rgba(200,81,26,.12);
+  --grn:#2D8A4E;--gl:rgba(45,138,78,.12);
+  --red:#C04030;--rl:rgba(192,64,48,.12);
+  --yel:#B88020;--yl:rgba(184,128,32,.12);
+  --blu:#2A6AB8;--bl:rgba(42,106,184,.12);
+  --serif:'Georgia',serif;--sans:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+}
+html,body{height:100%;background:var(--bg);color:var(--t0);font-family:var(--sans);overflow-x:hidden}
+
+/* ── LAYOUT ── */
+#app{height:100%;display:flex;flex-direction:column}
+.page{display:none;flex:1;overflow-y:auto}
+.page.active{display:flex;flex-direction:column}
+
+/* ── AUTH PAGES ── */
+.auth-wrap{min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px}
+.auth-logo{font-size:28px;font-weight:800;margin-bottom:8px;letter-spacing:-.5px}
+.auth-logo span{color:var(--acc)}
+.auth-sub{font-size:13px;color:var(--t2);margin-bottom:32px}
+.auth-box{background:var(--card);border:0.5px solid var(--bdr2);border-radius:14px;padding:28px 24px;width:100%;max-width:400px}
+.auth-title{font-size:18px;font-weight:600;margin-bottom:20px}
+.auth-tabs{display:flex;border-bottom:0.5px solid var(--bdr);margin-bottom:20px}
+.auth-tab{flex:1;padding:8px;font-size:13px;cursor:pointer;color:var(--t2);border:none;background:none;font-family:var(--sans);border-bottom:2px solid transparent;margin-bottom:-0.5px;transition:all .15s}
+.auth-tab.on{color:var(--acc);border-bottom-color:var(--acc);font-weight:500}
+.frow{display:flex;flex-direction:column;gap:4px;margin-bottom:14px}
+.flbl{font-size:11px;color:var(--t1);font-weight:500}
+.fi{width:100%;padding:10px 12px;background:var(--inp);border:0.5px solid var(--bdr2);border-radius:8px;color:var(--inpt);font-size:14px;font-family:var(--sans);transition:border-color .15s;-webkit-appearance:none}
+.fi:focus{outline:none;border-color:var(--acc)}
+.fg2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.btn-p{width:100%;padding:12px;background:var(--acc);color:#FFF;border:none;border-radius:9px;font-size:14px;font-weight:500;cursor:pointer;font-family:var(--sans);transition:all .2s;margin-top:4px}
+.btn-p:hover{background:var(--acc2)}
+.btn-p:disabled{opacity:.5;cursor:not-allowed}
+.btn-sm{padding:6px 12px;background:transparent;color:var(--t1);border:0.5px solid var(--bdr2);border-radius:7px;font-size:12px;cursor:pointer;font-family:var(--sans);transition:all .15s}
+.btn-sm:hover{border-color:var(--t2)}
+.btn-grn{padding:8px 16px;background:var(--grn);color:#FFF;border:none;border-radius:8px;font-size:12px;font-weight:500;cursor:pointer;font-family:var(--sans)}
+.auth-hint{font-size:11px;color:var(--t2);text-align:center;margin-top:14px;line-height:1.5}
+.err-msg{background:var(--rl);border:0.5px solid rgba(192,64,48,.3);border-radius:7px;padding:8px 12px;font-size:12px;color:#E06050;margin-bottom:12px;display:none}
+.ok-msg{background:var(--gl);border:0.5px solid rgba(45,138,78,.3);border-radius:7px;padding:8px 12px;font-size:12px;color:#50C070;margin-bottom:12px;display:none}
+
+/* ── TOPBAR ── */
+.topbar{background:var(--bg);border-bottom:0.5px solid var(--bdr);padding:0 16px;height:54px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:50;flex-shrink:0}
+.top-logo{font-size:17px;font-weight:800;letter-spacing:-.3px}
+.top-logo span{color:var(--acc)}
+.top-right{display:flex;align-items:center;gap:8px}
+.badge{display:inline-block;font-size:9px;padding:2px 7px;border-radius:20px;font-weight:500}
+.b-acc{background:var(--al);color:var(--acc)}
+.b-grn{background:var(--gl);color:var(--grn)}
+.b-red{background:var(--rl);color:var(--red)}
+.b-yel{background:var(--yl);color:var(--yel)}
+.b-blu{background:var(--bl);color:var(--blu)}
+.b-gray{background:rgba(255,255,255,.06);color:var(--t2)}
+.avatar{width:30px;height:30px;border-radius:50%;background:var(--al);color:var(--acc);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;cursor:pointer}
+
+/* ── BOTTOM NAV ── */
+.bottom-nav{background:var(--bg);border-top:0.5px solid var(--bdr);display:flex;flex-shrink:0;padding-bottom:env(safe-area-inset-bottom)}
+.bn-item{flex:1;display:flex;flex-direction:column;align-items:center;padding:8px 4px 6px;cursor:pointer;border:none;background:none;font-family:var(--sans);color:var(--t3);font-size:9px;gap:3px;transition:color .15s}
+.bn-item.on{color:var(--acc)}
+.bn-icon{font-size:20px;line-height:1}
+
+/* ── CONTENT ── */
+.content{padding:14px 16px;flex:1}
+.card{background:var(--card);border:0.5px solid var(--bdr);border-radius:12px;padding:12px 14px;margin-bottom:10px}
+.ct{font-size:12px;font-weight:600;color:var(--t0);margin-bottom:8px;display:flex;align-items:center;justify-content:space-between;gap:5px;flex-wrap:wrap}
+.ri{display:flex;justify-content:space-between;align-items:flex-start;padding:5px 0;border-bottom:0.5px solid var(--bdr);font-size:11px;gap:6px}
+.ri:last-child{border-bottom:none}
+.rl{color:var(--t2);font-size:10px;flex-shrink:0;min-width:70px}
+.rv{font-weight:500;color:var(--t0);text-align:right;flex:1}
+.sl{font-size:10px;font-weight:600;color:var(--t1);margin:8px 0 5px;padding-bottom:3px;border-bottom:0.5px solid var(--bdr)}
+.ib-acc{background:var(--al);border:0.5px solid rgba(200,81,26,.3);border-radius:8px;padding:8px 11px;font-size:11px;color:var(--acc);line-height:1.5;margin-bottom:8px}
+.ib-grn{background:var(--gl);border:0.5px solid rgba(45,138,78,.3);border-radius:8px;padding:8px 11px;font-size:11px;color:var(--grn);line-height:1.5;margin-bottom:8px}
+.ib-red{background:var(--rl);border:0.5px solid rgba(192,64,48,.3);border-radius:8px;padding:8px 11px;font-size:11px;color:var(--red);line-height:1.5;margin-bottom:8px}
+.ib-yel{background:var(--yl);border:0.5px solid rgba(184,128,32,.3);border-radius:8px;padding:8px 11px;font-size:11px;color:var(--yel);line-height:1.5;margin-bottom:8px}
+
+/* ── STATS ── */
+.stat-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:10px}
+.stat-card{background:var(--card);border:0.5px solid var(--bdr);border-radius:10px;padding:11px 13px}
+.stat-l{font-size:10px;color:var(--t2);margin-bottom:3px}
+.stat-v{font-size:20px;font-weight:700;color:var(--t0)}
+.stat-s{font-size:9px;color:var(--t3);margin-top:2px}
+
+/* ── PROB CARDS ── */
+.prob-row{display:grid;grid-template-columns:repeat(3,1fr);gap:5px;margin-bottom:6px}
+.prob-row-2{display:grid;grid-template-columns:repeat(3,1fr);gap:5px}
+.pcard{border:0.5px solid var(--bdr);border-radius:8px;padding:7px;text-align:center;background:var(--inp)}
+.pcard-n{font-size:8px;color:var(--t3);margin-bottom:3px}
+.pcard-v{font-size:15px;font-weight:700}
+.pb-w{height:3px;background:rgba(255,255,255,.1);border-radius:2px;overflow:hidden;margin-top:3px}
+.pb-f{height:100%;border-radius:2px}
+.p-red{color:var(--red)}.pb-red{background:var(--red)}
+.p-yel{color:var(--yel)}.pb-yel{background:var(--yel)}
+.p-grn{color:var(--grn)}.pb-grn{background:var(--grn)}
+.p-lgrn{color:#259A3E}.pb-lgrn{background:#259A3E}
+.p-none{color:var(--t3)}.pb-none{background:var(--bdr2)}
+
+/* ── LEADS LIST ── */
+.lead-item{background:var(--card);border:0.5px solid var(--bdr);border-radius:10px;padding:11px 13px;margin-bottom:8px;cursor:pointer;transition:border-color .15s;display:flex;align-items:center;gap:10px}
+.lead-item:hover{border-color:var(--bdr2)}
+.lead-av{width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;flex-shrink:0}
+.lead-info{flex:1;min-width:0}
+.lead-name{font-size:13px;font-weight:500;color:var(--t0)}
+.lead-sub{font-size:10px;color:var(--t2);margin-top:2px}
+.lead-right{display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex-shrink:0}
+
+/* ── FORM ── */
+.form-section{background:var(--card);border:0.5px solid var(--bdr);border-radius:12px;padding:14px;margin-bottom:10px}
+.fs-title{font-size:11px;font-weight:600;color:var(--t1);margin-bottom:10px;padding-bottom:6px;border-bottom:0.5px solid var(--bdr);display:flex;align-items:center;gap:6px}
+.frow2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.frow.full{grid-column:1/-1}
+.req{color:var(--acc);font-size:10px}
+
+/* ── TOGGLE ── */
+.tgl-row{display:flex;align-items:flex-start;gap:8px;padding:8px 10px;border:0.5px solid var(--bdr);border-radius:8px;margin-bottom:5px;cursor:pointer;transition:border-color .15s}
+.tgl-row.opted{border-color:var(--grn)}
+.tgl-row.opted-blu{border-color:var(--blu)}
+.tgl-row.req-row{opacity:.7;pointer-events:none}
+.tgl-info{flex:1}
+.tgl-t{font-size:11px;font-weight:500;color:var(--t0)}
+.tgl-s{font-size:10px;color:var(--t2);margin-top:2px;line-height:1.4}
+.tgl{width:32px;height:18px;border-radius:9px;background:var(--bdr2);position:relative;cursor:pointer;transition:background .2s;flex-shrink:0;display:inline-block;margin-top:2px}
+.tgl.on{background:var(--grn)}
+.tgl.on-blu{background:var(--blu)}
+.tgl::after{content:'';position:absolute;width:12px;height:12px;border-radius:50%;background:white;top:3px;left:3px;transition:left .2s}
+.tgl.on::after,.tgl.on-blu::after{left:17px}
+.tgl-lbl{font-size:9px;margin-top:3px;text-align:center;white-space:nowrap}
+.all-btn{display:flex;align-items:center;gap:8px;padding:8px 11px;background:var(--gl);border:0.5px solid rgba(45,138,78,.3);border-radius:8px;cursor:pointer;margin-bottom:6px}
+.all-t{font-size:11px;color:var(--grn);font-weight:500}
+
+/* ── STEPS ── */
+.steps{display:flex;align-items:center;margin-bottom:14px}
+.step{display:flex;flex-direction:column;align-items:center;flex:1}
+.sc{width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:600}
+.sc-done{background:var(--grn);color:#FFF}
+.sc-act{background:var(--acc);color:#FFF}
+.sc-todo{background:var(--inp);color:var(--t3);border:0.5px solid var(--bdr)}
+.slbl{font-size:8px;margin-top:2px;text-align:center;white-space:nowrap}
+.sld{color:var(--grn)}.sla{color:var(--acc)}.slt{color:var(--t3)}
+.step-line{height:0.5px;flex:1;background:var(--bdr);margin-bottom:13px}
+.step-line.done{background:var(--grn)}
+
+/* ── MODAL ── */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:200;display:none;align-items:flex-end;justify-content:center}
+.modal-overlay.show{display:flex}
+.modal-box{background:var(--bg2);border-radius:20px 20px 0 0;width:100%;max-width:500px;max-height:90vh;overflow-y:auto;padding:20px 16px 32px}
+.modal-handle{width:36px;height:4px;background:var(--bdr2);border-radius:2px;margin:0 auto 16px}
+.modal-title{font-size:16px;font-weight:600;margin-bottom:14px}
+
+/* ── SCORE DISPLAY ── */
+.score-prop{border-radius:9px;padding:10px 12px;margin-top:8px}
+.sp-ok{background:var(--gl);border:0.5px solid rgba(45,138,78,.3)}
+.sp-warn{background:var(--yl);border:0.5px solid rgba(184,128,32,.3)}
+.sp-bad{background:var(--rl);border:0.5px solid rgba(192,64,48,.3)}
+
+/* ── LOADING ── */
+.loading{position:fixed;inset:0;background:rgba(10,10,10,.9);z-index:300;display:none;align-items:center;justify-content:center;flex-direction:column;gap:12px}
+.loading.show{display:flex}
+.spinner{width:32px;height:32px;border:2px solid var(--bdr2);border-top-color:var(--acc);border-radius:50%;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.loading-t{font-size:13px;color:var(--t1)}
+
+/* ── DESKTOP ── */
+@media(min-width:768px){
+  .page.active{flex-direction:row}
+  .desktop-sidebar{width:220px;min-width:220px;background:var(--bg2);border-right:0.5px solid var(--bdr);display:flex;flex-direction:column;height:100vh;position:sticky;top:0;overflow-y:auto;flex-shrink:0}
+  .ds-logo{padding:16px 16px 12px;border-bottom:0.5px solid var(--bdr);font-size:18px;font-weight:800}
+  .ds-logo span{color:var(--acc)}
+  .ds-navs{padding:8px 8px 0}
+  .ds-lbl{font-size:9px;color:var(--t3);padding:0 7px;margin:6px 0 3px;text-transform:uppercase;letter-spacing:.07em}
+  .ds-ni{display:flex;align-items:center;gap:7px;padding:7px 9px;border-radius:8px;cursor:pointer;font-size:12px;color:var(--t2);background:transparent;border:none;font-family:var(--sans);width:100%;text-align:left;transition:all .12s}
+  .ds-ni:hover{background:rgba(255,255,255,.04);color:var(--t0)}
+  .ds-ni.on{background:var(--al);color:var(--acc);font-weight:500}
+  .desktop-main{flex:1;overflow-y:auto;display:flex;flex-direction:column}
+  .bottom-nav{display:none}
+  .topbar{display:none}
+  .stat-grid{grid-template-columns:repeat(4,1fr)}
+  .prob-row,.prob-row-2{grid-template-columns:repeat(6,1fr)}
+}
+@media(max-width:767px){
+  .desktop-sidebar{display:none}
+}
+</style>
+</head>
+<body>
+
+<div class="loading" id="loading">
+  <div class="spinner"></div>
+  <div class="loading-t" id="loading-text">載入中…</div>
+</div>
+
+<div id="app">
+
+<!-- ── 登入/註冊頁 ── -->
+<div class="page active" id="page-auth">
+  <div class="auth-wrap">
+    <div class="auth-logo">顧問<span>PRO</span></div>
+    <div class="auth-sub">貸款評估專業平台</div>
+    <div class="auth-box">
+      <div class="auth-tabs">
+        <button class="auth-tab on" onclick="switchAuthTab('login',this)">登入</button>
+        <button class="auth-tab" onclick="switchAuthTab('register',this)">加入成為顧問</button>
+      </div>
+      <div id="err-msg" class="err-msg"></div>
+      <div id="ok-msg" class="ok-msg"></div>
+
+      <!-- 登入表單 -->
+      <div id="form-login">
+        <div class="frow">
+          <div class="flbl">Email</div>
+          <input class="fi" type="email" id="login-email" placeholder="your@email.com" autocomplete="email">
+        </div>
+        <div class="frow">
+          <div class="flbl">密碼</div>
+          <input class="fi" type="password" id="login-pw" placeholder="••••••••" autocomplete="current-password">
+        </div>
+        <button class="btn-p" id="login-btn" onclick="doLogin()">登入</button>
+        <div class="auth-hint">還沒有帳號？點上方「加入成為顧問」</div>
+      </div>
+
+      <!-- 註冊表單 -->
+      <div id="form-register" style="display:none">
+        <div class="fg2">
+          <div class="frow">
+            <div class="flbl">姓名 <span class="req">*</span></div>
+            <input class="fi" id="reg-name" placeholder="真實姓名">
+          </div>
+          <div class="frow">
+            <div class="flbl">公司名稱</div>
+            <input class="fi" id="reg-company" placeholder="可空白">
+          </div>
+        </div>
+        <div class="frow">
+          <div class="flbl">Email <span class="req">*</span></div>
+          <input class="fi" type="email" id="reg-email" placeholder="your@email.com" autocomplete="email">
+        </div>
+        <div class="frow">
+          <div class="flbl">手機號碼</div>
+          <input class="fi" type="tel" id="reg-phone" placeholder="09XX-XXXXXX">
+        </div>
+        <div class="fg2">
+          <div class="frow">
+            <div class="flbl">所在縣市</div>
+            <select class="fi" id="reg-city">
+              <option value="">選擇縣市</option>
+              <option>台北市</option><option>新北市</option><option>桃園市</option>
+              <option>台中市</option><option>台南市</option><option>高雄市</option>
+              <option>基隆市</option><option>新竹市</option><option>新竹縣</option>
+              <option>苗栗縣</option><option>彰化縣</option><option>南投縣</option>
+              <option>雲林縣</option><option>嘉義市</option><option>嘉義縣</option>
+              <option>屏東縣</option><option>宜蘭縣</option><option>花蓮縣</option>
+              <option>台東縣</option><option>澎湖縣</option><option>金門縣</option><option>連江縣</option>
+            </select>
+          </div>
+          <div class="frow">
+            <div class="flbl">行政區</div>
+            <input class="fi" id="reg-district" placeholder="例：信義區">
+          </div>
+        </div>
+        <div class="frow">
+          <div class="flbl">密碼 <span class="req">*</span></div>
+          <input class="fi" type="password" id="reg-pw" placeholder="至少8碼英數混合" autocomplete="new-password">
+        </div>
+
+        <!-- 服務須知 -->
+        <div style="background:var(--inp);border-radius:8px;padding:10px 12px;font-size:10px;color:var(--t2);line-height:1.6;max-height:80px;overflow-y:auto;margin:10px 0">
+          <strong style="color:var(--t0)">會員服務須知摘要</strong><br>
+          本平台供貸款顧問使用。您有義務依個資法保護客戶個人資料，不得超出授權範圍使用、不得轉售客戶資料。違規者停權並保留法律追訴權。完整條款請見服務條款頁面。
+        </div>
+        <div class="tgl-row opted" id="terms-row" onclick="toggleTerms()">
+          <div class="tgl-info">
+            <div class="tgl-t">我已閱讀並同意會員服務須知與個資保護義務</div>
+            <div class="tgl-s">必要同意，不同意無法建立帳號</div>
+          </div>
+          <div style="text-align:center">
+            <div class="tgl on" id="terms-tgl"></div>
+            <div class="tgl-lbl" id="terms-lbl" style="color:var(--grn)">同意</div>
+          </div>
+        </div>
+
+        <button class="btn-p" id="reg-btn" onclick="doRegister()">建立顧問帳號</button>
+        <div class="auth-hint">已有帳號？點上方「登入」</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── 會員後台 ── -->
+<div class="page" id="page-member">
+  <!-- 桌機側欄 -->
+  <div class="desktop-sidebar">
+    <div class="ds-logo">顧問<span>PRO</span></div>
+    <div class="ds-navs">
+      <div class="ds-lbl">會員後台</div>
+      <button class="ds-ni on" onclick="navTo('dash',this)">📊 儀表板</button>
+      <button class="ds-ni" onclick="navTo('leads',this)">👥 客戶名單</button>
+      <button class="ds-ni" onclick="navTo('add-lead',this)">➕ 新增客戶</button>
+      <button class="ds-ni" onclick="navTo('finance',this)">💰 收支理財</button>
+      <button class="ds-ni" onclick="navTo('invite',this)">🎁 邀請碼</button>
+      <div class="ds-lbl">設定</div>
+      <button class="ds-ni" onclick="navTo('settings',this)">⚙️ 帳號設定</button>
+      <button class="ds-ni" onclick="doLogout()" style="color:var(--red);margin-top:8px">🚪 登出</button>
+    </div>
+  </div>
+
+  <!-- 主內容 -->
+  <div class="desktop-main">
+    <!-- 手機 topbar -->
+    <div class="topbar">
+      <div class="top-logo">顧問<span>PRO</span></div>
+      <div class="top-right">
+        <span class="badge b-acc" id="plan-badge">基本版</span>
+        <div class="avatar" id="member-avatar" onclick="navTo('settings',null)">林</div>
+      </div>
+    </div>
+
+    <div class="content" id="member-content">
+      <!-- 內容由 JS 動態渲染 -->
+    </div>
+
+    <!-- 手機底部導航 -->
+    <div class="bottom-nav">
+      <button class="bn-item on" id="bn-dash" onclick="navTo('dash',this)">
+        <div class="bn-icon">📊</div>儀表板
+      </button>
+      <button class="bn-item" id="bn-leads" onclick="navTo('leads',this)">
+        <div class="bn-icon">👥</div>名單
+      </button>
+      <button class="bn-item" id="bn-add-lead" onclick="navTo('add-lead',this)">
+        <div class="bn-icon">➕</div>新增
+      </button>
+      <button class="bn-item" id="bn-finance" onclick="navTo('finance',this)">
+        <div class="bn-icon">💰</div>理財
+      </button>
+      <button class="bn-item" id="bn-settings" onclick="navTo('settings',this)">
+        <div class="bn-icon">⚙️</div>設定
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ── 客戶端 ── -->
+<div class="page" id="page-client">
+  <div class="topbar">
+    <div class="top-logo">顧問<span>PRO</span></div>
+    <div class="top-right">
+      <span style="font-size:11px;color:var(--t2)" id="client-advisor-name"></span>
+    </div>
+  </div>
+  <div class="content" id="client-content"></div>
+</div>
+
+</div><!-- #app -->
+
+<script>
+// ════════════════════════════════════════
+// SUPABASE 初始化
+// ════════════════════════════════════════
+const SUPABASE_URL = 'https://lslrxtqfshenzswgkvms.supabase.co';
+const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxzbHJ4dHFmc2hlbnpzd2drdm1zIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY3NTY3ODEsImV4cCI6MjA5MjMzMjc4MX0.Jsi6GM7q4OGeIFee1hvFNkq_jFFXPSPpiILg6sy5Aao';
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
+
+// ════════════════════════════════════════
+// 狀態
+// ════════════════════════════════════════
+let currentUser = null;
+let currentMember = null;
+let currentNav = 'dash';
+let leads = [];
+let termsAgreed = true;
+
+// ════════════════════════════════════════
+// 初始化
+// ════════════════════════════════════════
+async function init() {
+  showLoading('啟動中…');
+  const { data: { session } } = await sb.auth.getSession();
+  if (session) {
+    currentUser = session.user;
+    await loadMember();
+    showPage('member');
+    renderDash();
+  } else {
+    showPage('auth');
+  }
+  hideLoading();
+}
+
+async function loadMember() {
+  const { data } = await sb.from('members').select('*').eq('id', currentUser.id).single();
+  if (data) {
+    currentMember = data;
+    document.getElementById('plan-badge').textContent =
+      data.plan === 'pro' ? '進階版' : data.plan === 'team' ? '團隊版' : '基本版';
+    const av = document.getElementById('member-avatar');
+    if (av && data.name) av.textContent = data.name.charAt(0);
+  }
+}
+
+// ════════════════════════════════════════
+// AUTH
+// ════════════════════════════════════════
+function switchAuthTab(tab, el) {
+  document.querySelectorAll('.auth-tab').forEach(t => t.classList.remove('on'));
+  el.classList.add('on');
+  document.getElementById('form-login').style.display = tab === 'login' ? 'block' : 'none';
+  document.getElementById('form-register').style.display = tab === 'register' ? 'block' : 'none';
+  clearMsgs();
+}
+
+function toggleTerms() {
+  termsAgreed = !termsAgreed;
+  const t = document.getElementById('terms-tgl');
+  const l = document.getElementById('terms-lbl');
+  const r = document.getElementById('terms-row');
+  t.classList.toggle('on', termsAgreed);
+  l.textContent = termsAgreed ? '同意' : '不同意';
+  l.style.color = termsAgreed ? 'var(--grn)' : 'var(--t3)';
+  r.classList.toggle('opted', termsAgreed);
+}
+
+async function doLogin() {
+  const email = document.getElementById('login-email').value.trim();
+  const pw = document.getElementById('login-pw').value;
+  if (!email || !pw) { showErr('請填寫 Email 和密碼'); return; }
+  showLoading('登入中…');
+  const { data, error } = await sb.auth.signInWithPassword({ email, password: pw });
+  hideLoading();
+  if (error) { showErr('帳號或密碼錯誤，請再試一次'); return; }
+  currentUser = data.user;
+  await loadMember();
+  showPage('member');
+  renderDash();
+}
+
+async function doRegister() {
+  if (!termsAgreed) { showErr('請先同意會員服務須知'); return; }
+  const name = document.getElementById('reg-name').value.trim();
+  const email = document.getElementById('reg-email').value.trim();
+  const pw = document.getElementById('reg-pw').value;
+  const company = document.getElementById('reg-company').value.trim();
+  const phone = document.getElementById('reg-phone').value.trim();
+  const city = document.getElementById('reg-city').value;
+  const district = document.getElementById('reg-district').value.trim();
+  if (!name) { showErr('請填寫姓名'); return; }
+  if (!email) { showErr('請填寫 Email'); return; }
+  if (pw.length < 8) { showErr('密碼至少需要 8 碼'); return; }
+  showLoading('建立帳號中…');
+  const { data, error } = await sb.auth.signUp({ email, password: pw });
+  if (error) { hideLoading(); showErr('帳號建立失敗：' + error.message); return; }
+  // 建立 member 資料
+  const inviteCode = name.substring(0,2).toUpperCase() + Math.random().toString(36).substring(2,6).toUpperCase() + '-' + new Date().getFullYear();
+  const { error: mErr } = await sb.from('members').insert({
+    id: data.user.id,
+    email, name, company, phone, city, district,
+    invite_code: inviteCode,
+    plan: 'free'
+  });
+  hideLoading();
+  if (mErr) { showErr('帳號資料儲存失敗，請聯繫客服'); return; }
+  showOk('帳號建立成功！請檢查 Email 確認信後登入。');
+}
+
+async function doLogout() {
+  await sb.auth.signOut();
+  currentUser = null; currentMember = null; leads = [];
+  showPage('auth');
+  switchAuthTab('login', document.querySelectorAll('.auth-tab')[0]);
+}
+
+// ════════════════════════════════════════
+// NAV
+// ════════════════════════════════════════
+function navTo(key, el) {
+  currentNav = key;
+  // 桌機側欄
+  document.querySelectorAll('.ds-ni').forEach(n => n.classList.remove('on'));
+  if (el && el.classList.contains('ds-ni')) el.classList.add('on');
+  // 手機底欄
+  document.querySelectorAll('.bn-item').forEach(n => n.classList.remove('on'));
+  const bn = document.getElementById('bn-' + key);
+  if (bn) bn.classList.add('on');
+  // 渲染
+  const renders = { dash: renderDash, leads: renderLeads, 'add-lead': renderAddLead, finance: renderFinance, invite: renderInvite, settings: renderSettings };
+  if (renders[key]) renders[key]();
+}
+
+// ════════════════════════════════════════
+// 評分引擎
+// ════════════════════════════════════════
+function calcScores(lead) {
+  const salary = lead.monthly_salary || 0;
+  const hasTransfer = lead.has_salary_transfer;
+  const hasCarLic = lead.has_car_license;
+  const hasBikeLic = lead.has_bike_license;
+  const hasAlert = ['alert','negotiation','rehabilitation','liquidation'].includes(lead.alert_status);
+  const ccAge = lead.credit_card_age || 'none';
+  const bankReject = lead.bank_recent_reject || 'none';
+  const finReject = lead.finance_recent_reject || 'none';
+
+  // 銀行信貸
+  let bank = hasAlert ? 0 : 40;
+  if (!hasAlert) {
+    if (hasTransfer) bank += 15;
+    if (ccAge === '1y+') bank += 18;
+    else if (ccAge === '6m+') bank += 12;
+    else if (ccAge === '3m+') bank += 8;
+    if (bankReject === 'none') bank += 12;
+    else if (bankReject === '3-6m') bank -= 8;
+    else if (bankReject === '1-3m') bank -= 15;
+    else if (bankReject === '<1m') bank -= 25;
+    bank = Math.min(95, Math.max(0, bank));
+  }
+
+  // 汽車貸款
+  let car = 0;
+  if (salary > 0) {
+    if (hasCarLic) car += 20;
+    car += salary >= 50000 ? 35 : salary >= 35000 ? 25 : salary >= 25000 ? 15 : 5;
+    if (finReject === 'none') car += 15;
+    else if (finReject === '3-6m') car -= 8;
+    else if (finReject === '1-3m') car -= 15;
+    else if (finReject === '<1m') car -= 25;
+    car = Math.min(92, Math.max(0, car));
+  }
+
+  // 機車貸款
+  let bike = 0;
+  if (salary > 0) {
+    if (hasBikeLic) bike += 15;
+    bike += salary >= 25000 ? 40 : salary >= 18000 ? 28 : 15;
+    if (finReject === 'none') bike += 15;
+    else if (finReject === '<1m') bike -= 25;
+    bike = Math.min(95, Math.max(0, bike));
+  }
+
+  // 商品手機貸
+  let phone = 0;
+  if (salary >= 22000) {
+    phone = 45 + (salary >= 40000 ? 20 : salary >= 30000 ? 12 : 5);
+    if (finReject === '<1m') phone -= 20;
+    phone = Math.min(88, Math.max(0, phone));
+  }
+
+  // 當鋪
+  const pawn = lead.has_collateral ? 75 : 20;
+
+  // 不動產
+  let propRatio = null;
+  let propStatus = null;
+  if (lead.has_property && lead.property_valuation) {
+    const totalDebt = (lead.property_loan1 || 0) + (lead.property_loan2 || 0) + (lead.property_loan3 || 0);
+    propRatio = totalDebt > 0 ? (totalDebt / lead.property_valuation * 100) : 0;
+    const t1 = lead.prop_threshold1 || 70;
+    const t2 = lead.prop_threshold2 || 80;
+    propStatus = propRatio <= t1 ? 'ok' : propRatio <= t2 ? 'warn' : 'bad';
+  }
+
+  return { bank, car, bike, phone, pawn, propRatio, propStatus };
+}
+
+function scoreColor(s) {
+  if (s >= 80) return 'p-lgrn';
+  if (s >= 70) return 'p-grn';
+  if (s >= 60) return 'p-yel';
+  return 'p-red';
+}
+function scoreBarColor(s) {
+  if (s >= 80) return 'pb-lgrn';
+  if (s >= 70) return 'pb-grn';
+  if (s >= 60) return 'pb-yel';
+  return 'pb-red';
+}
+
+function renderProbCards(scores) {
+  const items = [
+    ['銀行信貸', scores.bank],
+    ['汽車貸款', scores.car],
+    ['機車貸款', scores.bike],
+    ['商品手機貸', scores.phone],
+    ['當鋪借貸', scores.pawn],
+  ];
+  let propCard = '';
+  if (scores.propRatio !== null) {
+    const col = scores.propStatus === 'ok' ? 'p-lgrn' : scores.propStatus === 'warn' ? 'p-yel' : 'p-red';
+    const bcol = scores.propStatus === 'ok' ? 'pb-lgrn' : scores.propStatus === 'warn' ? 'pb-yel' : 'pb-red';
+    const label = scores.propStatus === 'ok' ? '有效成交' : scores.propStatus === 'warn' ? '有效買賣' : '空間不足';
+    propCard = `<div class="pcard" style="border-color:var(--grn)"><div class="pcard-n">不動產</div><div class="pcard-v ${col}" style="font-size:12px">${scores.propRatio.toFixed(1)}%</div><div class="pb-w"><div class="pb-f ${bcol}" style="width:${Math.min(100,scores.propRatio)}%"></div></div><div style="font-size:7px;color:var(--grn);margin-top:2px">${label}</div></div>`;
+  } else {
+    propCard = `<div class="pcard" style="opacity:.4"><div class="pcard-n">不動產</div><div class="pcard-v p-none">無</div><div class="pb-w"><div class="pb-f pb-none" style="width:0%"></div></div></div>`;
+  }
+  const cards = items.map(([n,s]) => `
+    <div class="pcard">
+      <div class="pcard-n">${n}</div>
+      <div class="pcard-v ${s > 0 ? scoreColor(s) : 'p-none'}">${s > 0 ? s + '%' : '—'}</div>
+      <div class="pb-w"><div class="pb-f ${s > 0 ? scoreBarColor(s) : 'pb-none'}" style="width:${s}%"></div></div>
+    </div>`).join('');
+  return `<div class="prob-row">${cards}${propCard}</div>`;
+}
+
+// ════════════════════════════════════════
+// 頁面渲染
+// ════════════════════════════════════════
+async function renderDash() {
+  const el = document.getElementById('member-content');
+  el.innerHTML = '<div style="text-align:center;padding:30px;color:var(--t2)">載入中…</div>';
+  const { data: leadsData } = await sb.from('leads').select('*').eq('member_id', currentUser.id).order('created_at', { ascending: false });
+  leads = leadsData || [];
+  const total = leads.length;
+  const closed = leads.filter(l => l.status === 'closed').length;
+  const pending = leads.filter(l => ['new','active','invited'].includes(l.status)).length;
+  const propLeads = leads.filter(l => l.has_property).length;
+  el.innerHTML = `
+    <div class="stat-grid">
+      <div class="stat-card"><div class="stat-l">本月名單</div><div class="stat-v">${total}</div><div class="stat-s">累計客戶數</div></div>
+      <div class="stat-card"><div class="stat-l">已成交</div><div class="stat-v" style="color:var(--grn)">${closed}</div><div class="stat-s">結案件數</div></div>
+      <div class="stat-card"><div class="stat-l">待跟進</div><div class="stat-v" style="color:var(--acc)">${pending}</div><div class="stat-s">進行中</div></div>
+      <div class="stat-card"><div class="stat-l">不動產名單</div><div class="stat-v">${propLeads}</div><div class="stat-s">有不動產客戶</div></div>
+    </div>
+    <div class="card">
+      <div class="ct">最新名單
+        <button class="btn-sm" onclick="navTo('leads',null)">查看全部</button>
+      </div>
+      ${leads.length === 0 ? '<div style="text-align:center;padding:20px;color:var(--t2);font-size:12px">還沒有客戶，點底部「新增」開始</div>' :
+        leads.slice(0,5).map(l => {
+          const s = calcScores(l);
+          return `<div class="lead-item" onclick="showLeadDetail('${l.id}')">
+            <div class="lead-av" style="background:var(--al);color:var(--acc)">${(l.name||'?').charAt(0)}</div>
+            <div class="lead-info">
+              <div class="lead-name">${l.name}</div>
+              <div class="lead-sub">銀行信貸 <span style="color:var(--${s.bank>=70?'grn':s.bank>=60?'yel':'red'})">${s.bank}%</span> · 機車 <span style="color:var(--${s.bike>=70?'grn':s.bike>=60?'yel':'red'})">${s.bike}%</span></div>
+            </div>
+            <div class="lead-right">
+              <span class="badge b-${l.status==='closed'?'grn':l.status==='active'?'acc':'gray'}">${
+                l.status==='closed'?'成交':l.status==='active'?'近件中':l.status==='invited'?'邀約':l.status==='pending_guarantor'?'補保人':'新名單'
+              }</span>
+            </div>
+          </div>`;
+        }).join('')
+      }
+    </div>
+    <div class="card">
+      <div class="ct">我的推廣連結</div>
+      <div style="background:var(--inp);border-radius:8px;padding:10px 12px;font-size:12px;font-family:monospace;color:var(--acc);word-break:break-all;margin-bottom:8px">
+        ${window.location.origin}/?ref=${currentMember?.invite_code || 'LOADING'}
+      </div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        <button class="btn-sm" onclick="copyLink()">複製連結</button>
+        <button class="btn-sm" onclick="shareToLine()">分享到 LINE</button>
+      </div>
+    </div>
+  `;
+}
+
+async function renderLeads() {
+  const el = document.getElementById('member-content');
+  if (leads.length === 0) {
+    const { data } = await sb.from('leads').select('*').eq('member_id', currentUser.id).order('created_at', { ascending: false });
+    leads = data || [];
+  }
+  el.innerHTML = `
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+      <div style="font-size:14px;font-weight:600">客戶名單 <span class="badge b-gray">${leads.length}筆</span></div>
+      <button class="btn-sm" onclick="navTo('add-lead',null)">+ 新增客戶</button>
+    </div>
+    ${leads.length === 0 ? '<div class="card" style="text-align:center;padding:30px;color:var(--t2)"><div style="font-size:30px;margin-bottom:10px">👥</div>還沒有客戶名單<br><span style="font-size:11px">點上方新增第一位客戶</span></div>' :
+      leads.map(l => {
+        const s = calcScores(l);
+        return `<div class="lead-item" onclick="showLeadDetail('${l.id}')">
+          <div class="lead-av" style="background:var(--al);color:var(--acc)">${(l.name||'?').charAt(0)}</div>
+          <div class="lead-info">
+            <div class="lead-name">${l.name}</div>
+            <div class="lead-sub">
+              信貸 <span style="color:var(--${s.bank>=70?'grn':s.bank>=60?'yel':'red'})">${s.bank}%</span>
+              · 機車 <span style="color:var(--${s.bike>=70?'grn':s.bike>=60?'yel':'red'})">${s.bike}%</span>
+              ${s.propRatio !== null ? `· 不動產 <span style="color:var(--${s.propStatus==='ok'?'grn':s.propStatus==='warn'?'yel':'red'})">${s.propRatio.toFixed(0)}%</span>` : ''}
+            </div>
+          </div>
+          <div class="lead-right">
+            <span class="badge b-${l.status==='closed'?'grn':l.status==='active'?'acc':'gray'}">${
+              l.status==='closed'?'成交':l.status==='active'?'近件中':l.status==='invited'?'邀約':l.status==='pending_guarantor'?'補保人':'新名單'
+            }</span>
+            <span style="font-size:9px;color:var(--t3)">${new Date(l.created_at).toLocaleDateString('zh-TW')}</span>
+          </div>
+        </div>`;
+      }).join('')
+    }
+  `;
+}
+
+function renderAddLead() {
+  const el = document.getElementById('member-content');
+  el.innerHTML = `
+    <div style="font-size:14px;font-weight:600;margin-bottom:12px">新增客戶資料</div>
+    <div id="add-err" class="err-msg" style="display:none"></div>
+
+    <div class="form-section">
+      <div class="fs-title">🪪 個人基本</div>
+      <div class="frow"><div class="flbl">姓名 <span class="req">*</span></div><input class="fi" id="n-name" placeholder="真實姓名"></div>
+      <div class="frow2">
+        <div class="frow"><div class="flbl">年齡</div><input class="fi" id="n-age" type="number" placeholder="38" inputmode="numeric"></div>
+        <div class="frow"><div class="flbl">工作類型</div><select class="fi" id="n-work"><option value="">選擇</option><option>受雇職員</option><option>自行業主</option><option>自由業</option><option>其他</option></select></div>
+      </div>
+      <div class="frow"><div class="flbl">警示/協商/更生/清算</div><select class="fi" id="n-alert"><option value="none">否</option><option value="alert">警示戶</option><option value="negotiation">協商中</option><option value="rehabilitation">更生</option><option value="liquidation">清算</option></select></div>
+      <div class="frow"><div class="flbl">居住地址</div><input class="fi" id="n-addr" placeholder="完整地址"></div>
+      <div class="frow"><div class="flbl">戶籍地址（不同居住地時填）</div><input class="fi" id="n-huji" placeholder="完整戶籍地址"></div>
+      <div class="frow2">
+        <div class="frow"><div class="flbl">需求資金（元）<span class="req">*</span></div><input class="fi" id="n-amount" type="number" placeholder="500000" inputmode="numeric"></div>
+        <div class="frow"><div class="flbl">資金用途</div><select class="fi" id="n-purpose"><option>週轉</option><option>整合負債</option><option>購屋</option><option>購車</option><option>其他</option></select></div>
+      </div>
+    </div>
+
+    <div class="form-section">
+      <div class="fs-title">💼 收入財務</div>
+      <div class="frow2">
+        <div class="frow"><div class="flbl">月薪（元）</div><input class="fi" id="n-salary" type="number" placeholder="40000" inputmode="numeric"></div>
+        <div class="frow"><div class="flbl">有無薪轉</div><select class="fi" id="n-transfer"><option value="true">有</option><option value="false">無</option></select></div>
+      </div>
+      <div class="frow2">
+        <div class="frow"><div class="flbl">勞保年資</div><select class="fi" id="n-labor"><option value="none">未投保</option><option value="6m+">6個月以上</option><option value="1y+">1年以上</option><option value="2y+">2年以上</option></select></div>
+        <div class="frow"><div class="flbl">信用卡持卡</div><select class="fi" id="n-cc"><option value="none">無卡</option><option value="3m+">3個月以上</option><option value="6m+">6個月以上</option><option value="1y+">1年以上</option></select></div>
+      </div>
+      <div class="frow2">
+        <div class="frow"><div class="flbl">汽車駕照</div><select class="fi" id="n-car-lic"><option value="true">有</option><option value="false">無</option></select></div>
+        <div class="frow"><div class="flbl">機車駕照</div><select class="fi" id="n-bike-lic"><option value="true">有</option><option value="false">無</option></select></div>
+      </div>
+      <div class="frow2">
+        <div class="frow"><div class="flbl">名下不動產</div><select class="fi" id="n-property"><option value="false">無</option><option value="true">有</option></select></div>
+        <div class="frow"><div class="flbl">有無抵押品</div><select class="fi" id="n-collateral"><option value="false">無</option><option value="true">有</option></select></div>
+      </div>
+    </div>
+
+    <div class="form-section">
+      <div class="fs-title">📋 未過件記錄</div>
+      <div class="frow2">
+        <div class="frow"><div class="flbl">銀行端未過件距今</div><select class="fi" id="n-bank-rej"><option value="none">無</option><option value="<1m">未滿1個月</option><option value="1-3m">1–3個月</option><option value="3-6m">3–6個月</option></select></div>
+        <div class="frow"><div class="flbl">融資端未過件距今</div><select class="fi" id="n-fin-rej"><option value="none">無</option><option value="<1m">未滿1個月</option><option value="1-3m">1–3個月</option><option value="3-6m">3–6個月</option></select></div>
+      </div>
+    </div>
+
+    <div class="form-section">
+      <div class="fs-title">📝 顧問備註</div>
+      <div class="frow"><textarea class="fi" id="n-note" rows="3" style="resize:none" placeholder="客戶特殊情況說明…"></textarea></div>
+    </div>
+
+    <div style="display:flex;gap:8px;margin-bottom:20px">
+      <button class="btn-sm" onclick="navTo('leads',null)">取消</button>
+      <button class="btn-p" onclick="saveLead()" style="flex:1">儲存並 AI 評估</button>
+    </div>
+  `;
+}
+
+async function saveLead() {
+  const name = document.getElementById('n-name').value.trim();
+  const amount = document.getElementById('n-amount').value;
+  if (!name) { document.getElementById('add-err').textContent = '請填寫客戶姓名'; document.getElementById('add-err').style.display = 'block'; return; }
+  document.getElementById('add-err').style.display = 'none';
+  showLoading('儲存中…');
+  const payload = {
+    member_id: currentUser.id,
+    name,
+    age: parseInt(document.getElementById('n-age').value) || null,
+    work_type: document.getElementById('n-work').value,
+    alert_status: document.getElementById('n-alert').value,
+    address: document.getElementById('n-addr').value,
+    huji_address: document.getElementById('n-huji').value,
+    required_amount: parseInt(amount) || null,
+    fund_purpose: document.getElementById('n-purpose').value,
+    monthly_salary: parseInt(document.getElementById('n-salary').value) || null,
+    has_salary_transfer: document.getElementById('n-transfer').value === 'true',
+    labor_insurance_years: document.getElementById('n-labor').value,
+    credit_card_age: document.getElementById('n-cc').value,
+    has_car_license: document.getElementById('n-car-lic').value === 'true',
+    has_bike_license: document.getElementById('n-bike-lic').value === 'true',
+    has_property: document.getElementById('n-property').value === 'true',
+    has_collateral: document.getElementById('n-collateral').value === 'true',
+    bank_recent_reject: document.getElementById('n-bank-rej').value,
+    finance_recent_reject: document.getElementById('n-fin-rej').value,
+    advisor_note: document.getElementById('n-note').value,
+    status: 'new'
+  };
+  const { data, error } = await sb.from('leads').insert(payload).select().single();
+  hideLoading();
+  if (error) { document.getElementById('add-err').textContent = '儲存失敗：' + error.message; document.getElementById('add-err').style.display = 'block'; return; }
+  leads.unshift(data);
+  showLeadDetail(data.id);
+}
+
+function showLeadDetail(id) {
+  const lead = leads.find(l => l.id === id);
+  if (!lead) return;
+  const scores = calcScores(lead);
+  const el = document.getElementById('member-content');
+  el.innerHTML = `
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
+      <button class="btn-sm" onclick="navTo('leads',null)">← 返回</button>
+      <span style="font-size:14px;font-weight:600">${lead.name} · 完整資料</span>
+      <div style="margin-left:auto;display:flex;gap:6px">
+        <button class="btn-sm" onclick="shareLeadLine('${id}')">LINE</button>
+        <button class="btn-grn" onclick="alert('PDF下載功能即將上線')">PDF</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="ct">AI 評估機率</div>
+      ${renderProbCards(scores)}
+      ${scores.propRatio !== null ? `
+        <div class="score-prop sp-${scores.propStatus}">
+          <div style="font-size:11px;font-weight:500;color:var(--${scores.propStatus==='ok'?'grn':scores.propStatus==='warn'?'yel':'red'})">
+            🏠 不動產評估：${scores.propStatus==='ok'?'有效成交':scores.propStatus==='warn'?'有效買賣':'空間不足'}（${scores.propRatio.toFixed(1)}%）
+          </div>
+        </div>` : ''}
+      <div style="margin-top:8px">
+        <div class="flbl" style="margin-bottom:4px">進度</div>
+        <select class="fi" onchange="updateStatus('${id}',this.value)">
+          <option value="new" ${lead.status==='new'?'selected':''}>新名單</option>
+          <option value="active" ${lead.status==='active'?'selected':''}>近件中</option>
+          <option value="invited" ${lead.status==='invited'?'selected':''}>邀約</option>
+          <option value="pending_guarantor" ${lead.status==='pending_guarantor'?'selected':''}>補保人</option>
+          <option value="closed" ${lead.status==='closed'?'selected':''}>已成交</option>
+          <option value="rejected" ${lead.status==='rejected'?'selected':''}>無法承作</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="ct">顧問備註</div>
+      <textarea class="fi" id="note-${id}" rows="3" style="resize:none;font-size:11px">${lead.advisor_note||''}</textarea>
+      <button class="btn-grn" style="margin-top:6px;font-size:11px;padding:6px 12px" onclick="saveNote('${id}')">儲存備註</button>
+    </div>
+
+    <div class="card">
+      <div class="ct">基本資料</div>
+      <div class="sl">個人識別</div>
+      <div class="ri"><span class="rl">姓名</span><span class="rv">${lead.name}</span></div>
+      ${lead.age ? `<div class="ri"><span class="rl">年齡</span><span class="rv">${lead.age}歲</span></div>` : ''}
+      <div class="ri"><span class="rl">工作類型</span><span class="rv">${lead.work_type||'未填'}</span></div>
+      <div class="ri"><span class="rl">警示協商</span><span class="rv"><span class="badge b-${lead.alert_status==='none'?'grn':'red'}">${lead.alert_status==='none'?'否':lead.alert_status}</span></span></div>
+      ${lead.address ? `<div class="ri"><span class="rl">居住地址</span><span class="rv" style="font-size:10px">${lead.address}</span></div>` : ''}
+      <div class="sl">收入財務</div>
+      <div class="ri"><span class="rl">月薪</span><span class="rv">${lead.monthly_salary ? '$'+lead.monthly_salary.toLocaleString() : '未填'}</span></div>
+      <div class="ri"><span class="rl">薪轉</span><span class="rv">${lead.has_salary_transfer?'有 (+12分)':'無'}</span></div>
+      <div class="ri"><span class="rl">汽車駕照</span><span class="rv">${lead.has_car_license?'有 (+20分)':'無'}</span></div>
+      <div class="ri"><span class="rl">機車駕照</span><span class="rv">${lead.has_bike_license?'有 (+15分)':'無'}</span></div>
+      <div class="sl">需求</div>
+      <div class="ri"><span class="rl">需求資金</span><span class="rv">${lead.required_amount ? '$'+lead.required_amount.toLocaleString() : '未填'}</span></div>
+      <div class="ri"><span class="rl">資金用途</span><span class="rv">${lead.fund_purpose||'未填'}</span></div>
+    </div>
+
+    <div class="card">
+      <div class="ct">建立時間</div>
+      <div style="font-size:11px;color:var(--t2)">${new Date(lead.created_at).toLocaleString('zh-TW')}</div>
+    </div>
+  `;
+}
+
+async function updateStatus(id, status) {
+  await sb.from('leads').update({ status }).eq('id', id);
+  const lead = leads.find(l => l.id === id);
+  if (lead) lead.status = status;
+}
+
+async function saveNote(id) {
+  const note = document.getElementById('note-'+id).value;
+  await sb.from('leads').update({ advisor_note: note }).eq('id', id);
+  const lead = leads.find(l => l.id === id);
+  if (lead) lead.advisor_note = note;
+  alert('備註已儲存');
+}
+
+function renderFinance() {
+  const el = document.getElementById('member-content');
+  el.innerHTML = `
+    <div style="font-size:14px;font-weight:600;margin-bottom:12px">收支理財工具</div>
+    <div class="ib-yel">此功能正在建置中，下一個版本上線。</div>
+    <div class="card">
+      <div class="ct">固定費用設定</div>
+      <div style="font-size:12px;color:var(--t2);padding:10px 0">即將推出：設定房貸、電話費等固定費用，系統自動提醒繳款日期。</div>
+    </div>
+  `;
+}
+
+function renderInvite() {
+  const code = currentMember?.invite_code || '—';
+  const el = document.getElementById('member-content');
+  el.innerHTML = `
+    <div style="font-size:14px;font-weight:600;margin-bottom:12px">邀請碼 / 折扣</div>
+    <div style="background:linear-gradient(135deg,rgba(200,81,26,.1),rgba(184,128,32,.05));border:0.5px solid rgba(200,81,26,.3);border-radius:12px;padding:16px;margin-bottom:10px">
+      <div style="font-size:11px;color:var(--acc);margin-bottom:8px">我的專屬邀請碼</div>
+      <div style="font-size:22px;font-weight:700;letter-spacing:3px;font-family:monospace;color:var(--yel);margin-bottom:10px">${code}</div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        <button class="btn-sm" onclick="navigator.clipboard.writeText('${code}').then(()=>alert('已複製邀請碼'))">複製邀請碼</button>
+        <button class="btn-sm" onclick="shareInviteToLine('${code}')">分享到 LINE</button>
+      </div>
+    </div>
+    <div class="card">
+      <div class="ct">折扣機制</div>
+      <div class="ri"><span class="rl">5–9人有效</span><span class="rv" style="color:var(--yel)">每月 -$200</span></div>
+      <div class="ri"><span class="rl">10–14人有效</span><span class="rv" style="color:var(--acc)">每月 -$400</span></div>
+      <div class="ri"><span class="rl">15人以上</span><span class="rv" style="color:var(--grn)">每月 -$600（上限）</span></div>
+      <div style="font-size:10px;color:var(--t3);margin-top:8px">僅計算付費有效會員，基本免費版不計入</div>
+    </div>
+  `;
+}
+
+function renderSettings() {
+  const m = currentMember || {};
+  const el = document.getElementById('member-content');
+  el.innerHTML = `
+    <div style="font-size:14px;font-weight:600;margin-bottom:12px">帳號設定</div>
+    <div class="card">
+      <div class="ct">帳號資訊</div>
+      <div class="ri"><span class="rl">姓名</span><span class="rv">${m.name||'—'}</span></div>
+      <div class="ri"><span class="rl">Email</span><span class="rv">${m.email||'—'}</span></div>
+      <div class="ri"><span class="rl">公司</span><span class="rv">${m.company||'—'}</span></div>
+      <div class="ri"><span class="rl">所在地</span><span class="rv">${m.city||''}${m.district||''}</span></div>
+      <div class="ri"><span class="rl">目前方案</span><span class="rv"><span class="badge b-${m.plan==='pro'?'acc':m.plan==='team'?'pur':'gray'}">${m.plan==='pro'?'進階版':m.plan==='team'?'團隊版':'基本版'}</span></span></div>
+      <div class="ri"><span class="rl">邀請碼</span><span class="rv" style="font-family:monospace;color:var(--yel)">${m.invite_code||'—'}</span></div>
+    </div>
+    <div class="card">
+      <div class="ct">升級方案</div>
+      <div class="ib-acc">升級進階版 $980/月，享有無限評估、自訂規則、客戶 PDF 報告等完整功能。7 天免費試用。</div>
+      <button class="btn-p" onclick="alert('Stripe 金流串接即將上線，請稍候')">升級進階版（7天免費試用）</button>
+    </div>
+    <div class="card">
+      <div class="ct" style="color:var(--red)">登出</div>
+      <button class="btn-sm" style="color:var(--red);border-color:rgba(192,64,48,.3);width:100%;padding:10px" onclick="doLogout()">登出帳號</button>
+    </div>
+  `;
+}
+
+// ════════════════════════════════════════
+// 工具函數
+// ════════════════════════════════════════
+function copyLink() {
+  const url = window.location.origin + '/?ref=' + (currentMember?.invite_code || '');
+  navigator.clipboard.writeText(url).then(() => alert('連結已複製！'));
+}
+function shareToLine() {
+  const url = 'https://line.me/R/share?text=' + encodeURIComponent('我在用顧問PRO做貸款評估，你也可以用我的連結試試看：' + window.location.origin + '/?ref=' + (currentMember?.invite_code || ''));
+  window.open(url, '_blank');
+}
+function shareInviteToLine(code) {
+  const url = 'https://line.me/R/share?text=' + encodeURIComponent('我的顧問PRO邀請碼是：' + code + '\n加入使用這個專業貸款評估平台：' + window.location.origin);
+  window.open(url, '_blank');
+}
+function shareLeadLine(id) {
+  const lead = leads.find(l => l.id === id);
+  if (!lead) return;
+  const s = calcScores(lead);
+  const text = `【顧問PRO評估結果】\n客戶：${lead.name}\n銀行信貸：${s.bank}%\n汽車：${s.car}%\n機車：${s.bike}%\n需求：$${(lead.required_amount||0).toLocaleString()}\n\n顧問PRO 專業評估`;
+  window.open('https://line.me/R/share?text=' + encodeURIComponent(text), '_blank');
+}
+
+function showErr(msg) {
+  const e = document.getElementById('err-msg');
+  if (e) { e.textContent = msg; e.style.display = 'block'; }
+}
+function showOk(msg) {
+  const e = document.getElementById('ok-msg');
+  if (e) { e.textContent = msg; e.style.display = 'block'; }
+}
+function clearMsgs() {
+  const e = document.getElementById('err-msg');
+  const o = document.getElementById('ok-msg');
+  if (e) e.style.display = 'none';
+  if (o) o.style.display = 'none';
+}
+function showLoading(txt) {
+  document.getElementById('loading-text').textContent = txt || '載入中…';
+  document.getElementById('loading').classList.add('show');
+}
+function hideLoading() {
+  document.getElementById('loading').classList.remove('show');
+}
+function showPage(name) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.getElementById('page-' + name).classList.add('active');
+}
+
+// ════════════════════════════════════════
+// 啟動
+// ════════════════════════════════════════
+init();
+</script>
+</body>
+</html>
