@@ -784,7 +784,10 @@ async function doRegister() {
   showLoading('建立帳號中…');
   var r = await sb.auth.signUp({ email:email, password:pw });
   if (r.error) { hideLoading(); showErr('帳號建立失敗：' + r.error.message); return; }
-  var invCode = name.substring(0,2).toUpperCase() + Math.random().toString(36).substring(2,6).toUpperCase() + '-' + new Date().getFullYear();
+  // 邀請碼只用英數字，避免中文字在 URL 被編碼導致找不到
+  var nameEn = name.replace(/[^\x00-\x7F]/g, '').substring(0,2).toUpperCase() || 'GW';
+  if (nameEn.length < 2) nameEn = ('GW' + nameEn).slice(-2);
+  var invCode = nameEn + Math.random().toString(36).substring(2,6).toUpperCase() + '-' + new Date().getFullYear();
   await sb.from('members').insert({ id:r.data.user.id, email:email, name:name, company:company, phone:phone, city:city, district:district, invite_code:invCode, plan:'free' });
   hideLoading();
   showOk('帳號建立成功！請檢查 Email 確認信後登入。');
@@ -1799,8 +1802,9 @@ async function initClientFlow(inviteCode) {
   }
   document.getElementById('client-content').innerHTML = '<div style="text-align:center;padding:40px;color:var(--t2)">載入顧問資訊…</div>';
 
-  // 清理邀請碼：移除空白，嘗試原始和大寫兩個版本
-  var codeRaw = (inviteCode || '').trim();
+  // URL 解碼 + 清理邀請碼
+  var codeRaw = '';
+  try { codeRaw = decodeURIComponent((inviteCode || '').trim()); } catch(e) { codeRaw = (inviteCode || '').trim(); }
   var codeUpper = codeRaw.toUpperCase();
 
   var r = await sb.from('members').select('id,name,company,city,district,invite_code,plan').eq('invite_code', codeRaw).single();
