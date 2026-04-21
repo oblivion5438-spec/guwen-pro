@@ -1812,69 +1812,107 @@ function clientStep1() {
   var el = clientStepBase(1);
   var card = document.createElement('div'); card.className = 'card';
 
-  var h = '<div style="font-size:16px;font-weight:600;margin-bottom:4px">個資告知與授權同意</div>';
-  h += '<div style="font-size:14px;color:var(--t2);margin-bottom:10px">依個人資料保護法第8條，蒐集前需明確告知並取得同意</div>';
-  // 必要
-  h += '<div class="tgl-row req-row opted" style="flex-direction:column;cursor:pointer" onclick="togglePrivacyLaw()">';
-  h += '<div style="display:flex;align-items:center;width:100%">';
-  h += '<div class="tgl-info"><div class="tgl-t">基本個資蒐集（必要）</div><div class="tgl-s">依個資法第19條第1項第5款，保存5年 <span style="color:var(--blu);font-size:12px">▼ 點開查看法條</span></div></div>';
-  h += '<div style="text-align:center;flex-shrink:0"><div class="tgl on" style="pointer-events:none"></div><div class="tgl-lbl" style="color:var(--grn)">必要</div></div>';
-  h += '</div>';
-  h += '<div id="privacy-law-detail" style="display:none;margin-top:10px;border-top:0.5px solid var(--bdr);padding-top:10px;font-size:13px;color:var(--t2);line-height:1.8">';
-  h += '<div style="font-weight:500;color:var(--t0);margin-bottom:6px">個人資料保護法 相關條文</div>';
-  h += '<div style="background:var(--inp);border-radius:8px;padding:10px 12px;margin-bottom:6px">';
-  h += '<div style="font-weight:500;color:var(--t1);margin-bottom:4px">第8條 — 告知義務</div>';
-  h += '蒐集個人資料時，應明確告知：①蒐集目的、②個資類別、③利用期間、地區、對象及方式、④當事人權利及行使方式、⑤不提供個資之影響。';
-  h += '</div>';
-  h += '<div style="background:var(--inp);border-radius:8px;padding:10px 12px;margin-bottom:6px">';
-  h += '<div style="font-weight:500;color:var(--t1);margin-bottom:4px">第19條第1項第5款 — 蒐集合法要件</div>';
-  h += '非公務機關對個人資料之蒐集或處理，須有特定目的，並符合「經當事人同意」之要件。本次評估已取得您的同意。';
-  h += '</div>';
-  h += '<div style="background:var(--inp);border-radius:8px;padding:10px 12px;margin-bottom:6px">';
-  h += '<div style="font-weight:500;color:var(--t1);margin-bottom:4px">第3條 — 當事人權利</div>';
-  h += '您對本人的個人資料享有以下權利：<br>① 查詢或請求閱覽<br>② 請求製給複製本<br>③ 請求補充或更正<br>④ 請求停止蒐集、處理或利用<br>⑤ 請求刪除';
-  h += '</div>';
-  h += '<div style="background:var(--inp);border-radius:8px;padding:10px 12px">';
-  h += '<div style="font-weight:500;color:var(--t1);margin-bottom:4px">蒐集告知事項</div>';
-  h += '蒐集目的：貸款資格評估<br>蒐集項目：姓名、年齡、地址、收入、負債狀況<br>保存期限：5年<br>利用對象：您選擇的顧問<br>聯絡窗口：privacy@guwenpro.io';
-  h += '</div>';
-  h += '</div>';
-  h += '</div>';
+  // 標題
+  var hdr = document.createElement('div');
+  hdr.innerHTML = '<div style="font-size:16px;font-weight:600;margin-bottom:4px">個資告知與授權同意</div>' +
+    '<div style="font-size:14px;color:var(--t2);margin-bottom:10px">依個人資料保護法第8條，蒐集前需明確告知並取得同意</div>';
+  card.appendChild(hdr);
 
-  // 全部一鍵同意
-  h += '<div id="all-agree-btn" style="display:flex;align-items:center;gap:10px;padding:12px 14px;background:linear-gradient(135deg,var(--gl),rgba(42,106,184,.08));border:0.5px solid rgba(45,138,78,.4);border-radius:10px;cursor:pointer;margin:10px 0">';
-  h += '<span style="font-size:22px">☑️</span>';
-  h += '<div><div style="font-size:15px;font-weight:600;color:var(--grn)">全部同意（一鍵）</div>';
-  h += '<div style="font-size:13px;color:var(--t2);margin-top:2px">同意以下所有授權項目，方便顧問完整評估</div></div></div>';
+  // 必要項目（可點開法條）
+  var reqRow = document.createElement('div');
+  reqRow.className = 'tgl-row req-row opted';
+  reqRow.style.cssText = 'flex-direction:column;cursor:pointer';
+  reqRow.innerHTML =
+    '<div style="display:flex;align-items:center;width:100%">' +
+      '<div class="tgl-info"><div class="tgl-t">基本個資蒐集（必要）</div>' +
+      '<div class="tgl-s" id="law-hint">依個資法第19條第1項第5款，保存5年 <span style="color:var(--blu);font-size:12px">▼ 點開查看法條</span></div></div>' +
+      '<div style="text-align:center;flex-shrink:0"><div class="tgl on" style="pointer-events:none"></div><div class="tgl-lbl" style="color:var(--grn)">必要</div></div>' +
+    '</div>' +
+    '<div id="privacy-law-detail" style="display:none;margin-top:10px;border-top:0.5px solid var(--bdr);padding-top:10px;font-size:13px;color:var(--t2);line-height:1.8">' +
+      '<div style="font-weight:500;color:var(--t0);margin-bottom:6px">個人資料保護法 相關條文</div>' +
+      '<div style="background:var(--inp);border-radius:8px;padding:10px 12px;margin-bottom:6px">' +
+        '<div style="font-weight:500;color:var(--t1);margin-bottom:4px">第8條 — 告知義務</div>' +
+        '蒐集個人資料時，應明確告知：①蒐集目的、②個資類別、③利用期間地區對象及方式、④當事人權利及行使方式、⑤不提供個資之影響。' +
+      '</div>' +
+      '<div style="background:var(--inp);border-radius:8px;padding:10px 12px;margin-bottom:6px">' +
+        '<div style="font-weight:500;color:var(--t1);margin-bottom:4px">第19條第1項第5款 — 蒐集合法要件</div>' +
+        '非公務機關對個人資料之蒐集或處理，須有特定目的，並符合「經當事人同意」之要件。本次評估已取得您的同意。' +
+      '</div>' +
+      '<div style="background:var(--inp);border-radius:8px;padding:10px 12px;margin-bottom:6px">' +
+        '<div style="font-weight:500;color:var(--t1);margin-bottom:4px">第3條 — 當事人權利</div>' +
+        '您對本人的個人資料享有以下權利：<br>① 查詢或請求閱覽<br>② 請求製給複製本<br>③ 請求補充或更正<br>④ 請求停止蒐集、處理或利用<br>⑤ 請求刪除' +
+      '</div>' +
+      '<div style="background:var(--inp);border-radius:8px;padding:10px 12px">' +
+        '<div style="font-weight:500;color:var(--t1);margin-bottom:4px">蒐集告知事項</div>' +
+        '蒐集目的：貸款資格評估<br>蒐集項目：姓名、年齡、地址、收入、負債狀況<br>保存期限：5年<br>利用對象：您選擇的顧問<br>聯絡窗口：privacy@guwenpro.io' +
+      '</div>' +
+    '</div>';
 
-  h += '<div style="font-size:15px;font-weight:500;color:var(--t2);margin:8px 0 4px">MyData 政府資料（選擇性）</div>';
-  h += '<div class="all-btn" id="md-all-btn"><span style="font-size:16px;color:var(--grn)">☑</span><div><div class="all-t">一鍵同意 MyData 三項</div><div style="font-size:13px;color:var(--t2)">所得 · 勞保 · 健保</div></div></div>';
-  card.innerHTML = h;
+  // 用 DOM 事件綁定展開/收起
+  reqRow.addEventListener('click', function() {
+    var detail = document.getElementById('privacy-law-detail');
+    var hint = document.getElementById('law-hint');
+    if (!detail) return;
+    var isOpen = detail.style.display !== 'none';
+    detail.style.display = isOpen ? 'none' : 'block';
+    if (hint) {
+      var span = hint.querySelector('span');
+      if (span) span.textContent = isOpen ? '▼ 點開查看法條' : '▲ 收起法條';
+    }
+  });
+  card.appendChild(reqRow);
 
-  // MyData 三項
-  var mdItems = [['c-md1','income','① 財政部所得資料','MyData 自行下載後上傳'],['c-md2','labor','② 勞保投保資料','MyData 自行下載後上傳'],['c-md3','health','③ 健保投保記錄','MyData 自行下載後上傳']];
+  // 一鍵全部同意/取消
+  var allAgreeState = false;
+  var allBtn = document.createElement('div');
+  allBtn.id = 'all-agree-btn';
+  allBtn.style.cssText = 'display:flex;align-items:center;gap:10px;padding:12px 14px;background:linear-gradient(135deg,var(--gl),rgba(42,106,184,.08));border:0.5px solid rgba(45,138,78,.4);border-radius:10px;cursor:pointer;margin:10px 0';
+  allBtn.innerHTML = '<span style="font-size:22px">☑️</span><div><div style="font-size:15px;font-weight:600;color:var(--grn)">全部同意（一鍵）</div><div style="font-size:13px;color:var(--t2);margin-top:2px">同意以下所有授權項目，方便顧問完整評估</div></div>';
+  card.appendChild(allBtn);
+
+  // MyData 三項（無一鍵按鈕，直接顯示）
+  var mdHdr = document.createElement('div');
+  mdHdr.style.cssText = 'font-size:15px;font-weight:500;color:var(--t2);margin:8px 0 4px';
+  mdHdr.textContent = 'MyData 政府資料（選擇性）';
+  card.appendChild(mdHdr);
+
+  var mdItems = [
+    ['c-md1','income','① 財政部所得資料','MyData 自行下載後上傳'],
+    ['c-md2','labor','② 勞保投保資料','MyData 自行下載後上傳'],
+    ['c-md3','health','③ 健保投保記錄','MyData 自行下載後上傳'],
+  ];
   mdItems.forEach(function(x) { card.appendChild(makeConsentRow(x[0], x[1], x[2], x[3])); });
 
-  var otherHdr = document.createElement('div'); otherHdr.style.cssText = 'font-size:15px;font-weight:500;color:var(--t2);margin:8px 0 4px'; otherHdr.textContent = '其他選擇性授權';
+  var otherHdr = document.createElement('div');
+  otherHdr.style.cssText = 'font-size:15px;font-weight:500;color:var(--t2);margin:8px 0 4px';
+  otherHdr.textContent = '其他選擇性授權';
   card.appendChild(otherHdr);
 
-  var otherItems = [['c-o1','asset','④ 動產擔保查詢（法務部）','查詢汽機車擔保登記，協助顧問評估'],['c-o2','verdict','⑤ 判決書查詢（司法院）','查詢公開裁判書，不影響評估分數'],['c-o3','marketing','⑥ 行銷及繳款提醒通知','Email / LINE 通知']];
+  var otherItems = [
+    ['c-o1','asset','④ 動產擔保查詢（法務部）','查詢汽機車擔保登記，協助顧問評估'],
+    ['c-o2','verdict','⑤ 判決書查詢（司法院）','查詢公開裁判書，不影響評估分數'],
+    ['c-o3','marketing','⑥ 行銷及繳款提醒通知','Email / LINE 通知'],
+  ];
   otherItems.forEach(function(x) { card.appendChild(makeConsentRow(x[0], x[1], x[2], x[3])); });
 
-  // 一鍵同意 MyData 三項
-  card.querySelector('#md-all-btn').addEventListener('click', function() {
-    mdItems.forEach(function(x) { if (!clientConsents[x[1]]) card.querySelector('#' + x[0]).click(); });
-  });
-
-  // 全部同意（六項）
-  var allBtn = card.querySelector('#all-agree-btn');
+  // 一鍵全部同意 / 再按一次全部取消
+  var allItems = mdItems.concat(otherItems);
   allBtn.addEventListener('click', function() {
-    var allItems = mdItems.concat(otherItems);
-    allItems.forEach(function(x) { if (!clientConsents[x[1]]) card.querySelector('#' + x[0]).click(); });
-    // 變成已全選狀態
-    allBtn.style.background = 'linear-gradient(135deg,var(--gl),rgba(45,138,78,.15))';
-    allBtn.style.borderColor = 'var(--grn)';
-    allBtn.innerHTML = '<span style="font-size:22px">✅</span><div><div style="font-size:15px;font-weight:600;color:var(--grn)">已全部同意</div><div style="font-size:13px;color:var(--t2);margin-top:2px">點各項目可個別取消</div></div>';
+    allAgreeState = !allAgreeState;
+    allItems.forEach(function(x) {
+      var tgl = document.getElementById(x[0] + '-t');
+      var isMD = ['income','labor','health'].indexOf(x[1]) >= 0;
+      var already = tgl && (tgl.classList.contains('on') || tgl.classList.contains('on-blu'));
+      if (allAgreeState && !already) document.getElementById(x[0]).click();
+      if (!allAgreeState && already) document.getElementById(x[0]).click();
+    });
+    if (allAgreeState) {
+      allBtn.style.cssText = 'display:flex;align-items:center;gap:10px;padding:12px 14px;background:linear-gradient(135deg,var(--gl),rgba(45,138,78,.15));border:0.5px solid var(--grn);border-radius:10px;cursor:pointer;margin:10px 0';
+      allBtn.innerHTML = '<span style="font-size:22px">✅</span><div><div style="font-size:15px;font-weight:600;color:var(--grn)">已全部同意</div><div style="font-size:13px;color:var(--t2);margin-top:2px">再按一次可全部取消</div></div>';
+    } else {
+      allBtn.style.cssText = 'display:flex;align-items:center;gap:10px;padding:12px 14px;background:linear-gradient(135deg,var(--gl),rgba(42,106,184,.08));border:0.5px solid rgba(45,138,78,.4);border-radius:10px;cursor:pointer;margin:10px 0';
+      allBtn.innerHTML = '<span style="font-size:22px">☑️</span><div><div style="font-size:15px;font-weight:600;color:var(--grn)">全部同意（一鍵）</div><div style="font-size:13px;color:var(--t2);margin-top:2px">同意以下所有授權項目</div></div>';
+    }
   });
 
   el.appendChild(card);
