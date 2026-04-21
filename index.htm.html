@@ -1,0 +1,972 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<meta name="description" content="顧問PRO — 貸款評估專業平台。AI評估、政府資料串接、防詐驗證，提升顧問專業效率。">
+<meta name="theme-color" content="#111111">
+<title>顧問PRO — 貸款評估專業平台</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@400;700;900&family=Noto+Sans+TC:wght@300;400;500;700&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0A0A0A;
+  --bg2:#111111;
+  --bg3:#1A1A1A;
+  --card:#1E1E1E;
+  --bdr:rgba(255,255,255,.08);
+  --bdr2:rgba(255,255,255,.15);
+  --acc:#C8511A;
+  --acc2:#E8712A;
+  --acc-l:rgba(200,81,26,.12);
+  --gold:#C8A050;
+  --gold-l:rgba(200,160,80,.1);
+  --t0:#FFFFFF;
+  --t1:#CCCCCC;
+  --t2:#888888;
+  --t3:#555555;
+  --grn:#2D8A4E;
+  --grn-l:rgba(45,138,78,.12);
+  --red:#C04030;
+  --red-l:rgba(192,64,48,.12);
+  --yel:#B88020;
+  --yel-l:rgba(184,128,32,.12);
+  --blu:#2A6AB8;
+  --blu-l:rgba(42,106,184,.12);
+  --serif:'Noto Serif TC',serif;
+  --sans:'Noto Sans TC',sans-serif;
+}
+html{scroll-behavior:smooth}
+body{
+  font-family:var(--sans);
+  background:var(--bg);
+  color:var(--t0);
+  overflow-x:hidden;
+  line-height:1.6;
+}
+
+/* ── NAVBAR ── */
+.nav{
+  position:fixed;top:0;left:0;right:0;z-index:100;
+  padding:0 5vw;
+  display:flex;align-items:center;justify-content:space-between;
+  height:60px;
+  background:rgba(10,10,10,.85);
+  backdrop-filter:blur(16px);
+  border-bottom:0.5px solid var(--bdr);
+  transition:all .3s;
+}
+.nav-logo{display:flex;align-items:center;gap:8px;text-decoration:none}
+.logo-text{font-family:var(--serif);font-size:20px;font-weight:900;color:var(--t0);letter-spacing:-.5px}
+.logo-text span{color:var(--acc)}
+.logo-badge{background:var(--acc);color:#FFF;font-size:9px;font-weight:700;padding:2px 6px;border-radius:4px;letter-spacing:.5px}
+.nav-links{display:flex;align-items:center;gap:28px}
+.nav-links a{color:var(--t2);text-decoration:none;font-size:13px;font-weight:400;transition:color .2s}
+.nav-links a:hover{color:var(--t0)}
+.nav-cta{background:var(--acc);color:#FFF;padding:8px 18px;border-radius:7px;font-size:13px;font-weight:500;text-decoration:none;transition:all .2s}
+.nav-cta:hover{background:var(--acc2);transform:translateY(-1px)}
+.nav-hamburger{display:none;flex-direction:column;gap:5px;cursor:pointer;padding:5px}
+.nav-hamburger span{width:22px;height:1.5px;background:var(--t1);transition:all .3s}
+.mobile-menu{display:none;position:fixed;top:60px;left:0;right:0;background:var(--bg2);border-bottom:0.5px solid var(--bdr);padding:20px 5vw;z-index:99}
+.mobile-menu.open{display:block}
+.mobile-menu a{display:block;padding:12px 0;color:var(--t1);text-decoration:none;font-size:15px;border-bottom:0.5px solid var(--bdr)}
+.mobile-menu .m-cta{margin-top:16px;display:block;background:var(--acc);color:#FFF;padding:12px;border-radius:8px;text-align:center;font-weight:500}
+
+/* ── HERO ── */
+.hero{
+  min-height:100vh;
+  display:flex;flex-direction:column;justify-content:center;
+  padding:100px 5vw 60px;
+  position:relative;
+  overflow:hidden;
+}
+.hero-bg{
+  position:absolute;inset:0;
+  background:
+    radial-gradient(ellipse 60% 50% at 70% 40%, rgba(200,81,26,.08) 0%, transparent 70%),
+    radial-gradient(ellipse 40% 60% at 20% 60%, rgba(200,160,80,.04) 0%, transparent 70%);
+}
+.hero-grid{
+  position:absolute;inset:0;
+  background-image:
+    linear-gradient(rgba(255,255,255,.02) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,.02) 1px, transparent 1px);
+  background-size:60px 60px;
+  mask-image:radial-gradient(ellipse 80% 80% at 50% 50%, black, transparent);
+}
+.hero-content{
+  position:relative;
+  max-width:1100px;
+  margin:0 auto;
+  width:100%;
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:60px;
+  align-items:center;
+}
+.hero-tag{
+  display:inline-flex;align-items:center;gap:8px;
+  background:rgba(200,81,26,.1);border:0.5px solid rgba(200,81,26,.3);
+  padding:6px 14px;border-radius:99px;
+  font-size:12px;color:var(--acc2);font-weight:500;
+  margin-bottom:24px;
+}
+.hero-tag::before{content:'';width:6px;height:6px;border-radius:50%;background:var(--acc2);animation:pulse-dot 2s infinite}
+@keyframes pulse-dot{0%,100%{opacity:1}50%{opacity:.3}}
+.hero-h1{
+  font-family:var(--serif);
+  font-size:clamp(36px,5vw,60px);
+  font-weight:900;
+  line-height:1.15;
+  letter-spacing:-1px;
+  margin-bottom:20px;
+}
+.hero-h1 em{
+  font-style:normal;
+  color:var(--acc);
+  position:relative;
+}
+.hero-h1 em::after{
+  content:'';
+  position:absolute;bottom:-4px;left:0;right:0;height:2px;
+  background:linear-gradient(90deg,var(--acc),transparent);
+}
+.hero-sub{
+  font-size:15px;color:var(--t1);line-height:1.8;margin-bottom:36px;
+  max-width:480px;
+}
+.hero-btns{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:48px}
+.btn-primary{
+  background:var(--acc);color:#FFF;
+  padding:13px 28px;border-radius:9px;
+  font-size:14px;font-weight:500;text-decoration:none;
+  display:inline-flex;align-items:center;gap:8px;
+  transition:all .2s;border:none;cursor:pointer;font-family:var(--sans);
+}
+.btn-primary:hover{background:var(--acc2);transform:translateY(-2px);box-shadow:0 8px 24px rgba(200,81,26,.3)}
+.btn-outline{
+  background:transparent;color:var(--t0);
+  padding:13px 28px;border-radius:9px;
+  font-size:14px;font-weight:400;text-decoration:none;
+  display:inline-flex;align-items:center;gap:8px;
+  border:0.5px solid var(--bdr2);
+  transition:all .2s;
+}
+.btn-outline:hover{background:rgba(255,255,255,.05);border-color:var(--t2)}
+.hero-stats{display:flex;gap:32px;flex-wrap:wrap}
+.hero-stat .num{font-family:var(--serif);font-size:28px;font-weight:700;color:var(--t0)}
+.hero-stat .label{font-size:11px;color:var(--t2);margin-top:2px}
+.hero-stat .num span{color:var(--acc);font-size:18px}
+
+/* ── MOCK UI ── */
+.hero-visual{position:relative}
+.mock-browser{
+  background:var(--card);
+  border:0.5px solid var(--bdr2);
+  border-radius:14px;
+  overflow:hidden;
+  box-shadow:0 24px 80px rgba(0,0,0,.6);
+}
+.mock-topbar{
+  background:#1A1A1A;
+  padding:10px 14px;
+  display:flex;align-items:center;gap:8px;
+  border-bottom:0.5px solid var(--bdr);
+}
+.mock-dots{display:flex;gap:5px}
+.mock-dots span{width:10px;height:10px;border-radius:50%}
+.mock-d1{background:#FF5F57}
+.mock-d2{background:#FFBD2E}
+.mock-d3{background:#28C840}
+.mock-url{
+  flex:1;background:rgba(255,255,255,.05);
+  border-radius:5px;padding:4px 10px;
+  font-size:10px;color:var(--t3);margin-left:8px;
+  display:flex;align-items:center;gap:5px;
+}
+.mock-url::before{content:'🔒';font-size:8px}
+.mock-body{display:flex;height:320px}
+.mock-sidebar{
+  width:140px;background:var(--bg2);
+  border-right:0.5px solid var(--bdr);
+  padding:12px 8px;flex-shrink:0;
+}
+.mock-sb-logo{font-family:var(--serif);font-size:13px;font-weight:700;padding:0 6px;margin-bottom:10px;color:var(--t0)}
+.mock-sb-logo span{color:var(--acc)}
+.mock-ni{height:8px;border-radius:4px;margin-bottom:6px;opacity:.4}
+.mock-ni.on{opacity:1;background:var(--acc)!important}
+.mock-main{flex:1;padding:12px;overflow:hidden}
+.mock-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:10px}
+.mock-sc{background:var(--bg3);border-radius:6px;padding:7px 8px}
+.mock-sc-v{font-size:14px;font-weight:700;margin-bottom:2px}
+.mock-sc-l{font-size:8px;opacity:.5}
+.mock-prob{display:grid;grid-template-columns:repeat(6,1fr);gap:4px;margin-bottom:10px}
+.mock-pcard{background:var(--bg3);border-radius:5px;padding:5px 4px;text-align:center}
+.mock-pcard-n{font-size:7px;opacity:.4;margin-bottom:2px}
+.mock-pcard-v{font-size:11px;font-weight:700}
+.mock-chart{background:var(--bg3);border-radius:7px;padding:10px;height:80px;display:flex;align-items:flex-end;gap:4px}
+.mock-bar{flex:1;border-radius:3px 3px 0 0;background:var(--bdr2)}
+.mock-bar.hi{background:var(--acc)}
+
+/* ── 手機框 ── */
+.mock-phone{
+  position:absolute;right:-40px;bottom:-30px;
+  width:140px;
+  background:#1A1A1A;
+  border:5px solid #2A2A2A;
+  border-radius:24px;
+  overflow:hidden;
+  box-shadow:0 16px 48px rgba(0,0,0,.8);
+}
+.mock-phone-notch{height:16px;background:#111;display:flex;align-items:center;justify-content:center}
+.mock-phone-notch::after{content:'';width:40px;height:8px;background:#0A0A0A;border-radius:4px}
+.mock-phone-screen{padding:8px;background:var(--bg2)}
+.mock-phone-item{background:var(--bg3);border-radius:6px;padding:6px 8px;margin-bottom:4px;font-size:8px;display:flex;align-items:center;gap:6px}
+.mock-phone-av{width:16px;height:16px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:7px;font-weight:700;flex-shrink:0}
+
+/* ── SECTION COMMON ── */
+.section{padding:100px 5vw}
+.section-inner{max-width:1100px;margin:0 auto}
+.section-tag{font-size:11px;color:var(--acc);font-weight:500;letter-spacing:.1em;text-transform:uppercase;margin-bottom:12px}
+.section-h2{
+  font-family:var(--serif);font-size:clamp(28px,4vw,46px);font-weight:700;
+  line-height:1.2;margin-bottom:16px;letter-spacing:-.5px;
+}
+.section-sub{font-size:15px;color:var(--t1);line-height:1.8;max-width:540px}
+.section-sub.center{text-align:center;margin:0 auto}
+
+/* ── FEATURES ── */
+.features-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:56px}
+.feature-card{
+  background:var(--card);border:0.5px solid var(--bdr);
+  border-radius:14px;padding:28px 24px;
+  transition:all .3s;position:relative;overflow:hidden;
+}
+.feature-card::before{
+  content:'';position:absolute;inset:0;
+  background:linear-gradient(135deg,rgba(200,81,26,.04),transparent);
+  opacity:0;transition:opacity .3s;
+}
+.feature-card:hover{border-color:rgba(200,81,26,.3);transform:translateY(-3px)}
+.feature-card:hover::before{opacity:1}
+.feature-icon{
+  width:44px;height:44px;border-radius:10px;
+  background:var(--acc-l);border:0.5px solid rgba(200,81,26,.2);
+  display:flex;align-items:center;justify-content:center;
+  font-size:20px;margin-bottom:16px;
+}
+.feature-h3{font-size:15px;font-weight:500;margin-bottom:8px;color:var(--t0)}
+.feature-p{font-size:13px;color:var(--t2);line-height:1.7}
+.feature-tags{display:flex;flex-wrap:wrap;gap:5px;margin-top:14px}
+.ftag{font-size:10px;padding:3px 9px;border-radius:99px;background:rgba(255,255,255,.04);border:0.5px solid var(--bdr);color:var(--t2)}
+
+/* ── HOW IT WORKS ── */
+.how-section{background:var(--bg2);border-top:0.5px solid var(--bdr);border-bottom:0.5px solid var(--bdr)}
+.how-grid{display:grid;grid-template-columns:1fr 1fr;gap:80px;align-items:center;margin-top:56px}
+.how-steps{display:flex;flex-direction:column;gap:0}
+.how-step{
+  display:flex;gap:20px;padding:20px 0;
+  border-bottom:0.5px solid var(--bdr);
+  cursor:pointer;transition:all .2s;
+}
+.how-step:last-child{border-bottom:none}
+.how-step.active .step-num{background:var(--acc);color:#FFF;border-color:var(--acc)}
+.how-step.active .step-title{color:var(--t0)}
+.how-step.active .step-desc{max-height:100px;opacity:1}
+.step-num{
+  width:32px;height:32px;border-radius:50%;
+  border:0.5px solid var(--bdr2);
+  display:flex;align-items:center;justify-content:center;
+  font-size:13px;font-weight:700;color:var(--t2);
+  flex-shrink:0;transition:all .3s;
+  font-family:var(--serif);
+}
+.step-content{flex:1}
+.step-title{font-size:14px;font-weight:500;color:var(--t2);transition:color .3s;margin-bottom:4px}
+.step-desc{font-size:13px;color:var(--t2);line-height:1.6;max-height:0;overflow:hidden;opacity:0;transition:all .3s}
+.how-visual{
+  background:var(--card);border:0.5px solid var(--bdr);
+  border-radius:14px;padding:28px;min-height:360px;
+  display:flex;flex-direction:column;justify-content:center;
+  position:relative;overflow:hidden;
+}
+.how-vis-content{display:none}
+.how-vis-content.show{display:block;animation:fadeIn .4s ease}
+@keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+.data-field{
+  background:var(--bg3);border-radius:8px;padding:10px 14px;
+  margin-bottom:8px;display:flex;align-items:center;justify-content:space-between;
+  font-size:12px;
+}
+.df-label{color:var(--t2)}
+.df-val{color:var(--t0);font-weight:500}
+.df-badge{font-size:10px;padding:2px 8px;border-radius:99px}
+.df-grn{background:var(--grn-l);color:var(--grn)}
+.df-blu{background:var(--blu-l);color:var(--blu)}
+.df-acc{background:var(--acc-l);color:var(--acc)}
+.prob-cards{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:10px}
+.pcard-big{background:var(--bg3);border-radius:9px;padding:12px;text-align:center}
+.pcard-big-n{font-size:10px;color:var(--t2);margin-bottom:4px}
+.pcard-big-v{font-size:22px;font-weight:700;font-family:var(--serif)}
+.pcard-grn{color:#2D8A4E}
+.pcard-yel{color:#B88020}
+.pcard-lgrn{color:#259A3E}
+
+/* ── PRICING ── */
+.pricing-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:56px;align-items:start}
+.price-card{
+  background:var(--card);border:0.5px solid var(--bdr);
+  border-radius:14px;padding:28px 24px;
+  position:relative;transition:all .3s;
+}
+.price-card.featured{
+  border-color:rgba(200,81,26,.4);
+  background:linear-gradient(135deg,rgba(200,81,26,.05),var(--card));
+}
+.price-card.featured::before{
+  content:'推薦';position:absolute;top:-1px;left:50%;transform:translateX(-50%);
+  background:var(--acc);color:#FFF;font-size:10px;font-weight:700;
+  padding:4px 16px;border-radius:0 0 8px 8px;letter-spacing:.1em;
+}
+.price-name{font-size:13px;color:var(--t2);margin-bottom:8px}
+.price-val{font-family:var(--serif);font-size:38px;font-weight:900;line-height:1;color:var(--t0)}
+.price-val span{font-size:15px;font-weight:400;color:var(--t2)}
+.price-cycle{font-size:12px;color:var(--t3);margin-top:4px;margin-bottom:20px}
+.price-trial{font-size:11px;color:var(--grn);background:var(--grn-l);padding:5px 12px;border-radius:99px;display:inline-block;margin-bottom:20px}
+.price-features{list-style:none;margin-bottom:24px}
+.price-features li{font-size:13px;color:var(--t1);padding:7px 0;border-bottom:0.5px solid var(--bdr);display:flex;align-items:center;gap:8px}
+.price-features li:last-child{border-bottom:none}
+.price-features li::before{content:'✓';color:var(--grn);font-size:11px;font-weight:700;flex-shrink:0}
+.price-btn{
+  display:block;width:100%;padding:12px;border-radius:8px;
+  font-size:13px;font-weight:500;text-align:center;
+  cursor:pointer;border:none;font-family:var(--sans);text-decoration:none;
+  transition:all .2s;
+}
+.price-btn-solid{background:var(--acc);color:#FFF}
+.price-btn-solid:hover{background:var(--acc2)}
+.price-btn-outline{background:transparent;color:var(--t1);border:0.5px solid var(--bdr2)}
+.price-btn-outline:hover{background:rgba(255,255,255,.04)}
+
+/* ── LEGAL ── */
+.legal-section{background:linear-gradient(180deg,var(--bg2),var(--bg))}
+.legal-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:16px;margin-top:48px}
+.legal-card{
+  background:var(--card);border:0.5px solid var(--bdr);
+  border-radius:12px;padding:22px 20px;
+  display:flex;gap:14px;align-items:flex-start;
+}
+.legal-icon{font-size:22px;flex-shrink:0;margin-top:2px}
+.legal-h4{font-size:13px;font-weight:500;margin-bottom:5px}
+.legal-p{font-size:12px;color:var(--t2);line-height:1.6}
+
+/* ── TECH STACK ── */
+.tech-row{display:flex;flex-wrap:wrap;gap:10px;margin-top:32px;justify-content:center}
+.tech-pill{
+  display:flex;align-items:center;gap:7px;
+  background:var(--card);border:0.5px solid var(--bdr);
+  border-radius:99px;padding:8px 16px;
+  font-size:12px;color:var(--t1);
+}
+.tech-pill-dot{width:8px;height:8px;border-radius:50%}
+
+/* ── CTA ── */
+.cta-section{
+  padding:120px 5vw;
+  background:
+    radial-gradient(ellipse 60% 80% at 50% 0%, rgba(200,81,26,.08) 0%, transparent 70%),
+    var(--bg);
+  text-align:center;
+}
+.cta-h2{font-family:var(--serif);font-size:clamp(32px,5vw,54px);font-weight:900;margin-bottom:16px;letter-spacing:-.5px}
+.cta-sub{font-size:16px;color:var(--t1);margin-bottom:40px}
+.cta-btns{display:flex;gap:12px;justify-content:center;flex-wrap:wrap}
+
+/* ── FOOTER ── */
+.footer{
+  border-top:0.5px solid var(--bdr);
+  padding:50px 5vw 30px;
+  background:var(--bg2);
+}
+.footer-inner{max-width:1100px;margin:0 auto}
+.footer-top{display:grid;grid-template-columns:1.5fr 1fr 1fr 1fr;gap:40px;margin-bottom:48px}
+.footer-brand .logo-text{display:inline-block;margin-bottom:10px}
+.footer-brand p{font-size:12px;color:var(--t2);line-height:1.7;max-width:240px}
+.footer-col h4{font-size:11px;color:var(--t2);font-weight:500;margin-bottom:14px;letter-spacing:.08em;text-transform:uppercase}
+.footer-col a{display:block;font-size:13px;color:var(--t2);text-decoration:none;margin-bottom:9px;transition:color .2s}
+.footer-col a:hover{color:var(--t0)}
+.footer-bottom{
+  border-top:0.5px solid var(--bdr);padding-top:24px;
+  display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;
+}
+.footer-bottom p{font-size:12px;color:var(--t3)}
+.footer-bottom-links{display:flex;gap:20px}
+.footer-bottom-links a{font-size:12px;color:var(--t3);text-decoration:none;transition:color .2s}
+.footer-bottom-links a:hover{color:var(--t1)}
+
+/* ── DIVIDER ── */
+.divider{height:0.5px;background:var(--bdr);max-width:1100px;margin:0 auto}
+
+/* ── BADGE ROW ── */
+.badge-row{display:flex;gap:10px;flex-wrap:wrap;margin-top:24px}
+.badge-item{
+  display:flex;align-items:center;gap:7px;
+  background:rgba(255,255,255,.03);border:0.5px solid var(--bdr);
+  padding:7px 13px;border-radius:99px;font-size:11px;color:var(--t2);
+}
+.badge-dot{width:6px;height:6px;border-radius:50%;background:var(--grn)}
+
+/* ── RESPONSIVE ── */
+@media(max-width:900px){
+  .hero-content{grid-template-columns:1fr}
+  .hero-visual{display:none}
+  .features-grid{grid-template-columns:1fr 1fr}
+  .how-grid{grid-template-columns:1fr}
+  .how-visual{display:none}
+  .pricing-grid{grid-template-columns:1fr}
+  .legal-grid{grid-template-columns:1fr}
+  .footer-top{grid-template-columns:1fr 1fr}
+  .nav-links{display:none}
+  .nav-hamburger{display:flex}
+}
+@media(max-width:600px){
+  .features-grid{grid-template-columns:1fr}
+  .hero-btns{flex-direction:column}
+  .hero-btns a{text-align:center;justify-content:center}
+  .hero-stats{gap:20px}
+  .footer-top{grid-template-columns:1fr}
+  .cta-btns{flex-direction:column;align-items:center}
+  .footer-bottom{flex-direction:column;text-align:center}
+}
+
+/* ── SCROLL REVEAL ── */
+.reveal{opacity:0;transform:translateY(24px);transition:all .6s cubic-bezier(.2,.8,.2,1)}
+.reveal.visible{opacity:1;transform:none}
+.reveal-delay-1{transition-delay:.1s}
+.reveal-delay-2{transition-delay:.2s}
+.reveal-delay-3{transition-delay:.3s}
+</style>
+</head>
+<body>
+
+<!-- NAVBAR -->
+<nav class="nav" id="navbar">
+  <a href="#" class="nav-logo">
+    <span class="logo-text">顧問<span>PRO</span></span>
+    <span class="logo-badge">BETA</span>
+  </a>
+  <div class="nav-links">
+    <a href="#features">功能特色</a>
+    <a href="#how">如何運作</a>
+    <a href="#pricing">方案定價</a>
+    <a href="#legal">法律保障</a>
+    <a href="#" class="nav-cta">免費試用 →</a>
+  </div>
+  <div class="nav-hamburger" onclick="toggleMenu()" id="hamburger">
+    <span></span><span></span><span></span>
+  </div>
+</nav>
+
+<div class="mobile-menu" id="mobile-menu">
+  <a href="#features" onclick="toggleMenu()">功能特色</a>
+  <a href="#how" onclick="toggleMenu()">如何運作</a>
+  <a href="#pricing" onclick="toggleMenu()">方案定價</a>
+  <a href="#legal" onclick="toggleMenu()">法律保障</a>
+  <a href="#" class="m-cta" onclick="toggleMenu()">免費開始使用</a>
+</div>
+
+<!-- HERO -->
+<section class="hero">
+  <div class="hero-bg"></div>
+  <div class="hero-grid"></div>
+  <div class="hero-content">
+    <div class="hero-left">
+      <div class="hero-tag">貸款評估 · AI 智能分析 · 政府資料串接</div>
+      <h1 class="hero-h1">讓每一位顧問<br>都有<em>專業後台</em></h1>
+      <p class="hero-sub">顧問PRO 是專為貸款顧問設計的 SaaS 平台。AI 評估引擎、政府資料自動核實、防詐騙機制，讓您的服務更專業、客戶更安心。</p>
+      <div class="hero-btns">
+        <a href="#" class="btn-primary">免費開始使用 →</a>
+        <a href="#how" class="btn-outline">了解運作方式</a>
+      </div>
+      <div class="hero-stats">
+        <div class="hero-stat">
+          <div class="num">AI<span>評估</span></div>
+          <div class="label">即時貸款機率分析</div>
+        </div>
+        <div class="hero-stat">
+          <div class="num">5<span>項</span></div>
+          <div class="label">政府資料串接</div>
+        </div>
+        <div class="hero-stat">
+          <div class="num">0<span>元</span></div>
+          <div class="label">基本版永久免費</div>
+        </div>
+      </div>
+      <div class="badge-row">
+        <div class="badge-item"><div class="badge-dot"></div>iOS PWA 支援</div>
+        <div class="badge-item"><div class="badge-dot"></div>Android 支援</div>
+        <div class="badge-item"><div class="badge-dot"></div>桌面版支援</div>
+        <div class="badge-item"><div class="badge-dot"></div>個資法合規</div>
+      </div>
+    </div>
+    <div class="hero-visual">
+      <div class="mock-browser">
+        <div class="mock-topbar">
+          <div class="mock-dots">
+            <span class="mock-d1"></span>
+            <span class="mock-d2"></span>
+            <span class="mock-d3"></span>
+          </div>
+          <div class="mock-url">guwenpro.io/dashboard</div>
+        </div>
+        <div class="mock-body">
+          <div class="mock-sidebar">
+            <div class="mock-sb-logo">顧問<span>PRO</span></div>
+            <div class="mock-ni on" style="background:var(--acc);height:8px;border-radius:4px;margin-bottom:6px"></div>
+            <div class="mock-ni" style="background:#2A2A2A;height:8px;border-radius:4px;margin-bottom:6px"></div>
+            <div class="mock-ni" style="background:#2A2A2A;height:8px;border-radius:4px;margin-bottom:6px"></div>
+            <div class="mock-ni" style="background:#2A2A2A;height:8px;border-radius:4px;margin-bottom:6px"></div>
+            <div class="mock-ni" style="background:#2A2A2A;height:8px;border-radius:4px;margin-bottom:6px"></div>
+          </div>
+          <div class="mock-main">
+            <div class="mock-stats">
+              <div class="mock-sc"><div class="mock-sc-v" style="color:#50C070">63</div><div class="mock-sc-l">本月名單</div></div>
+              <div class="mock-sc"><div class="mock-sc-v">14</div><div class="mock-sc-l">已成交</div></div>
+              <div class="mock-sc"><div class="mock-sc-v" style="color:var(--acc)">$780</div><div class="mock-sc-l">本月實付</div></div>
+              <div class="mock-sc"><div class="mock-sc-v" style="color:var(--yel)">12</div><div class="mock-sc-l">待跟進</div></div>
+            </div>
+            <div class="mock-prob">
+              <div class="mock-pcard"><div class="mock-pcard-n">銀行信貸</div><div class="mock-pcard-v" style="color:#50C070">82%</div></div>
+              <div class="mock-pcard"><div class="mock-pcard-n">汽車貸款</div><div class="mock-pcard-v" style="color:#2D8A4E">74%</div></div>
+              <div class="mock-pcard"><div class="mock-pcard-n">機車貸款</div><div class="mock-pcard-v" style="color:#50C070">88%</div></div>
+              <div class="mock-pcard"><div class="mock-pcard-n">手機貸</div><div class="mock-pcard-v" style="color:#B88020">63%</div></div>
+              <div class="mock-pcard"><div class="mock-pcard-n">當鋪借貸</div><div class="mock-pcard-v" style="color:#888">需押</div></div>
+              <div class="mock-pcard" style="border:0.5px solid rgba(45,138,78,.3)"><div class="mock-pcard-n">不動產</div><div class="mock-pcard-v" style="color:#50C070;font-size:9px">66.7%</div></div>
+            </div>
+            <div class="mock-chart">
+              <div class="mock-bar" style="height:40%"></div>
+              <div class="mock-bar" style="height:52%"></div>
+              <div class="mock-bar" style="height:38%"></div>
+              <div class="mock-bar" style="height:60%"></div>
+              <div class="mock-bar" style="height:58%"></div>
+              <div class="mock-bar hi" style="height:80%"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="mock-phone">
+        <div class="mock-phone-notch"></div>
+        <div class="mock-phone-screen">
+          <div style="font-size:9px;color:var(--t2);margin-bottom:6px;font-weight:500">最新名單</div>
+          <div class="mock-phone-item"><div class="mock-phone-av" style="background:rgba(200,81,26,.2);color:var(--acc)">王</div><div><div style="font-size:8px;color:var(--t0)">王○明</div><div style="font-size:7px;color:#50C070">82% · 機車88%</div></div></div>
+          <div class="mock-phone-item"><div class="mock-phone-av" style="background:rgba(45,138,78,.2);color:var(--grn)">陳</div><div><div style="font-size:8px;color:var(--t0)">陳○芬</div><div style="font-size:7px;color:#B88020">65% · 待估價</div></div></div>
+          <div class="mock-phone-item"><div class="mock-phone-av" style="background:rgba(42,106,184,.2);color:var(--blu)">劉</div><div><div style="font-size:8px;color:var(--t0)">劉○翔</div><div style="font-size:7px;color:#2D8A4E">78% · 二胎</div></div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- FEATURES -->
+<section class="section" id="features">
+  <div class="section-inner">
+    <div class="reveal">
+      <div class="section-tag">核心功能</div>
+      <h2 class="section-h2">一套工具，全面提升<br>顧問服務品質</h2>
+      <p class="section-sub">從客戶評估到成交管理，顧問PRO 涵蓋貸款顧問的完整工作流程</p>
+    </div>
+    <div class="features-grid">
+      <div class="feature-card reveal reveal-delay-1">
+        <div class="feature-icon">🤖</div>
+        <h3 class="feature-h3">AI 貸款評估引擎</h3>
+        <p class="feature-p">依客戶填寫資料，即時計算銀行信貸、汽車、機車、商品手機貸、當鋪、不動產共六項貸款機率。分數依顏色直觀呈現，60分以下紅、60–70黃、70–80綠、80以上淺綠。</p>
+        <div class="feature-tags">
+          <span class="ftag">六類貸款評估</span>
+          <span class="ftag">即時計算</span>
+          <span class="ftag">顧問自訂規則</span>
+        </div>
+      </div>
+      <div class="feature-card reveal reveal-delay-2">
+        <div class="feature-icon">🔐</div>
+        <h3 class="feature-h3">政府資料自動核實</h3>
+        <p class="feature-p">客戶透過 MyData 平台下載所得、勞保、健保資料後上傳，系統自動比對月薪填報是否一致。法務部動產擔保查詢核實車貸，司法院公開判決書比對。</p>
+        <div class="feature-tags">
+          <span class="ftag">MyData 串接</span>
+          <span class="ftag">動產擔保查詢</span>
+          <span class="ftag">判決書比對</span>
+        </div>
+      </div>
+      <div class="feature-card reveal reveal-delay-3">
+        <div class="feature-icon">🛡</div>
+        <h3 class="feature-h3">防詐騙驗證機制</h3>
+        <p class="feature-p">客戶填表前必須確認顧問身份（顯示平台認證資訊）、閱讀防詐五條提示。若顧問資訊不符，客戶可直接舉報，平台即時介入處理，保護雙方。</p>
+        <div class="feature-tags">
+          <span class="ftag">顧問認證</span>
+          <span class="ftag">防詐提醒</span>
+          <span class="ftag">舉報機制</span>
+        </div>
+      </div>
+      <div class="feature-card reveal reveal-delay-1">
+        <div class="feature-icon">📊</div>
+        <h3 class="feature-h3">業績收支管理</h3>
+        <p class="feature-p">儀表板即時顯示本月名單、成交、業績收入，並可與前月、前季、前年對比成長率。固定費用設定自動帶入收支計算，到期前發送繳款提醒。</p>
+        <div class="feature-tags">
+          <span class="ftag">業績趨勢</span>
+          <span class="ftag">收支理財</span>
+          <span class="ftag">繳款提醒</span>
+        </div>
+      </div>
+      <div class="feature-card reveal reveal-delay-2">
+        <div class="feature-icon">🏠</div>
+        <h3 class="feature-h3">不動產估價評估</h3>
+        <p class="feature-p">顧問填入不動產估價，系統計算一二三胎貸款佔估價比例，自動分類為「有效成交」、「有效買賣」、「空間不足」三個等級，門檻數字顧問可自訂。</p>
+        <div class="feature-tags">
+          <span class="ftag">三胎評估</span>
+          <span class="ftag">估價比計算</span>
+          <span class="ftag">自訂門檻</span>
+        </div>
+      </div>
+      <div class="feature-card reveal reveal-delay-3">
+        <div class="feature-icon">🔗</div>
+        <h3 class="feature-h3">推廣連結追蹤</h3>
+        <p class="feature-p">每位顧問有專屬評估連結，支援 UTM 渠道標籤（FB廣告、IG、LINE、QR Code），點擊統計清楚顯示各渠道轉換率，協助顧問優化廣告投放策略。</p>
+        <div class="feature-tags">
+          <span class="ftag">UTM 追蹤</span>
+          <span class="ftag">渠道統計</span>
+          <span class="ftag">QR Code</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- HOW IT WORKS -->
+<section class="section how-section" id="how">
+  <div class="section-inner">
+    <div class="reveal">
+      <div class="section-tag">運作流程</div>
+      <h2 class="section-h2">從註冊到成交<br>每個步驟都有保障</h2>
+    </div>
+    <div class="how-grid">
+      <div class="how-steps">
+        <div class="how-step active" onclick="setStep(0,this)">
+          <div class="step-num">1</div>
+          <div class="step-content">
+            <div class="step-title">顧問建立帳號與推廣連結</div>
+            <div class="step-desc">選擇方案、閱讀個資保護須知、設定品牌頁面，取得專屬推廣連結放上 LINE / FB / 名片。</div>
+          </div>
+        </div>
+        <div class="how-step" onclick="setStep(1,this)">
+          <div class="step-num">2</div>
+          <div class="step-content">
+            <div class="step-title">客戶確認顧問身份</div>
+            <div class="step-desc">客戶點連結後先看到顧問認證資訊，確認身份、閱讀防詐提示後才進入填表流程。</div>
+          </div>
+        </div>
+        <div class="how-step" onclick="setStep(2,this)">
+          <div class="step-num">3</div>
+          <div class="step-content">
+            <div class="step-title">客戶選擇授權並填寫資料</div>
+            <div class="step-desc">個資授權可個別選擇，MyData 資料可自行下載後上傳。所有填寫欄位完整涵蓋貸款評估所需資訊。</div>
+          </div>
+        </div>
+        <div class="how-step" onclick="setStep(3,this)">
+          <div class="step-num">4</div>
+          <div class="step-content">
+            <div class="step-title">AI 即時評估，結果同步後台</div>
+            <div class="step-desc">送出後系統自動運算六項貸款機率，同時比對政府資料，評估結果立即呈現在顧問後台。</div>
+          </div>
+        </div>
+        <div class="how-step" onclick="setStep(4,this)">
+          <div class="step-num">5</div>
+          <div class="step-content">
+            <div class="step-title">顧問跟進與成交管理</div>
+            <div class="step-desc">後台顯示完整客戶資料一頁式，可下載 PDF、分享 LINE，備註跟進狀態，追蹤成交業績。</div>
+          </div>
+        </div>
+      </div>
+      <div class="how-visual">
+        <div class="how-vis-content show" id="vis-0">
+          <div style="font-size:11px;color:var(--t2);margin-bottom:12px">顧問專屬推廣連結</div>
+          <div class="data-field"><span class="df-label">推廣連結</span><span class="df-val" style="font-family:monospace;font-size:11px">guwenpro.io/k/KXLIN</span></div>
+          <div class="data-field"><span class="df-label">邀請碼折扣</span><span class="df-badge df-acc">KXLIN-2024 / -$200/月</span></div>
+          <div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap">
+            <span style="font-size:10px;padding:5px 11px;background:rgba(42,106,184,.12);color:var(--blu);border-radius:99px">FB 廣告</span>
+            <span style="font-size:10px;padding:5px 11px;background:rgba(45,138,78,.12);color:var(--grn);border-radius:99px">LINE 傳播</span>
+            <span style="font-size:10px;padding:5px 11px;background:rgba(200,81,26,.12);color:var(--acc);border-radius:99px">IG Bio</span>
+            <span style="font-size:10px;padding:5px 11px;background:rgba(255,255,255,.05);color:var(--t2);border-radius:99px">QR Code</span>
+          </div>
+        </div>
+        <div class="how-vis-content" id="vis-1">
+          <div style="font-size:11px;color:var(--t2);margin-bottom:12px">顧問認證資訊卡</div>
+          <div class="data-field"><span class="df-label">顧問 ID</span><span class="df-val">LP-2024-08371</span></div>
+          <div class="data-field"><span class="df-label">服務公司</span><span class="df-val">林氏財務顧問</span></div>
+          <div class="data-field"><span class="df-label">申訴記錄</span><span class="df-badge df-grn">0 件</span></div>
+          <div class="data-field"><span class="df-label">平台認證</span><span class="df-badge df-grn">✓ 認證通過</span></div>
+          <div style="margin-top:10px;font-size:11px;color:var(--red);background:var(--red-l);padding:8px 10px;border-radius:7px;line-height:1.5">防詐提醒：正規顧問不要求預付費、不保證過件、不索取帳密OTP</div>
+        </div>
+        <div class="how-vis-content" id="vis-2">
+          <div style="font-size:11px;color:var(--t2);margin-bottom:12px">授權同意選擇</div>
+          <div class="data-field"><span class="df-label">基本個資蒐集</span><span class="df-badge df-acc">必要</span></div>
+          <div class="data-field"><span class="df-label">① MyData 所得資料</span><span class="df-badge df-blu">已同意</span></div>
+          <div class="data-field"><span class="df-label">② MyData 勞保資料</span><span class="df-badge df-blu">已同意</span></div>
+          <div class="data-field"><span class="df-label">④ 動產擔保查詢</span><span class="df-badge df-grn">已同意</span></div>
+          <div class="data-field"><span class="df-label">⑤ 判決書查詢</span><span class="df-badge df-grn">已同意</span></div>
+        </div>
+        <div class="how-vis-content" id="vis-3">
+          <div style="font-size:11px;color:var(--t2);margin-bottom:12px">AI 評估結果</div>
+          <div class="prob-cards">
+            <div class="pcard-big"><div class="pcard-big-n">銀行信貸</div><div class="pcard-big-v pcard-lgrn">82%</div></div>
+            <div class="pcard-big"><div class="pcard-big-n">汽車貸款</div><div class="pcard-big-v pcard-grn">74%</div></div>
+            <div class="pcard-big"><div class="pcard-big-n">機車貸款</div><div class="pcard-big-v pcard-lgrn">88%</div></div>
+            <div class="pcard-big"><div class="pcard-big-n">不動產</div><div class="pcard-big-v pcard-grn" style="font-size:16px">66.7%</div></div>
+            <div class="pcard-big"><div class="pcard-big-n">商品手機貸</div><div class="pcard-big-v pcard-yel">63%</div></div>
+            <div class="pcard-big"><div class="pcard-big-n">當鋪</div><div class="pcard-big-v" style="color:var(--t2);font-size:13px">需抵押</div></div>
+          </div>
+        </div>
+        <div class="how-vis-content" id="vis-4">
+          <div style="font-size:11px;color:var(--t2);margin-bottom:12px">顧問後台操作</div>
+          <div class="data-field"><span class="df-label">下載客戶完整PDF</span><span class="df-badge df-acc">一鍵下載</span></div>
+          <div class="data-field"><span class="df-label">分享到 LINE</span><span class="df-badge df-grn">摘要連結</span></div>
+          <div class="data-field"><span class="df-label">案件進度</span><span class="df-badge df-acc">近件中</span></div>
+          <div class="data-field"><span class="df-label">顧問備註</span><span class="df-val" style="font-size:11px">建議優先信貸…</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- PRICING -->
+<section class="section" id="pricing">
+  <div class="section-inner">
+    <div class="reveal" style="text-align:center">
+      <div class="section-tag">方案定價</div>
+      <h2 class="section-h2">依您的業務規模選擇</h2>
+      <p class="section-sub center">所有付費方案均提供 7 天免費試用，試用期內可隨時取消</p>
+    </div>
+    <div style="text-align:center;margin-top:16px;margin-bottom:0">
+      <span style="font-size:12px;color:var(--grn);background:var(--grn-l);padding:6px 14px;border-radius:99px;display:inline-block">邀請5位以上付費顧問，每月折抵 $200，最高折抵 $600/月</span>
+    </div>
+    <div class="pricing-grid" style="margin-top:40px">
+      <!-- 基本版 -->
+      <div class="price-card reveal reveal-delay-1">
+        <div class="price-name">基本版（會員端）</div>
+        <div class="price-val">$0<span>/ 月</span></div>
+        <div class="price-cycle">永久免費</div>
+        <ul class="price-features">
+          <li>每月 50 份評估</li>
+          <li>AI 貸款機率評估</li>
+          <li>基本客戶名單管理</li>
+          <li>推廣連結（基本版）</li>
+          <li>收支理財工具</li>
+        </ul>
+        <a href="#" class="price-btn price-btn-outline">立即開始</a>
+      </div>
+      <!-- 進階版 -->
+      <div class="price-card featured reveal reveal-delay-2">
+        <div class="price-name">進階版（會員端）</div>
+        <div class="price-val">$980<span>/ 月</span></div>
+        <div class="price-cycle">年繳另有優惠</div>
+        <div class="price-trial">✓ 7 天免費試用</div>
+        <ul class="price-features">
+          <li>無限份評估</li>
+          <li>自訂評分規則</li>
+          <li>UTM 渠道追蹤</li>
+          <li>不動產估價門檻設定</li>
+          <li>客戶完整資料一頁式 PDF</li>
+          <li>LINE 分享 / 加密連結</li>
+          <li>判決書 + 動產擔保查詢</li>
+        </ul>
+        <a href="#" class="price-btn price-btn-solid">立即試用 7 天</a>
+      </div>
+      <!-- 團隊版 -->
+      <div class="price-card reveal reveal-delay-3">
+        <div class="price-name">團隊版（會員端）</div>
+        <div class="price-val">$2,480<span>/ 月</span></div>
+        <div class="price-cycle">年繳另有優惠</div>
+        <div class="price-trial">✓ 7 天免費試用</div>
+        <ul class="price-features">
+          <li>多顧問帳號管理</li>
+          <li>共同名單與分案</li>
+          <li>收支結算報表</li>
+          <li>過件類型分析</li>
+          <li>API 串接支援</li>
+          <li>進階版所有功能</li>
+        </ul>
+        <a href="#" class="price-btn price-btn-outline">聯繫洽談</a>
+      </div>
+    </div>
+    <div style="margin-top:32px;padding:20px 24px;background:var(--card);border:0.5px solid var(--bdr);border-radius:12px;display:flex;align-items:flex-start;gap:14px" class="reveal">
+      <span style="font-size:20px;flex-shrink:0">📱</span>
+      <div>
+        <div style="font-size:13px;font-weight:500;margin-bottom:4px">客戶端方案</div>
+        <div style="font-size:12px;color:var(--t2);line-height:1.6">客戶端（填寫評估表單）提供免費版（5次評估+試算）、月訂閱 $99/月（7天免費試用）、年繳方案 $79/月（年繳 $948）。若您已訂閱客戶端，升級顧問方案自動折抵 $99。</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- LEGAL -->
+<section class="section legal-section" id="legal">
+  <div class="section-inner">
+    <div class="reveal">
+      <div class="section-tag">法律保障</div>
+      <h2 class="section-h2">每一筆資料都受法律保護</h2>
+      <p class="section-sub">顧問PRO 依個人資料保護法設計，從同意到刪除，完整保障客戶權益</p>
+    </div>
+    <div class="legal-grid">
+      <div class="legal-card reveal reveal-delay-1">
+        <div class="legal-icon">📋</div>
+        <div>
+          <h4 class="legal-h4">個資法第8條告知義務</h4>
+          <p class="legal-p">客戶填表前必須閱讀完整個資告知事項，包含蒐集目的、資料類別、保存期限（5年）、利用方式及當事人權利。</p>
+        </div>
+      </div>
+      <div class="legal-card reveal reveal-delay-2">
+        <div class="legal-icon">⚖️</div>
+        <div>
+          <h4 class="legal-h4">判決書查詢合規聲明</h4>
+          <p class="legal-p">依個資法第19條第1項第5款「經當事人同意」進行。司法院判決書屬政府公開資訊，查詢不影響評估機率，且明確告知法條依據。</p>
+        </div>
+      </div>
+      <div class="legal-card reveal reveal-delay-1">
+        <div class="legal-icon">🗑️</div>
+        <div>
+          <h4 class="legal-h4">個資法第3條當事人權利</h4>
+          <p class="legal-p">客戶可隨時要求查詢、更正、停止處理或刪除個人資料。評估完成後系統主動提示客戶可下載資料副本。</p>
+        </div>
+      </div>
+      <div class="legal-card reveal reveal-delay-2">
+        <div class="legal-icon">🔒</div>
+        <div>
+          <h4 class="legal-h4">敏感資料處理規範</h4>
+          <p class="legal-p">身分證字號查詢後以雜湊（Hash）儲存，不可反推。資料傳輸全程 TLS 加密，符合個資法安全維護義務。</p>
+        </div>
+      </div>
+      <div class="legal-card reveal reveal-delay-1">
+        <div class="legal-icon">🛡️</div>
+        <div>
+          <h4 class="legal-h4">會員服務須知六大條款</h4>
+          <p class="legal-p">會員（顧問）註冊時須閱讀並確認：個資保護義務、禁止行為、責任懲處、爭議處理機制，違規者停權並保留法律追訴。</p>
+        </div>
+      </div>
+      <div class="legal-card reveal reveal-delay-2">
+        <div class="legal-icon">📊</div>
+        <div>
+          <h4 class="legal-h4">資料隔離與存取控制</h4>
+          <p class="legal-p">採用 Supabase Row Level Security，每位顧問只能看到自己的客戶名單。團隊版才能設定共同管理，保障名單歸屬。</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- TECH -->
+<section class="section" style="padding:60px 5vw;text-align:center">
+  <div class="section-inner">
+    <div class="section-tag" style="text-align:center">技術架構</div>
+    <p style="font-size:13px;color:var(--t2);margin-top:6px">企業級技術棧，安全可靠</p>
+    <div class="tech-row">
+      <div class="tech-pill"><div class="tech-pill-dot" style="background:#0070F3"></div>Next.js 14</div>
+      <div class="tech-pill"><div class="tech-pill-dot" style="background:#06B6D4"></div>Supabase</div>
+      <div class="tech-pill"><div class="tech-pill-dot" style="background:#38BDF8"></div>Tailwind CSS</div>
+      <div class="tech-pill"><div class="tech-pill-dot" style="background:#7C3AED"></div>Vercel</div>
+      <div class="tech-pill"><div class="tech-pill-dot" style="background:#E24329"></div>Resend</div>
+      <div class="tech-pill"><div class="tech-pill-dot" style="background:#2DB84B"></div>LINE Notify</div>
+      <div class="tech-pill"><div class="tech-pill-dot" style="background:var(--acc)"></div>MyData API</div>
+      <div class="tech-pill"><div class="tech-pill-dot" style="background:var(--gold)"></div>PWA 支援</div>
+    </div>
+  </div>
+</section>
+
+<!-- CTA -->
+<section class="cta-section">
+  <div class="reveal">
+    <h2 class="cta-h2">現在就開始<br>免費試用顧問PRO</h2>
+    <p class="cta-sub">基本版永久免費，進階版 7 天免費試用，無需信用卡</p>
+    <div class="cta-btns">
+      <a href="#" class="btn-primary" style="font-size:15px;padding:14px 32px">免費開始使用 →</a>
+      <a href="mailto:hello@guwenpro.io" class="btn-outline" style="font-size:15px;padding:14px 32px">聯繫我們</a>
+    </div>
+    <div style="margin-top:24px;font-size:12px;color:var(--t3)">適用 iPhone · Android · Windows · Mac</div>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer class="footer">
+  <div class="footer-inner">
+    <div class="footer-top">
+      <div class="footer-brand">
+        <div class="logo-text">顧問<span style="color:var(--acc)">PRO</span></div>
+        <p style="margin-top:10px">貸款評估專業平台，讓每一位顧問都有專業後台。依個資法合規設計，保障客戶與顧問雙方權益。</p>
+      </div>
+      <div class="footer-col">
+        <h4>功能</h4>
+        <a href="#">AI 評估引擎</a>
+        <a href="#">政府資料核實</a>
+        <a href="#">防詐驗證</a>
+        <a href="#">不動產評估</a>
+        <a href="#">收支管理</a>
+      </div>
+      <div class="footer-col">
+        <h4>平台</h4>
+        <a href="#">方案定價</a>
+        <a href="#">邀請碼折扣</a>
+        <a href="#">客戶端功能</a>
+        <a href="#">API 文件</a>
+      </div>
+      <div class="footer-col">
+        <h4>支援</h4>
+        <a href="#">常見問題</a>
+        <a href="mailto:hello@guwenpro.io">聯繫我們</a>
+        <a href="mailto:privacy@guwenpro.io">個資申請</a>
+        <a href="mailto:report@guwenpro.io">問題回報</a>
+      </div>
+    </div>
+    <div class="footer-bottom">
+      <p>© 2025 顧問PRO. 保留所有權利.</p>
+      <div class="footer-bottom-links">
+        <a href="#">隱私政策</a>
+        <a href="#">服務條款</a>
+        <a href="#">個資告知</a>
+      </div>
+    </div>
+  </div>
+</footer>
+
+<script>
+function toggleMenu(){
+  const m=document.getElementById('mobile-menu');
+  m.classList.toggle('open');
+}
+
+// Navbar scroll
+window.addEventListener('scroll',()=>{
+  const nav=document.getElementById('navbar');
+  if(window.scrollY>50){
+    nav.style.background='rgba(10,10,10,.98)';
+  } else {
+    nav.style.background='rgba(10,10,10,.85)';
+  }
+});
+
+// Scroll reveal
+const observer=new IntersectionObserver(entries=>{
+  entries.forEach(e=>{
+    if(e.isIntersecting)e.target.classList.add('visible');
+  });
+},{threshold:.1});
+document.querySelectorAll('.reveal').forEach(el=>observer.observe(el));
+
+// How it works steps
+function setStep(idx, el){
+  document.querySelectorAll('.how-step').forEach(s=>s.classList.remove('active'));
+  document.querySelectorAll('.how-vis-content').forEach(v=>{v.classList.remove('show')});
+  el.classList.add('active');
+  const vis=document.getElementById('vis-'+idx);
+  if(vis)vis.classList.add('show');
+}
+</script>
+</body>
+</html>
