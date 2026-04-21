@@ -2012,8 +2012,11 @@ function clientStep3() {
     '<div class="frow2" style="margin-top:8px">' +
       '<div class="frow"><div class="flbl">投保單位</div><select class="fi" id="c-labor-type" onchange="toggleLaborYears(this.value)"><option value="none">沒保（無投保）</option><option value="labor">勞保（一般公司）</option><option value="guild">公會保（職業工會）</option><option value="fish">漁保</option><option value="farm">農保</option><option value="national">國保（國民年金）</option></select></div>' +
       '<div id="c-labor-years-row" style="display:none;margin-top:8px">' +
-      '<div class="frow"><div class="flbl">總投保年資（選填）</div><input class="fi" id="c-labor-years" type="number" placeholder="" inputmode="numeric" step="0.5"></div>' +
-      '<div style="font-size:12px;color:var(--t3);margin-top:4px">忘記可不填，填入有助提升評估準確度</div></div>' +
+      '<div class="frow2">' +
+        '<div class="frow"><div class="flbl">投保年資（年）</div><input class="fi" id="c-labor-this-years" type="number" placeholder="3" inputmode="numeric" step="0.5"></div>' +
+        '<div class="frow"><div class="flbl">總投保年資（選填）</div><input class="fi" id="c-labor-years" type="number" placeholder="" inputmode="numeric" step="0.5"></div>' +
+      '</div>' +
+      '<div style="font-size:12px;color:var(--t3);margin-top:4px">總投保年資：含所有工作累計年資，忘記可不填</div></div>' +
       '<div class="frow"><div class="flbl">信用卡持卡時間</div><select class="fi" id="c-cc"><option value="none">無卡</option><option value="3m+">3個月以上</option><option value="6m+">6個月以上</option><option value="1y+">1年以上</option></select></div>' +
     '</div>' +
     '<div class="frow2" style="margin-top:8px">' +
@@ -2296,6 +2299,12 @@ async function submitClientForm() {
   showLoading('評估中…');
   var g = function(id) { var el = document.getElementById(id); return el ? el.value || '' : ''; };
   var salary = parseInt(g('c-salary')) || null;
+  var ccLimitWan = parseFloat(g('c-cc-limit')) || 0;
+  var ccLimitYuan = Math.round(ccLimitWan * 10000);
+  var laborType = g('c-labor-type') || 'none';
+  var laborYears = g('c-labor-years') || '';
+
+  // 只送 DB 確定存在的欄位
   var payload = {
     member_id: clientMember.id,
     name: g('c-name') || '（未命名）',
@@ -2308,10 +2317,8 @@ async function submitClientForm() {
     fund_purpose: g('c-purpose'),
     monthly_salary: salary,
     has_salary_transfer: g('c-transfer') === 'true',
-    labor_insurance_type: g('c-labor-type') || 'none',
-    labor_insurance_years: g('c-labor-years') || null,
+    labor_insurance_years: laborType,
     credit_card_age: g('c-cc'),
-    credit_card_limit: Math.round((parseFloat(g('c-cc-limit')) || 0) * 10000),
     has_car_license: g('c-car-lic') === 'true',
     has_bike_license: g('c-bike-lic') === 'true',
     has_property: g('c-property') === 'true',
@@ -2325,17 +2332,22 @@ async function submitClientForm() {
     consent_mydata_health: clientConsents.health,
     consent_asset_query: clientConsents.asset,
     consent_verdict_query: clientConsents.verdict,
+    // 額外資訊存在備註裡（待 DB 加欄位後可移出）
+    advisor_note: [
+      ccLimitYuan > 0 ? '信用卡額度：$' + ccLimitYuan.toLocaleString() : '',
+      laborYears ? '總投保年資：' + laborYears + '年' : '',
+    ].filter(Boolean).join('，'),
   };
   var r = await sb.from('leads').insert(payload).select().single();
   hideLoading();
   if (r.error) { alert('送出失敗：' + r.error.message); return; }
 
-  // 用 payload 資料直接計算（避免 DB 欄位名稱差異）
+  // 用本地資料直接計算評分（不依賴 DB 欄位）
   var scoreData = {
     monthly_salary: salary,
     labor_salary: salary,
     has_salary_transfer: payload.has_salary_transfer,
-    credit_card_limit: payload.credit_card_limit,
+    credit_card_limit: ccLimitYuan,
     credit_card_age: payload.credit_card_age,
     has_car_license: payload.has_car_license,
     has_bike_license: payload.has_bike_license,
