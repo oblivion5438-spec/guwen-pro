@@ -2056,37 +2056,137 @@ async function submitClientForm() {
   if (!clientMember) return;
   showLoading('評估中…');
   var g = function(id) { var el = document.getElementById(id); return el ? el.value || '' : ''; };
+  var salary = parseInt(g('c-salary')) || null;
   var payload = {
-    member_id: clientMember.id, name: g('c-name') || '（未命名）',
-    age: parseInt(g('c-age')) || null, work_type: g('c-work'), alert_status: g('c-alert'),
-    address: g('c-addr'), huji_address: g('c-huji'),
-    required_amount: parseInt(g('c-amount')) || null, fund_purpose: g('c-purpose'),
-    monthly_salary: parseInt(g('c-salary')) || null, has_salary_transfer: g('c-transfer')==='true',
-    labor_insurance_years: g('c-labor'), credit_card_age: g('c-cc'),
-    has_car_license: g('c-car-lic')==='true', has_bike_license: g('c-bike-lic')==='true',
-    has_property: g('c-property')==='true', has_collateral: g('c-collateral')==='true',
-    bank_recent_reject: g('c-bank-rej'), finance_recent_reject: g('c-fin-rej'),
-    status: 'new', source: 'client_form',
-    consent_mydata_income: clientConsents.income, consent_mydata_labor: clientConsents.labor,
-    consent_mydata_health: clientConsents.health, consent_asset_query: clientConsents.asset,
+    member_id: clientMember.id,
+    name: g('c-name') || '（未命名）',
+    age: parseInt(g('c-age')) || null,
+    work_type: g('c-work'),
+    alert_status: g('c-alert') || 'none',
+    address: g('c-addr'),
+    huji_address: g('c-huji'),
+    required_amount: parseInt(g('c-amount')) || null,
+    fund_purpose: g('c-purpose'),
+    monthly_salary: salary,
+    has_salary_transfer: g('c-transfer') === 'true',
+    labor_insurance_years: g('c-labor'),
+    credit_card_age: g('c-cc'),
+    credit_card_limit: parseInt(g('c-cc-limit')) || 0,
+    credit_card_count: parseInt(g('c-cc-count')) || 0,
+    has_car_license: g('c-car-lic') === 'true',
+    has_bike_license: g('c-bike-lic') === 'true',
+    has_property: g('c-property') === 'true',
+    has_collateral: g('c-collateral') === 'true',
+    bank_recent_reject: g('c-bank-rej') || 'none',
+    finance_recent_reject: g('c-fin-rej') || 'none',
+    status: 'new',
+    source: 'client_form',
+    consent_mydata_income: clientConsents.income,
+    consent_mydata_labor: clientConsents.labor,
+    consent_mydata_health: clientConsents.health,
+    consent_asset_query: clientConsents.asset,
     consent_verdict_query: clientConsents.verdict,
   };
   var r = await sb.from('leads').insert(payload).select().single();
   hideLoading();
   if (r.error) { alert('送出失敗：' + r.error.message); return; }
 
-  var scores = calcScores(r.data);
+  // 用 payload 資料直接計算（避免 DB 欄位名稱差異）
+  var scoreData = {
+    monthly_salary: salary,
+    labor_salary: salary,
+    has_salary_transfer: payload.has_salary_transfer,
+    credit_card_limit: payload.credit_card_limit,
+    credit_card_age: payload.credit_card_age,
+    has_car_license: payload.has_car_license,
+    has_bike_license: payload.has_bike_license,
+    has_property: payload.has_property,
+    has_collateral: payload.has_collateral,
+    has_pawn_borrow: false,
+    alert_status: payload.alert_status,
+    bank_reject_count: 0,
+    fin_reject_count: 0,
+    bank_recent_reject: payload.bank_recent_reject,
+    finance_recent_reject: payload.finance_recent_reject,
+    property_valuation: null,
+  };
+  var scores = calcScores(scoreData);
   var advisorName = clientMember.name || '顧問';
   var el = document.getElementById('client-content');
-  el.innerHTML =
-    '<div style="text-align:center;padding:20px 0 12px">' +
-    '<div style="font-size:32px;margin-bottom:8px">✅</div>' +
+
+  // 評估完成畫面
+  el.innerHTML = '';
+
+  // 完成標題
+  var titleDiv = document.createElement('div');
+  titleDiv.style.cssText = 'text-align:center;padding:20px 0 12px';
+  titleDiv.innerHTML = '<div style="font-size:36px;margin-bottom:8px">✅</div>' +
     '<div style="font-size:18px;font-weight:600;margin-bottom:4px">評估完成！</div>' +
-    '<div style="font-size:15px;color:var(--t2)">感謝您的填寫，顧問將盡快與您聯繫</div></div>' +
-    '<div class="card"><div class="ct">AI 評估機率</div>' +
-    buildProbCards(scores) +
-    '<div style="font-size:13px;color:var(--t3);margin-top:8px">此為初步評估參考，實際核貸條件以金融機構審核為準</div></div>' +
-    '<div class="ib-blu" style="font-size:15px"><strong>依個資法第3條，您有權下載本次資料副本</strong><br>如需下載評估報告，請聯繫您的顧問 ' + advisorName + '。</div>';
+    '<div style="font-size:15px;color:var(--t2)">感謝您的填寫，' + advisorName + ' 顧問將盡快與您聯繫</div>';
+  el.appendChild(titleDiv);
+
+  // AI 評估結果卡片
+  var scoreCard = document.createElement('div');
+  scoreCard.className = 'card';
+  scoreCard.innerHTML = '<div class="ct">AI 評估機率</div>' + buildProbCards(scores);
+
+  // 最高可貸金額
+  if (scores.maxLoan > 0) {
+    var maxDiv = document.createElement('div');
+    maxDiv.className = 'ib-grn';
+    maxDiv.style.marginTop = '8px';
+    maxDiv.innerHTML = '💰 估算最高可貸：<strong>$' + scores.maxLoan.toLocaleString() + '</strong>（薪轉×22扣信用卡額度，僅供參考）';
+    scoreCard.appendChild(maxDiv);
+  }
+
+  // 補保人建議
+  if (scores.bank > 0 && scores.bank < scoreRules.scoreGuarantorThreshold) {
+    var guarantorDiv = document.createElement('div');
+    guarantorDiv.className = 'ib-yel';
+    guarantorDiv.style.marginTop = '8px';
+    guarantorDiv.innerHTML = '💡 銀行信貸評分較低，建議與顧問討論是否補保人';
+    scoreCard.appendChild(guarantorDiv);
+  }
+
+  var disclaimer = document.createElement('div');
+  disclaimer.style.cssText = 'font-size:12px;color:var(--t3);margin-top:8px;line-height:1.5';
+  disclaimer.textContent = '此為初步評估參考，不代表任何核貸承諾，實際條件以金融機構審核為準。';
+  scoreCard.appendChild(disclaimer);
+  el.appendChild(scoreCard);
+
+  // 個資權利說明
+  var legalDiv = document.createElement('div');
+  legalDiv.className = 'ib-blu';
+  legalDiv.style.fontSize = '14px';
+  legalDiv.innerHTML = '<strong>依個資法第3條，您有權下載本次資料副本</strong><br>如需下載評估報告，請聯繫您的顧問 ' + advisorName + '。';
+  el.appendChild(legalDiv);
+
+  // ── 留言給顧問 ──
+  var msgCard = document.createElement('div');
+  msgCard.className = 'card';
+  msgCard.innerHTML = '<div class="ct">💬 留言給顧問</div>' +
+    '<div style="font-size:14px;color:var(--t2);margin-bottom:8px">有任何問題或補充說明，可以在這裡留言給 ' + advisorName + ' 顧問</div>' +
+    '<textarea class="fi" id="client-message" rows="4" style="resize:none" placeholder="例如：我有一台車想詢問汽車貸款，方便時請聯繫我…"></textarea>' +
+    '<div style="font-size:13px;color:var(--t3);margin-top:6px">您的聯絡資訊已包含在填寫的資料中</div>';
+  el.appendChild(msgCard);
+
+  // 送出留言按鈕
+  var sendBtn = document.createElement('button');
+  sendBtn.className = 'btn-p';
+  sendBtn.style.marginBottom = '20px';
+  sendBtn.textContent = '送出留言';
+  sendBtn.onclick = async function() {
+    var msg = document.getElementById('client-message') ? document.getElementById('client-message').value.trim() : '';
+    if (!msg) { alert('請輸入留言內容'); return; }
+    sendBtn.disabled = true;
+    sendBtn.textContent = '送出中…';
+    // 更新 advisor_note
+    await sb.from('leads').update({ advisor_note: '【客戶留言】' + msg }).eq('id', r.data.id);
+    msgCard.innerHTML = '<div class="ct">💬 留言給顧問</div>' +
+      '<div class="ib-grn" style="font-size:14px">✓ 留言已送出！' + advisorName + ' 顧問會盡快回覆您。</div>';
+    el.removeChild(sendBtn);
+  };
+  el.appendChild(sendBtn);
 }
 
 // ══════════════════════════════
