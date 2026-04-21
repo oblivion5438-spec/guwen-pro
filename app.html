@@ -1419,7 +1419,40 @@ var teamExpenses = [];    // 團隊開支
 
 async function renderTeam() {
   var el = document.getElementById('member-content');
-  el.innerHTML = '<div style="text-align:center;padding:30px;color:var(--t2)">載入團隊資料…</div>';
+
+  // 檢查方案：只有 team 方案才能使用團隊功能
+  var plan = currentMember ? (currentMember.plan || 'free') : 'free';
+  if (plan !== 'team') {
+    el.innerHTML = '';
+    var lockCard = document.createElement('div'); lockCard.className = 'card';
+    lockCard.innerHTML =
+      '<div style="text-align:center;padding:20px 0">' +
+        '<div style="font-size:48px;margin-bottom:12px">🏢</div>' +
+        '<div style="font-size:18px;font-weight:600;margin-bottom:6px">團隊版專屬功能</div>' +
+        '<div style="font-size:14px;color:var(--t2);line-height:1.7;margin-bottom:16px">' +
+          '團隊管理需要升級至<strong>團隊版</strong>方案<br>' +
+          '包含：多成員管理、整體業績報表、公司收支追蹤' +
+        '</div>' +
+        '<div style="background:var(--inp);border-radius:10px;padding:14px;margin-bottom:16px;text-align:left">' +
+          '<div style="font-size:15px;font-weight:600;margin-bottom:8px">團隊版功能</div>' +
+          '<div style="font-size:14px;color:var(--t2);line-height:1.8">' +
+            '✓ 建立/加入團隊<br>' +
+            '✓ 管理多位顧問成員<br>' +
+            '✓ 查看所有成員客戶資料<br>' +
+            '✓ 成員業績排行與比較<br>' +
+            '✓ 公司收支記錄與報表<br>' +
+            '✓ 當月/前月/前季/前年變化比' +
+          '</div>' +
+        '</div>' +
+        '<button class="btn-p" style="width:100%" onclick="alert(\'請聯繫客服升級團隊版方案\')">聯繫升級團隊版</button>' +
+        '<div style="font-size:13px;color:var(--t3);margin-top:8px">目前方案：' +
+          '<span class="badge ' + (plan==='pro'?'b-acc':'b-gray') + '">' +
+          (plan==='pro'?'進階版':'基本版') + '</span>' +
+        '</div>' +
+      '</div>';
+    el.appendChild(lockCard);
+    return;
+  }
 
   // 查詢我是否已在團隊
   var myTeam = await sb.from('team_members')
