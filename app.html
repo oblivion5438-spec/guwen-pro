@@ -2329,8 +2329,8 @@ async function submitClientForm() {
   if (!clientMember) return;
   showLoading('評估中…');
   var g = function(id) { var el = document.getElementById(id); return el ? el.value || '' : ''; };
-  var salaryWan = parseFloat(g('c-salary')) || null;
-  var salary = salaryWan ? Math.round(salaryWan * 10000) : null;
+  var salaryWan = parseFloat(g('c-salary')) || 0;
+  var salary = salaryWan > 0 ? Math.round(salaryWan * 10000) : null;
   var ccLimitWan = parseFloat(g('c-cc-limit')) || 0;
   var ccLimitYuan = Math.round(ccLimitWan * 10000);
   var laborType = g('c-labor-type') || 'none';
@@ -2442,8 +2442,7 @@ async function submitClientForm() {
 
   // 未填資訊提示
   var missingItems = [];
-  if (scores.noSalary) missingItems.push('月薪');
-  if (!scoreData.credit_card_age || scoreData.credit_card_age === 'none') missingItems.push('信用卡資訊');
+  if (scores.noSalary) missingItems.push('月薪（汽車/機車/手機貸需要）');
   if (missingItems.length > 0) {
     var missingDiv = document.createElement('div');
     missingDiv.className = 'ib-yel';
