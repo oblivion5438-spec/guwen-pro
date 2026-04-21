@@ -1807,9 +1807,15 @@ async function initClientFlow(inviteCode) {
   try { codeRaw = decodeURIComponent((inviteCode || '').trim()); } catch(e) { codeRaw = (inviteCode || '').trim(); }
   var codeUpper = codeRaw.toUpperCase();
 
+  // 先精確查，再大小寫不敏感查
   var r = await sb.from('members').select('id,name,company,city,district,invite_code,plan').eq('invite_code', codeRaw).single();
   if (!r.data && codeUpper !== codeRaw) {
     r = await sb.from('members').select('id,name,company,city,district,invite_code,plan').eq('invite_code', codeUpper).single();
+  }
+  // 最後嘗試 ilike（忽略大小寫模糊比對）
+  if (!r.data) {
+    var r2 = await sb.from('members').select('id,name,company,city,district,invite_code,plan').ilike('invite_code', codeRaw);
+    if (r2.data && r2.data.length > 0) r = { data: r2.data[0] };
   }
 
   if (!r.data) {
