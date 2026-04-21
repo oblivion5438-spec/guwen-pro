@@ -425,6 +425,9 @@ let propThresholds = { t1: 70, t2: 80 };
 let clientMember = null;
 let clientConsents = { base:true, income:false, labor:false, health:false, asset:false, verdict:false, marketing:false };
 
+// 保存客戶填寫的資料，步驟切換時不會遺失
+var clientFormData = {};
+
 // 收支狀態
 let financeTab = 'overview';
 let fixedExpenses = [
@@ -1776,12 +1779,64 @@ function makeStepsHtml(step) {
 }
 
 function renderClientStep(step) {
+  // 切換步驟前先儲存目前表單內容
+  saveClientFormData();
   if (step === 0) return clientStep0();
   if (step === 1) return clientStep1();
-  if (step === 2) return clientStep2();
-  if (step === 3) return clientStep3();
+  if (step === 2) { clientStep2(); restoreClientFormData(2); return; }
+  if (step === 3) { clientStep3(); restoreClientFormData(3); return; }
   if (step === 4) return clientStep4();
   if (step === 5) return clientStep5();
+}
+
+// 儲存目前所有 input/select 的值
+function saveClientFormData() {
+  var fields = ['c-name','c-idno','c-age','c-work','c-alert','c-addr','c-huji','c-amount','c-purpose',
+    'c-salary','c-transfer','c-cc','c-cc-limit','c-cc-count','c-car-lic','c-bike-lic',
+    'c-labor-type','c-labor-this-years','c-labor-years',
+    'c-property','c-collateral','c-bank-rej','c-fin-rej'];
+  fields.forEach(function(id) {
+    var el = document.getElementById(id);
+    if (el) clientFormData[id] = el.value;
+  });
+  // 也儲存 same-addr checkbox
+  var sameAddr = document.getElementById('c-same-addr');
+  if (sameAddr) clientFormData['c-same-addr'] = sameAddr.checked;
+}
+
+// 還原指定步驟的欄位值
+function restoreClientFormData(step) {
+  var fields2 = ['c-name','c-idno','c-age','c-work','c-alert','c-addr','c-huji','c-amount','c-purpose'];
+  var fields3 = ['c-salary','c-transfer','c-cc','c-cc-limit','c-cc-count','c-car-lic','c-bike-lic',
+    'c-labor-type','c-labor-this-years','c-labor-years',
+    'c-property','c-collateral','c-bank-rej','c-fin-rej'];
+  var fieldsToRestore = step === 2 ? fields2 : fields3;
+  fieldsToRestore.forEach(function(id) {
+    if (clientFormData[id] !== undefined) {
+      var el = document.getElementById(id);
+      if (el) el.value = clientFormData[id];
+    }
+  });
+  // 還原 checkbox
+  if (step === 2 && clientFormData['c-same-addr'] !== undefined) {
+    var sa = document.getElementById('c-same-addr');
+    if (sa) {
+      sa.checked = clientFormData['c-same-addr'];
+      var hujiRow = document.getElementById('c-huji-row');
+      if (hujiRow) hujiRow.style.display = sa.checked ? 'none' : 'block';
+    }
+  }
+  // 還原不動產展開狀態
+  if (step === 3) {
+    var prop = document.getElementById('c-property');
+    var propDetail = document.getElementById('c-prop-detail');
+    if (prop && propDetail) propDetail.style.display = prop.value === 'true' ? 'block' : 'none';
+    // 還原勞保年資展開狀態
+    var laborType = document.getElementById('c-labor-type');
+    if (laborType) toggleLaborYears(laborType.value);
+    // 還原最高可貸顯示
+    updateClientMaxLoan();
+  }
 }
 
 function clientStepBase(step) {
