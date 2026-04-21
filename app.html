@@ -1766,6 +1766,37 @@ function downloadQR() {
 // ══════════════════════════════
 async function initClientFlow(inviteCode) {
   showPage('client');
+  // 偵測 LINE 內建瀏覽器，提示用外部開啟
+  var isLine = /Line/i.test(navigator.userAgent);
+  var isFB = /FBAN|FBAV|Instagram/i.test(navigator.userAgent);
+  if (isLine || isFB) {
+    var appName = isLine ? 'LINE' : 'Instagram/Facebook';
+    var currentUrl = window.location.href;
+    document.getElementById('client-content').innerHTML =
+      '<div style="text-align:center;padding:24px 20px">' +
+        '<div style="font-size:40px;margin-bottom:10px">📱</div>' +
+        '<div style="font-size:17px;font-weight:600;margin-bottom:6px">請用瀏覽器開啟</div>' +
+        '<div style="font-size:14px;color:var(--t2);line-height:1.7;margin-bottom:16px">' +
+          appName + ' 內建瀏覽器不支援此評估系統</div>' +
+        '<div style="display:flex;flex-direction:column;gap:10px;margin-bottom:16px">' +
+          // 方法1：LINE 右上角
+          (isLine ?
+            '<div style="background:var(--inp);border-radius:10px;padding:12px 14px;text-align:left">' +
+              '<div style="font-size:14px;font-weight:600;color:var(--t1);margin-bottom:4px">方法一（最簡單）</div>' +
+              '<div style="font-size:14px;color:var(--t2);line-height:1.6">點右上角 <strong style="color:var(--t0)">「⋯」</strong> → 選 <strong style="color:var(--t0)">「用瀏覽器開啟」</strong></div>' +
+            '</div>' : '') +
+          // 方法2：複製連結
+          '<div style="background:var(--inp);border-radius:10px;padding:12px 14px;text-align:left">' +
+            '<div style="font-size:14px;font-weight:600;color:var(--t1);margin-bottom:6px">方法' + (isLine ? '二' : '一') + '（複製連結）</div>' +
+            '<div style="font-size:13px;color:var(--t3);word-break:break-all;background:var(--bg2);border-radius:6px;padding:6px 8px;margin-bottom:8px" id="line-url-display">' + currentUrl + '</div>' +
+            '<button onclick="navigator.clipboard.writeText(\'' + currentUrl.replace(/'/g, "\\'") + '\').then(function(){var b=document.getElementById(\'copy-btn\');if(b){b.textContent=\'✓ 已複製\';b.style.background=\'var(--grn)\'}})" id="copy-btn" style="width:100%;padding:10px;background:var(--acc);color:#FFF;border:none;border-radius:8px;font-size:15px;font-weight:600;cursor:pointer;font-family:var(--sans)">複製連結</button>' +
+            '<div style="font-size:13px;color:var(--t3);margin-top:6px">複製後開啟 Chrome 或 Safari 貼上網址</div>' +
+          '</div>' +
+        '</div>' +
+        '<div style="font-size:13px;color:var(--t3)">建議使用 Chrome 或 Safari 獲得最佳體驗</div>' +
+      '</div>';
+    return;
+  }
   document.getElementById('client-content').innerHTML = '<div style="text-align:center;padding:40px;color:var(--t2)">載入顧問資訊…</div>';
   var r = await sb.from('members').select('id,name,company,city,district,invite_code,plan').eq('invite_code', inviteCode).single();
   if (!r.data) {
@@ -2422,7 +2453,6 @@ function renderClientAntifraud() {
   var searchDefs = [
     {icon:'🔍', label:'Google 搜尋評論', url:'https://www.google.com/search?q=', suffix:'+評論+詐騙'},
     {icon:'📰', label:'新聞搜尋', url:'https://www.google.com/search?tbm=nws&q=', suffix:''},
-    {icon:'🏛️', label:'金管會合法業者查詢', url:'https://www.banking.gov.tw/', suffix:'', noCompany:true},
     {icon:'📋', label:'公司登記查詢（政府）', url:'https://findbiz.nat.gov.tw/fts/query/QueryBar/queryInit.do?request_locale=zh_TW', suffix:'', noCompany:true},
   ];
 
