@@ -386,6 +386,10 @@ html,body{height:100%;background:var(--bg);color:var(--t0);font-family:var(--san
 const SURL = 'https://lslrxtqfshenzswgkvms.supabase.co';
 const SKEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxzbHJ4dHFmc2hlbnpzd2drdm1zIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY3NTY3ODEsImV4cCI6MjA5MjMzMjc4MX0.Jsi6GM7q4OGeIFee1hvFNkq_jFFXPSPpiILg6sy5Aao';
 const sb = supabase.createClient(SURL, SKEY);
+// 確保推廣連結永遠使用正確的網址
+var BASE_URL = (window.location.protocol === 'file:' || !window.location.host)
+  ? 'https://guwen-pro.vercel.app'
+  : window.location.origin;
 
 // ══════════════════════════════
 // 狀態
@@ -822,7 +826,7 @@ async function renderDash() {
   }
 
   var code = currentMember ? (currentMember.invite_code || '') : '';
-  var linkUrl = window.location.origin + '/app.html?ref=' + code;
+  var linkUrl = BASE_URL + '/app.html?ref=' + code;
 
   // ── 四格統計卡 ──
   var html = '<div class="stat-grid">';
@@ -861,7 +865,7 @@ async function renderDash() {
   html += '</table></div>';
 
   var code = currentMember ? (currentMember.invite_code || '') : '';
-  var linkUrl = window.location.origin + '/app.html?ref=' + code;
+  var linkUrl = BASE_URL + '/app.html?ref=' + code;
 
   // ── 最新名單 ──
   html += '<div class="card"><div class="ct">最新名單 <button class="btn-sm" onclick="navTo(\'leads\',null)">查看全部</button></div><div id="dash-list"></div></div>';
@@ -1661,15 +1665,15 @@ async function analyzeScam() {
 // 推廣連結 & 分享
 // ══════════════════════════════
 function copyLink() {
-  var url = window.location.origin + '/app.html?ref=' + (currentMember ? currentMember.invite_code || '' : '');
+  var url = BASE_URL + '/app.html?ref=' + (currentMember ? currentMember.invite_code || '' : '');
   navigator.clipboard.writeText(url).then(function() { alert('連結已複製！'); });
 }
 function shareToLine() {
-  var url = window.location.origin + '/app.html?ref=' + (currentMember ? currentMember.invite_code || '' : '');
+  var url = BASE_URL + '/app.html?ref=' + (currentMember ? currentMember.invite_code || '' : '');
   window.open('https://line.me/R/share?text=' + encodeURIComponent('我在用顧問PRO做貸款評估：' + url), '_blank');
 }
 function shareInviteToLine(code) {
-  window.open('https://line.me/R/share?text=' + encodeURIComponent('我的顧問PRO邀請碼：' + code + '\n' + window.location.origin), '_blank');
+  window.open('https://line.me/R/share?text=' + encodeURIComponent('我的顧問PRO邀請碼：' + code + '\n' + BASE_URL), '_blank');
 }
 function shareLeadLine(id) {
   var lead = leads.find(function(l) { return l.id === id; });
@@ -1689,7 +1693,7 @@ function toggleQR() {
   else wrap.style.display = 'none';
 }
 function generateQR() {
-  var url = window.location.origin + '/app.html?ref=' + (currentMember ? currentMember.invite_code || '' : '');
+  var url = BASE_URL + '/app.html?ref=' + (currentMember ? currentMember.invite_code || '' : '');
   var canvas = document.getElementById('qr-canvas');
   if (!canvas) return;
   if (typeof QRCode !== 'undefined') {
@@ -1811,7 +1815,38 @@ function clientStep1() {
   var h = '<div style="font-size:16px;font-weight:600;margin-bottom:4px">個資告知與授權同意</div>';
   h += '<div style="font-size:14px;color:var(--t2);margin-bottom:10px">依個人資料保護法第8條，蒐集前需明確告知並取得同意</div>';
   // 必要
-  h += '<div class="tgl-row req-row opted"><div class="tgl-info"><div class="tgl-t">基本個資蒐集（必要）</div><div class="tgl-s">依個資法第19條第1項第5款，保存5年</div></div><div style="text-align:center"><div class="tgl on" style="pointer-events:none"></div><div class="tgl-lbl" style="color:var(--grn)">必要</div></div></div>';
+  h += '<div class="tgl-row req-row opted" style="flex-direction:column;cursor:pointer" onclick="togglePrivacyLaw()">';
+  h += '<div style="display:flex;align-items:center;width:100%">';
+  h += '<div class="tgl-info"><div class="tgl-t">基本個資蒐集（必要）</div><div class="tgl-s">依個資法第19條第1項第5款，保存5年 <span style="color:var(--blu);font-size:12px">▼ 點開查看法條</span></div></div>';
+  h += '<div style="text-align:center;flex-shrink:0"><div class="tgl on" style="pointer-events:none"></div><div class="tgl-lbl" style="color:var(--grn)">必要</div></div>';
+  h += '</div>';
+  h += '<div id="privacy-law-detail" style="display:none;margin-top:10px;border-top:0.5px solid var(--bdr);padding-top:10px;font-size:13px;color:var(--t2);line-height:1.8">';
+  h += '<div style="font-weight:500;color:var(--t0);margin-bottom:6px">個人資料保護法 相關條文</div>';
+  h += '<div style="background:var(--inp);border-radius:8px;padding:10px 12px;margin-bottom:6px">';
+  h += '<div style="font-weight:500;color:var(--t1);margin-bottom:4px">第8條 — 告知義務</div>';
+  h += '蒐集個人資料時，應明確告知：①蒐集目的、②個資類別、③利用期間、地區、對象及方式、④當事人權利及行使方式、⑤不提供個資之影響。';
+  h += '</div>';
+  h += '<div style="background:var(--inp);border-radius:8px;padding:10px 12px;margin-bottom:6px">';
+  h += '<div style="font-weight:500;color:var(--t1);margin-bottom:4px">第19條第1項第5款 — 蒐集合法要件</div>';
+  h += '非公務機關對個人資料之蒐集或處理，須有特定目的，並符合「經當事人同意」之要件。本次評估已取得您的同意。';
+  h += '</div>';
+  h += '<div style="background:var(--inp);border-radius:8px;padding:10px 12px;margin-bottom:6px">';
+  h += '<div style="font-weight:500;color:var(--t1);margin-bottom:4px">第3條 — 當事人權利</div>';
+  h += '您對本人的個人資料享有以下權利：<br>① 查詢或請求閱覽<br>② 請求製給複製本<br>③ 請求補充或更正<br>④ 請求停止蒐集、處理或利用<br>⑤ 請求刪除';
+  h += '</div>';
+  h += '<div style="background:var(--inp);border-radius:8px;padding:10px 12px">';
+  h += '<div style="font-weight:500;color:var(--t1);margin-bottom:4px">蒐集告知事項</div>';
+  h += '蒐集目的：貸款資格評估<br>蒐集項目：姓名、年齡、地址、收入、負債狀況<br>保存期限：5年<br>利用對象：您選擇的顧問<br>聯絡窗口：privacy@guwenpro.io';
+  h += '</div>';
+  h += '</div>';
+  h += '</div>';
+
+  // 全部一鍵同意
+  h += '<div id="all-agree-btn" style="display:flex;align-items:center;gap:10px;padding:12px 14px;background:linear-gradient(135deg,var(--gl),rgba(42,106,184,.08));border:0.5px solid rgba(45,138,78,.4);border-radius:10px;cursor:pointer;margin:10px 0">';
+  h += '<span style="font-size:22px">☑️</span>';
+  h += '<div><div style="font-size:15px;font-weight:600;color:var(--grn)">全部同意（一鍵）</div>';
+  h += '<div style="font-size:13px;color:var(--t2);margin-top:2px">同意以下所有授權項目，方便顧問完整評估</div></div></div>';
+
   h += '<div style="font-size:15px;font-weight:500;color:var(--t2);margin:8px 0 4px">MyData 政府資料（選擇性）</div>';
   h += '<div class="all-btn" id="md-all-btn"><span style="font-size:16px;color:var(--grn)">☑</span><div><div class="all-t">一鍵同意 MyData 三項</div><div style="font-size:13px;color:var(--t2)">所得 · 勞保 · 健保</div></div></div>';
   card.innerHTML = h;
@@ -1823,18 +1858,45 @@ function clientStep1() {
   var otherHdr = document.createElement('div'); otherHdr.style.cssText = 'font-size:15px;font-weight:500;color:var(--t2);margin:8px 0 4px'; otherHdr.textContent = '其他選擇性授權';
   card.appendChild(otherHdr);
 
-  var otherItems = [['c-o1','asset','④ 動產擔保查詢（法務部）',''],['c-o2','verdict','⑤ 判決書查詢（司法院）',''],['c-o3','marketing','⑥ 行銷及繳款提醒通知','']];
+  var otherItems = [['c-o1','asset','④ 動產擔保查詢（法務部）','查詢汽機車擔保登記，協助顧問評估'],['c-o2','verdict','⑤ 判決書查詢（司法院）','查詢公開裁判書，不影響評估分數'],['c-o3','marketing','⑥ 行銷及繳款提醒通知','Email / LINE 通知']];
   otherItems.forEach(function(x) { card.appendChild(makeConsentRow(x[0], x[1], x[2], x[3])); });
 
+  // 一鍵同意 MyData 三項
   card.querySelector('#md-all-btn').addEventListener('click', function() {
     mdItems.forEach(function(x) { if (!clientConsents[x[1]]) card.querySelector('#' + x[0]).click(); });
   });
+
+  // 全部同意（六項）
+  var allBtn = card.querySelector('#all-agree-btn');
+  allBtn.addEventListener('click', function() {
+    var allItems = mdItems.concat(otherItems);
+    allItems.forEach(function(x) { if (!clientConsents[x[1]]) card.querySelector('#' + x[0]).click(); });
+    // 變成已全選狀態
+    allBtn.style.background = 'linear-gradient(135deg,var(--gl),rgba(45,138,78,.15))';
+    allBtn.style.borderColor = 'var(--grn)';
+    allBtn.innerHTML = '<span style="font-size:22px">✅</span><div><div style="font-size:15px;font-weight:600;color:var(--grn)">已全部同意</div><div style="font-size:13px;color:var(--t2);margin-top:2px">點各項目可個別取消</div></div>';
+  });
+
   el.appendChild(card);
 
   var btns = document.createElement('div'); btns.style.cssText = 'display:flex;gap:8px;margin-top:8px';
   var pb = document.createElement('button'); pb.className = 'btn-sm'; pb.textContent = '← 上一步'; pb.onclick = function() { renderClientStep(0); };
   var nb = document.createElement('button'); nb.className = 'btn-p'; nb.style.flex = '1'; nb.textContent = '確認並開始填寫 →'; nb.onclick = function() { renderClientStep(2); };
   btns.appendChild(pb); btns.appendChild(nb); el.appendChild(btns);
+}
+
+function togglePrivacyLaw() {
+  var el = document.getElementById('privacy-law-detail');
+  if (!el) return;
+  var isOpen = el.style.display !== 'none';
+  el.style.display = isOpen ? 'none' : 'block';
+  // 更新提示文字
+  var hint = document.querySelector('.tgl-s .tgl-s-hint');
+  var subEl = el.previousElementSibling ? el.previousElementSibling.querySelector('.tgl-s') : null;
+  if (subEl) {
+    var span = subEl.querySelector('span');
+    if (span) span.textContent = isOpen ? '▼ 點開查看法條' : '▲ 收起法條';
+  }
 }
 
 function makeConsentRow(id, key, label, sub) {
