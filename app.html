@@ -1779,8 +1779,6 @@ function makeStepsHtml(step) {
 }
 
 function renderClientStep(step) {
-  // 切換步驟前先儲存目前表單內容
-  saveClientFormData();
   if (step === 0) return clientStep0();
   if (step === 1) return clientStep1();
   if (step === 2) { clientStep2(); restoreClientFormData(2); return; }
@@ -2078,8 +2076,8 @@ function clientStep2() {
   el.appendChild(card);
 
   var btns = document.createElement('div'); btns.style.cssText = 'display:flex;gap:8px;margin-top:8px';
-  var pb = document.createElement('button'); pb.className = 'btn-sm'; pb.textContent = '← 上一步'; pb.onclick = function() { renderClientStep(1); };
-  var nb = document.createElement('button'); nb.className = 'btn-p'; nb.style.flex = '1'; nb.textContent = '下一步 →'; nb.onclick = function() { renderClientStep(3); };
+  var pb = document.createElement('button'); pb.className = 'btn-sm'; pb.textContent = '← 上一步'; pb.onclick = function() { saveClientFormData(); renderClientStep(1); };
+  var nb = document.createElement('button'); nb.className = 'btn-p'; nb.style.flex = '1'; nb.textContent = '下一步 →'; nb.onclick = function() { saveClientFormData(); renderClientStep(3); };
   btns.appendChild(pb); btns.appendChild(nb); el.appendChild(btns);
 }
 
@@ -2188,8 +2186,8 @@ function clientStep3() {
   el.appendChild(buildClientLoanSection('pawn', '🏪 當鋪借款', false));
 
   var btns = document.createElement('div'); btns.style.cssText = 'display:flex;gap:8px;margin-top:8px;margin-bottom:20px';
-  var pb = document.createElement('button'); pb.className = 'btn-sm'; pb.textContent = '← 上一步'; pb.onclick = function() { renderClientStep(2); };
-  var nb = document.createElement('button'); nb.className = 'btn-p'; nb.style.flex = '1'; nb.textContent = '下一步 →'; nb.onclick = function() { renderClientStep(4); };
+  var pb = document.createElement('button'); pb.className = 'btn-sm'; pb.textContent = '← 上一步'; pb.onclick = function() { saveClientFormData(); renderClientStep(2); };
+  var nb = document.createElement('button'); nb.className = 'btn-p'; nb.style.flex = '1'; nb.textContent = '下一步 →'; nb.onclick = function() { saveClientFormData(); renderClientStep(4); };
   btns.appendChild(pb); btns.appendChild(nb); el.appendChild(btns);
 }
 
@@ -2383,8 +2381,13 @@ function allAgreeClient() {
 async function submitClientForm() {
   if (!clientMember) return;
   showLoading('評估中…');
-  var g = function(id) { var el = document.getElementById(id); return el ? el.value || '' : ''; };
-  var salaryWan = parseFloat(g('c-salary')) || 0;
+  // 先存一次確保最新值都在 clientFormData
+  saveClientFormData();
+  // 從 clientFormData 讀（DOM 在 step5 不一定存在）
+  var gf = function(id) { return clientFormData[id] || ''; };
+  var g  = function(id) { var el = document.getElementById(id); return (el ? el.value : '') || gf(id); };
+
+  var salaryWan = parseFloat(gf('c-salary')) || 0;
   var salary = salaryWan > 0 ? Math.round(salaryWan * 10000) : null;
   var ccLimitWan = parseFloat(g('c-cc-limit')) || 0;
   var ccLimitYuan = Math.round(ccLimitWan * 10000);
