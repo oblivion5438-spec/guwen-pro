@@ -1995,54 +1995,173 @@ function clientStep2() {
 
 function clientStep3() {
   var el = clientStepBase(3);
-  var card = document.createElement('div'); card.className = 'card';
-  card.innerHTML =
-    '<div style="font-size:16px;font-weight:600;margin-bottom:10px">收入與財務</div>' +
+
+  // ── 收入區塊 ──
+  var incomeCard = document.createElement('div'); incomeCard.className = 'card';
+  incomeCard.innerHTML =
+    '<div style="font-size:16px;font-weight:600;margin-bottom:10px">💼 收入狀況</div>' +
     '<div class="frow2">' +
       '<div class="frow"><div class="flbl">月薪（元）</div><input class="fi" id="c-salary" type="number" placeholder="40000" inputmode="numeric"></div>' +
       '<div class="frow"><div class="flbl">有無薪轉</div><select class="fi" id="c-transfer"><option value="true">有薪轉</option><option value="false">無薪轉</option></select></div>' +
+    '</div>' +
+    '<div class="frow2" style="margin-top:8px">' +
+      '<div class="frow"><div class="flbl">勞保年資</div><select class="fi" id="c-labor"><option value="none">未投保</option><option value="6m+">6個月以上</option><option value="1y+">1年以上</option></select></div>' +
+      '<div class="frow"><div class="flbl">信用卡持卡時間</div><select class="fi" id="c-cc"><option value="none">無卡</option><option value="3m+">3個月以上</option><option value="6m+">6個月以上</option><option value="1y+">1年以上</option></select></div>' +
     '</div>' +
     '<div class="frow2" style="margin-top:8px">' +
       '<div class="frow"><div class="flbl">信用卡總額度（元）</div><input class="fi" id="c-cc-limit" type="number" placeholder="100000" inputmode="numeric"></div>' +
       '<div class="frow"><div class="flbl">信用卡張數</div><input class="fi" id="c-cc-count" type="number" placeholder="2" inputmode="numeric"></div>' +
     '</div>' +
     '<div class="frow2" style="margin-top:8px">' +
-      '<div class="frow"><div class="flbl">勞保年資</div><select class="fi" id="c-labor"><option value="none">未投保</option><option value="6m+">6個月以上</option><option value="1y+">1年以上</option></select></div>' +
-      '<div class="frow"><div class="flbl">信用卡持卡</div><select class="fi" id="c-cc"><option value="none">無卡</option><option value="3m+">3個月以上</option><option value="6m+">6個月以上</option><option value="1y+">1年以上</option></select></div>' +
-    '</div>' +
-    '<div class="frow2" style="margin-top:8px">' +
       '<div class="frow"><div class="flbl">汽車駕照</div><select class="fi" id="c-car-lic"><option value="true">有</option><option value="false">無</option></select></div>' +
       '<div class="frow"><div class="flbl">機車駕照</div><select class="fi" id="c-bike-lic"><option value="true">有</option><option value="false">無</option></select></div>' +
-    '</div>' +
-    '<div class="frow2" style="margin-top:8px">' +
-      '<div class="frow"><div class="flbl">名下不動產</div><select class="fi" id="c-property"><option value="false">無</option><option value="true">有</option></select></div>' +
-      '<div class="frow"><div class="flbl">有無抵押品</div><select class="fi" id="c-collateral"><option value="false">無</option><option value="true">有</option></select></div>' +
-    '</div>' +
-    '<div class="frow2" style="margin-top:8px">' +
-      '<div class="frow"><div class="flbl">銀行端未過件</div><select class="fi" id="c-bank-rej"><option value="none">無</option><option value="&lt;1m">未滿1個月</option><option value="1-3m">1–3個月</option></select></div>' +
-      '<div class="frow"><div class="flbl">融資端未過件</div><select class="fi" id="c-fin-rej"><option value="none">無</option><option value="&lt;1m">未滿1個月</option><option value="1-3m">1–3個月</option></select></div>' +
     '</div>';
 
-  // 即時最高可貸顯示
+  // 即時最高可貸
   var maxDiv = document.createElement('div');
   maxDiv.style.cssText = 'background:var(--gl);border:0.5px solid rgba(45,138,78,.3);border-radius:8px;padding:10px 12px;margin-top:10px';
-  maxDiv.innerHTML = '<div style="font-size:14px;font-weight:500;color:var(--grn);margin-bottom:4px">AI 估算最高可貸金額</div><div style="font-size:22px;font-weight:700" id="c-max-loan">—</div><div style="font-size:12px;color:var(--t2);margin-top:2px">薪轉×22 扣信用卡額度，僅供參考，以金融機構核定為準</div>';
-  card.appendChild(maxDiv);
+  maxDiv.innerHTML = '<div style="font-size:14px;font-weight:500;color:var(--grn);margin-bottom:4px">AI 估算最高可貸金額</div><div style="font-size:20px;font-weight:700" id="c-max-loan">—</div><div style="font-size:12px;color:var(--t2);margin-top:2px">薪轉×22 扣信用卡額度，僅供參考</div>';
+  incomeCard.appendChild(maxDiv);
+  el.appendChild(incomeCard);
 
-  el.appendChild(card);
-
-  // 綁定即時計算
   ['c-salary','c-transfer','c-cc-limit'].forEach(function(id) {
     var inp = document.getElementById(id);
-    if (inp) inp.addEventListener('input', updateClientMaxLoan);
-    if (inp) inp.addEventListener('change', updateClientMaxLoan);
+    if (inp) { inp.addEventListener('input', updateClientMaxLoan); inp.addEventListener('change', updateClientMaxLoan); }
   });
 
-  var btns = document.createElement('div'); btns.style.cssText = 'display:flex;gap:8px;margin-top:8px';
+  // ── 未過件記錄 ──
+  var rejCard = document.createElement('div'); rejCard.className = 'card';
+  rejCard.innerHTML =
+    '<div style="font-size:16px;font-weight:600;margin-bottom:10px">📋 近期未過件記錄</div>' +
+    '<div class="frow2">' +
+      '<div class="frow"><div class="flbl">銀行端未過件距今</div><select class="fi" id="c-bank-rej"><option value="none">無</option><option value="&lt;1m">未滿1個月</option><option value="1-3m">1–3個月</option><option value="3-6m">3–6個月</option></select></div>' +
+      '<div class="frow"><div class="flbl">融資端未過件距今</div><select class="fi" id="c-fin-rej"><option value="none">無</option><option value="&lt;1m">未滿1個月</option><option value="1-3m">1–3個月</option><option value="3-6m">3–6個月</option></select></div>' +
+    '</div>';
+  el.appendChild(rejCard);
+
+  // ── 不動產 ──
+  var propCard = document.createElement('div'); propCard.className = 'card';
+  var propHeader = document.createElement('div');
+  propHeader.style.cssText = 'display:flex;align-items:center;justify-content:space-between;margin-bottom:10px';
+  propHeader.innerHTML = '<div style="font-size:16px;font-weight:600">🏠 不動產貸款</div>';
+  var propToggle = document.createElement('select');
+  propToggle.className = 'fi';
+  propToggle.id = 'c-property';
+  propToggle.style.cssText = 'width:auto;min-width:80px';
+  propToggle.innerHTML = '<option value="false">無</option><option value="true">有</option>';
+  propHeader.appendChild(propToggle);
+  propCard.appendChild(propHeader);
+
+  var propDetail = document.createElement('div');
+  propDetail.id = 'c-prop-detail';
+  propDetail.style.display = 'none';
+
+  ['一胎','二胎（選填）','三胎（選填）'].forEach(function(label, i) {
+    var n = i + 1;
+    var sec = document.createElement('div');
+    sec.style.cssText = 'margin-bottom:12px;padding-bottom:12px;border-bottom:0.5px solid var(--bdr)';
+    sec.innerHTML =
+      '<div style="font-size:14px;font-weight:500;color:var(--t2);margin-bottom:6px">' + label + '</div>' +
+      '<div class="frow2">' +
+        '<div class="frow"><div class="flbl">貸款金額（元）</div><input class="fi" id="c-prop' + n + '-amt" type="number" placeholder="0" inputmode="numeric"></div>' +
+        '<div class="frow"><div class="flbl">月繳（元）</div><input class="fi" id="c-prop' + n + '-pay" type="number" placeholder="0" inputmode="numeric"></div>' +
+      '</div>' +
+      '<div class="frow2" style="margin-top:6px">' +
+        '<div class="frow"><div class="flbl">已繳期數</div><input class="fi" id="c-prop' + n + '-paid" type="number" placeholder="0" inputmode="numeric"></div>' +
+        '<div class="frow"><div class="flbl">違約金（元）</div><input class="fi" id="c-prop' + n + '-penalty" type="number" placeholder="0" inputmode="numeric"></div>' +
+      '</div>';
+    propDetail.appendChild(sec);
+  });
+  propCard.appendChild(propDetail);
+  el.appendChild(propCard);
+
+  propToggle.addEventListener('change', function() {
+    propDetail.style.display = this.value === 'true' ? 'block' : 'none';
+  });
+
+  // ── 信用貸款 ──
+  el.appendChild(buildClientLoanSection('credit', '🏦 銀行信用貸款', false));
+  // ── 汽車貸款 ──
+  el.appendChild(buildClientLoanSection('car', '🚗 汽車貸款', true));
+  // ── 機車貸款 ──
+  el.appendChild(buildClientLoanSection('bike', '🛵 機車貸款', true));
+  // ── 手機/商品貸 ──
+  el.appendChild(buildClientLoanSection('phone', '📱 手機貸 / 商品貸', true));
+  // ── 當鋪借款 ──
+  el.appendChild(buildClientLoanSection('pawn', '🏪 當鋪借款', false));
+
+  var btns = document.createElement('div'); btns.style.cssText = 'display:flex;gap:8px;margin-top:8px;margin-bottom:20px';
   var pb = document.createElement('button'); pb.className = 'btn-sm'; pb.textContent = '← 上一步'; pb.onclick = function() { renderClientStep(2); };
   var nb = document.createElement('button'); nb.className = 'btn-p'; nb.style.flex = '1'; nb.textContent = '下一步 →'; nb.onclick = function() { renderClientStep(4); };
   btns.appendChild(pb); btns.appendChild(nb); el.appendChild(btns);
 }
+
+// 客戶端動態貸款區塊
+var clientLoanCounters = { credit:0, car:0, bike:0, phone:0, pawn:0 };
+
+function buildClientLoanSection(type, label, hasPenalty) {
+  var sec = document.createElement('div'); sec.className = 'card';
+  var header = document.createElement('div');
+  header.style.cssText = 'display:flex;align-items:center;justify-content:space-between;margin-bottom:8px';
+  header.innerHTML = '<div style="font-size:16px;font-weight:600">' + label + '</div>';
+  var addBtn = document.createElement('button'); addBtn.className = 'btn-sm'; addBtn.textContent = '+ 新增一筆';
+  addBtn.onclick = (function(t, hp) { return function() { addClientLoanRow(t, hp); }; })(type, hasPenalty);
+  header.appendChild(addBtn);
+  sec.appendChild(header);
+  var list = document.createElement('div'); list.id = 'c-' + type + '-list';
+  var empty = document.createElement('div'); empty.className = 'c-' + type + '-empty';
+  empty.style.cssText = 'font-size:14px;color:var(--t3);padding:4px 0';
+  empty.textContent = '目前無此類貸款';
+  list.appendChild(empty);
+  sec.appendChild(list);
+  return sec;
+}
+
+function addClientLoanRow(type, hasPenalty) {
+  var idx = ++clientLoanCounters[type];
+  var id = 'cl-' + type + '-' + idx;
+  var list = document.getElementById('c-' + type + '-list');
+  if (!list) return;
+  // 移除「目前無此類貸款」
+  var empty = list.querySelector('.c-' + type + '-empty');
+  if (empty) empty.remove();
+
+  var div = document.createElement('div');
+  div.id = 'crow-' + id;
+  div.style.cssText = 'background:var(--inp);border-radius:8px;padding:10px 12px;margin-bottom:8px;border:0.5px solid var(--bdr)';
+
+  var hdr = document.createElement('div');
+  hdr.style.cssText = 'display:flex;align-items:center;justify-content:space-between;margin-bottom:8px';
+  var lbl = document.createElement('span'); lbl.style.cssText = 'font-size:14px;font-weight:500;color:var(--t1)'; lbl.textContent = '第 ' + idx + ' 筆';
+  var del = document.createElement('button');
+  del.style.cssText = 'font-size:13px;padding:2px 8px;border-radius:5px;border:0.5px solid rgba(192,64,48,.3);background:transparent;color:var(--red);cursor:pointer;font-family:var(--sans)';
+  del.textContent = '刪除';
+  del.onclick = (function(rowId) { return function() { var e = document.getElementById(rowId); if (e) e.remove(); }; })('crow-' + id);
+  hdr.appendChild(lbl); hdr.appendChild(del); div.appendChild(hdr);
+
+  // 金額 + 月繳
+  var r1 = document.createElement('div'); r1.className = 'frow2';
+  r1.innerHTML =
+    '<div class="frow"><div class="flbl">貸款金額（元）</div><input class="fi" id="' + id + '-amt" type="number" placeholder="0" inputmode="numeric"></div>' +
+    '<div class="frow"><div class="flbl">月繳（元）</div><input class="fi" id="' + id + '-pay" type="number" placeholder="0" inputmode="numeric"></div>';
+  div.appendChild(r1);
+
+  // 已繳期數 + 違約金
+  var r2 = document.createElement('div'); r2.className = 'frow2'; r2.style.marginTop = '6px';
+  var r2h = '<div class="frow"><div class="flbl">已繳期數（期）</div><input class="fi" id="' + id + '-paid" type="number" placeholder="0" inputmode="numeric"></div>';
+  if (hasPenalty) r2h += '<div class="frow"><div class="flbl">違約金（元）</div><input class="fi" id="' + id + '-penalty" type="number" placeholder="0" inputmode="numeric"></div>';
+  r2.innerHTML = r2h;
+  div.appendChild(r2);
+
+  // 繳款狀況
+  var r3 = document.createElement('div'); r3.className = 'frow'; r3.style.marginTop = '6px';
+  r3.innerHTML = '<div class="flbl">繳款狀況</div><select class="fi" id="' + id + '-status"><option value="normal">正常</option><option value="1w">遲繳1週內</option><option value="2w">遲繳2週</option><option value="3w">遲繳3週</option><option value="1m+">遲繳超過1個月</option></select>';
+  div.appendChild(r3);
+
+  list.appendChild(div);
+}
+
+
 
 function updateClientMaxLoan() {
   var sal = parseInt(document.getElementById('c-salary') ? document.getElementById('c-salary').value : 0) || 0;
