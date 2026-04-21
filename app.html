@@ -1819,48 +1819,53 @@ function clientStep1() {
   card.appendChild(hdr);
 
   // 必要項目（可點開法條）
+  // 必要項目 + 可展開法條（不用 req-row，獨立設計）
   var reqRow = document.createElement('div');
-  reqRow.className = 'tgl-row req-row opted';
-  reqRow.style.cssText = 'flex-direction:column;cursor:pointer';
+  reqRow.style.cssText = 'display:flex;align-items:center;padding:10px 12px;border:0.5px solid var(--grn);border-radius:8px;margin-bottom:5px;background:rgba(45,138,78,.06)';
   reqRow.innerHTML =
-    '<div style="display:flex;align-items:center;width:100%">' +
-      '<div class="tgl-info"><div class="tgl-t">基本個資蒐集（必要）</div>' +
-      '<div class="tgl-s" id="law-hint">依個資法第19條第1項第5款，保存5年 <span style="color:var(--blu);font-size:12px">▼ 點開查看法條</span></div></div>' +
-      '<div style="text-align:center;flex-shrink:0"><div class="tgl on" style="pointer-events:none"></div><div class="tgl-lbl" style="color:var(--grn)">必要</div></div>' +
-    '</div>' +
-    '<div id="privacy-law-detail" style="display:none;margin-top:10px;border-top:0.5px solid var(--bdr);padding-top:10px;font-size:13px;color:var(--t2);line-height:1.8">' +
-      '<div style="font-weight:500;color:var(--t0);margin-bottom:6px">個人資料保護法 相關條文</div>' +
-      '<div style="background:var(--inp);border-radius:8px;padding:10px 12px;margin-bottom:6px">' +
-        '<div style="font-weight:500;color:var(--t1);margin-bottom:4px">第8條 — 告知義務</div>' +
-        '蒐集個人資料時，應明確告知：①蒐集目的、②個資類別、③利用期間地區對象及方式、④當事人權利及行使方式、⑤不提供個資之影響。' +
-      '</div>' +
-      '<div style="background:var(--inp);border-radius:8px;padding:10px 12px;margin-bottom:6px">' +
-        '<div style="font-weight:500;color:var(--t1);margin-bottom:4px">第19條第1項第5款 — 蒐集合法要件</div>' +
-        '非公務機關對個人資料之蒐集或處理，須有特定目的，並符合「經當事人同意」之要件。本次評估已取得您的同意。' +
-      '</div>' +
-      '<div style="background:var(--inp);border-radius:8px;padding:10px 12px;margin-bottom:6px">' +
-        '<div style="font-weight:500;color:var(--t1);margin-bottom:4px">第3條 — 當事人權利</div>' +
-        '您對本人的個人資料享有以下權利：<br>① 查詢或請求閱覽<br>② 請求製給複製本<br>③ 請求補充或更正<br>④ 請求停止蒐集、處理或利用<br>⑤ 請求刪除' +
-      '</div>' +
-      '<div style="background:var(--inp);border-radius:8px;padding:10px 12px">' +
-        '<div style="font-weight:500;color:var(--t1);margin-bottom:4px">蒐集告知事項</div>' +
-        '蒐集目的：貸款資格評估<br>蒐集項目：姓名、年齡、地址、收入、負債狀況<br>保存期限：5年<br>利用對象：您選擇的顧問<br>聯絡窗口：privacy@guwenpro.io' +
-      '</div>' +
+    '<div style="flex:1"><div style="font-size:15px;font-weight:500;color:var(--t0)">基本個資蒐集（必要）</div>' +
+    '<div style="font-size:13px;color:var(--t2);margin-top:2px">依個資法第19條第1項第5款，保存5年</div></div>' +
+    '<div style="display:flex;flex-direction:column;align-items:center;gap:2px;flex-shrink:0">' +
+      '<div class="tgl on" style="pointer-events:none"></div>' +
+      '<div style="font-size:12px;color:var(--grn)">必要</div>' +
     '</div>';
-
-  // 用 DOM 事件綁定展開/收起
-  reqRow.addEventListener('click', function() {
-    var detail = document.getElementById('privacy-law-detail');
-    var hint = document.getElementById('law-hint');
-    if (!detail) return;
-    var isOpen = detail.style.display !== 'none';
-    detail.style.display = isOpen ? 'none' : 'block';
-    if (hint) {
-      var span = hint.querySelector('span');
-      if (span) span.textContent = isOpen ? '▼ 點開查看法條' : '▲ 收起法條';
-    }
-  });
   card.appendChild(reqRow);
+
+  // 法條展開按鈕（獨立，可點）
+  var lawBtn = document.createElement('div');
+  lawBtn.style.cssText = 'display:flex;align-items:center;gap:6px;padding:6px 12px;background:var(--inp);border-radius:7px;cursor:pointer;margin-bottom:8px;user-select:none';
+  lawBtn.innerHTML = '<span style="font-size:13px;color:var(--blu)">📋 查看個資法相關條文</span><span id="law-arrow" style="font-size:12px;color:var(--blu)">▼</span>';
+  card.appendChild(lawBtn);
+
+  var lawDetail = document.createElement('div');
+  lawDetail.id = 'privacy-law-detail';
+  lawDetail.style.cssText = 'display:none;margin-bottom:8px;font-size:13px;color:var(--t2);line-height:1.8';
+  lawDetail.innerHTML =
+    '<div style="font-weight:500;color:var(--t0);margin-bottom:6px">個人資料保護法 相關條文</div>' +
+    '<div style="background:var(--card);border:0.5px solid var(--bdr);border-radius:8px;padding:10px 12px;margin-bottom:6px">' +
+      '<div style="font-weight:500;color:var(--t1);margin-bottom:4px">第8條 — 告知義務</div>' +
+      '蒐集個人資料時，應明確告知：①蒐集目的、②個資類別、③利用期間地區對象及方式、④當事人權利及行使方式、⑤不提供個資之影響。' +
+    '</div>' +
+    '<div style="background:var(--card);border:0.5px solid var(--bdr);border-radius:8px;padding:10px 12px;margin-bottom:6px">' +
+      '<div style="font-weight:500;color:var(--t1);margin-bottom:4px">第19條第1項第5款 — 蒐集合法要件</div>' +
+      '非公務機關對個人資料之蒐集或處理，須有特定目的，並符合「經當事人同意」之要件。本次評估已取得您的同意。' +
+    '</div>' +
+    '<div style="background:var(--card);border:0.5px solid var(--bdr);border-radius:8px;padding:10px 12px;margin-bottom:6px">' +
+      '<div style="font-weight:500;color:var(--t1);margin-bottom:4px">第3條 — 當事人五項權利</div>' +
+      '① 查詢或請求閱覽<br>② 請求製給複製本<br>③ 請求補充或更正<br>④ 請求停止蒐集、處理或利用<br>⑤ 請求刪除' +
+    '</div>' +
+    '<div style="background:var(--card);border:0.5px solid var(--bdr);border-radius:8px;padding:10px 12px">' +
+      '<div style="font-weight:500;color:var(--t1);margin-bottom:4px">本次蒐集告知事項</div>' +
+      '蒐集目的：貸款資格評估<br>蒐集項目：姓名、年齡、地址、收入、負債狀況<br>保存期限：5年<br>利用對象：您選擇的顧問<br>聯絡窗口：privacy@guwenpro.io' +
+    '</div>';
+  card.appendChild(lawDetail);
+
+  lawBtn.addEventListener('click', function() {
+    var isOpen = lawDetail.style.display !== 'none';
+    lawDetail.style.display = isOpen ? 'none' : 'block';
+    var arrow = document.getElementById('law-arrow');
+    if (arrow) arrow.textContent = isOpen ? '▼' : '▲';
+  });
 
   // 一鍵全部同意/取消
   var allAgreeState = false;
@@ -2062,13 +2067,14 @@ function clientStep3() {
     sec.style.cssText = 'margin-bottom:12px;padding-bottom:12px;border-bottom:0.5px solid var(--bdr)';
     sec.innerHTML =
       '<div style="font-size:14px;font-weight:500;color:var(--t2);margin-bottom:6px">' + label + '</div>' +
-      '<div class="frow2">' +
-        '<div class="frow"><div class="flbl">貸款金額（元）</div><input class="fi" id="c-prop' + n + '-amt" type="number" placeholder="0" inputmode="numeric"></div>' +
-        '<div class="frow"><div class="flbl">月繳（元）</div><input class="fi" id="c-prop' + n + '-pay" type="number" placeholder="0" inputmode="numeric"></div>' +
+      '<div class="frow"><div class="flbl">貸款單位名稱</div><input class="fi" id="c-prop' + n + '-inst" placeholder="例：台灣銀行、地下金融"></div>' +
+      '<div class="frow2" style="margin-top:6px">' +
+        '<div class="frow"><div class="flbl">貸款金額（萬）</div><input class="fi" id="c-prop' + n + '-amt" type="number" placeholder="0" inputmode="numeric" step="0.1"></div>' +
+        '<div class="frow"><div class="flbl">月繳（萬）</div><input class="fi" id="c-prop' + n + '-pay" type="number" placeholder="0" inputmode="numeric" step="0.01"></div>' +
       '</div>' +
       '<div class="frow2" style="margin-top:6px">' +
-        '<div class="frow"><div class="flbl">已繳期數</div><input class="fi" id="c-prop' + n + '-paid" type="number" placeholder="0" inputmode="numeric"></div>' +
-        '<div class="frow"><div class="flbl">違約金（元）</div><input class="fi" id="c-prop' + n + '-penalty" type="number" placeholder="0" inputmode="numeric"></div>' +
+        '<div class="frow"><div class="flbl">已繳期數（期）</div><input class="fi" id="c-prop' + n + '-paid" type="number" placeholder="0" inputmode="numeric"></div>' +
+        '<div class="frow"><div class="flbl">違約金（萬）</div><input class="fi" id="c-prop' + n + '-penalty" type="number" placeholder="0" inputmode="numeric" step="0.1"></div>' +
       '</div>';
     propDetail.appendChild(sec);
   });
@@ -2122,7 +2128,6 @@ function addClientLoanRow(type, hasPenalty) {
   var id = 'cl-' + type + '-' + idx;
   var list = document.getElementById('c-' + type + '-list');
   if (!list) return;
-  // 移除「目前無此類貸款」
   var empty = list.querySelector('.c-' + type + '-empty');
   if (empty) empty.remove();
 
@@ -2139,17 +2144,23 @@ function addClientLoanRow(type, hasPenalty) {
   del.onclick = (function(rowId) { return function() { var e = document.getElementById(rowId); if (e) e.remove(); }; })('crow-' + id);
   hdr.appendChild(lbl); hdr.appendChild(del); div.appendChild(hdr);
 
-  // 金額 + 月繳
+  // 機構名稱
+  var r0 = document.createElement('div'); r0.className = 'frow'; r0.style.marginBottom = '6px';
+  r0.innerHTML = '<div class="flbl">貸款單位名稱</div><input class="fi" id="' + id + '-inst" placeholder="例：玉山銀行、和潤企業">';
+  div.appendChild(r0);
+
+  // 金額 + 月繳（萬元）
   var r1 = document.createElement('div'); r1.className = 'frow2';
+  var amtLabel = type === 'pawn' ? '借款金額（萬）' : '貸款金額（萬）';
   r1.innerHTML =
-    '<div class="frow"><div class="flbl">貸款金額（元）</div><input class="fi" id="' + id + '-amt" type="number" placeholder="0" inputmode="numeric"></div>' +
-    '<div class="frow"><div class="flbl">月繳（元）</div><input class="fi" id="' + id + '-pay" type="number" placeholder="0" inputmode="numeric"></div>';
+    '<div class="frow"><div class="flbl">' + amtLabel + '</div><input class="fi" id="' + id + '-amt" type="number" placeholder="0" inputmode="numeric" step="0.1"></div>' +
+    '<div class="frow"><div class="flbl">月繳（萬）</div><input class="fi" id="' + id + '-pay" type="number" placeholder="0" inputmode="numeric" step="0.01"></div>';
   div.appendChild(r1);
 
   // 已繳期數 + 違約金
   var r2 = document.createElement('div'); r2.className = 'frow2'; r2.style.marginTop = '6px';
   var r2h = '<div class="frow"><div class="flbl">已繳期數（期）</div><input class="fi" id="' + id + '-paid" type="number" placeholder="0" inputmode="numeric"></div>';
-  if (hasPenalty) r2h += '<div class="frow"><div class="flbl">違約金（元）</div><input class="fi" id="' + id + '-penalty" type="number" placeholder="0" inputmode="numeric"></div>';
+  if (hasPenalty) r2h += '<div class="frow"><div class="flbl">違約金（萬）</div><input class="fi" id="' + id + '-penalty" type="number" placeholder="0" inputmode="numeric" step="0.1"></div>';
   r2.innerHTML = r2h;
   div.appendChild(r2);
 
