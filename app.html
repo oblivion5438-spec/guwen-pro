@@ -1952,11 +1952,42 @@ async function saveLeadEdit(id) {
 }
 
 async function updateStatus(id, status) {
+  // 更新 DB
   await sb.from('leads').update({ status: status }).eq('id', id);
+
+  // 更新本地快取
   var lead = leads.find(function(l) { return l.id === id; });
   if (lead) lead.status = status;
+
+  // 結案收入欄顯示/隱藏（先確認 DOM 還在）
   var incomeDiv = document.getElementById('closed-income-' + id);
   if (incomeDiv) incomeDiv.style.display = status === 'closed' ? 'block' : 'none';
+
+  // 自動同步行事曆：今天建立一筆行程記錄
+  if (currentUser && lead) {
+    var today = new Date().toISOString().split('T')[0];
+    var statusLabel = statusText(status);
+    var schedTitle = (lead.name||'客戶') + ' · ' + statusLabel;
+
+    // 先刪除該客戶今天的自動行程（避免重複）
+    await sb.from('schedules')
+      .delete()
+      .eq('member_id', currentUser.id)
+      .eq('lead_id', id)
+      .eq('schedule_date', today)
+      .eq('type', 'auto_status');
+
+    // 新增今天的進度記錄
+    await sb.from('schedules').insert({
+      member_id: currentUser.id,
+      lead_id: id,
+      title: schedTitle,
+      schedule_date: today,
+      type: 'auto_status',
+      description: '案件進度：' + statusLabel,
+      is_done: false
+    });
+  }
 }
 
 function addPartnerLead(leadId) {
@@ -4381,24 +4412,78 @@ function buildWeekView(el, loanAlerts, weekStart, weekEnd, todayStr) {
 }
 
 function buildScheduleItem(s) {
-  var typeColor = s.type==='follow_up'?'var(--acc)':s.type==='loan_apply'?'var(--grn)':s.type==='reminder'?'var(--yel)':'var(--t2)';
-  var typeLabel = s.type==='follow_up'?'跟進':s.type==='loan_apply'?'送件':s.type==='reminder'?'提醒':'其他';
-  var h = '<div style="display:flex;align-items:flex-start;gap:8px;padding:8px 10px;background:var(--inp);border-left:3px solid '+typeColor+';border-radius:0 8px 8px 0;margin-bottom:5px">';
+  var isAuto = s.type === 'auto_status';
+  var typeColor = isAuto?'var(--blu)':s.type==='follow_up'?'var(--acc)':s.type==='loan_apply'?'var(--grn)':s.type==='reminder'?'var(--yel)':'var(--t2)';
+  var typeLabel = isAuto?'進度更新':s.type==='follow_up'?'跟進':s.type==='loan_apply'?'送件':s.type==='reminder'?'提醒':'其他';
+  var editId = 'sch-edit-' + s.id;
+  var leadOptions = '<option value="">— 無 —</option>' + leads.map(function(l){
+    return '<option value="'+l.id+'"'+(s.lead_id===l.id?' selected':'')+'>'+l.name+'</option>';
+  }).join('');
+
+  var h = '<div style="background:'+(isAuto?'var(--bl)':'var(--inp)')+';border-left:3px solid '+typeColor+';border-radius:0 8px 8px 0;margin-bottom:6px;overflow:hidden">';
+
+  // 主列（可點擊展開）
+  h += '<div onclick="toggleSchEdit(\''+editId+'\')" style="display:flex;align-items:flex-start;gap:8px;padding:9px 10px;cursor:pointer">';
   h += '<div style="flex:1">';
   h += '<div style="display:flex;align-items:center;gap:6px;margin-bottom:3px">';
   h += '<span style="font-size:14px;font-weight:500;'+(s.is_done?'text-decoration:line-through;color:var(--t3)':'color:var(--t1)')+'">'+s.title+'</span>';
-  h += '<span style="font-size:11px;padding:1px 5px;border-radius:4px;background:var(--al);color:var(--acc)">'+typeLabel+'</span>';
-  if (s.is_done) h += '<span style="font-size:11px;color:var(--grn)">✓ 完成</span>';
+  h += '<span style="font-size:11px;padding:1px 5px;border-radius:4px;background:'+(isAuto?'var(--bl)':'var(--al)')+';color:'+typeColor+'">'+typeLabel+'</span>';
+  if (s.is_done) h += '<span style="font-size:11px;color:var(--grn)">✓</span>';
   h += '</div>';
   if (s.leads) h += '<div style="font-size:12px;color:var(--t2)">👤 ' + s.leads.name + '</div>';
   if (s.schedule_time) h += '<div style="font-size:12px;color:var(--t3)">🕐 ' + s.schedule_time.slice(0,5) + '</div>';
-  if (s.description) h += '<div style="font-size:12px;color:var(--t2);margin-top:2px">' + s.description + '</div>';
+  if (s.description) h += '<div style="font-size:12px;color:var(--t2);margin-top:2px">'+s.description+'</div>';
   h += '</div>';
-  h += '<div style="display:flex;flex-direction:column;gap:4px">';
-  if (!s.is_done) h += '<button onclick="doneSchedule(\''+s.id+'\')" style="font-size:11px;padding:2px 7px;border-radius:4px;border:0.5px solid rgba(45,138,78,.3);background:transparent;color:var(--grn);cursor:pointer;font-family:var(--sans)">完成</button>';
-  h += '<button onclick="deleteSchedule(\''+s.id+'\')" style="font-size:11px;padding:2px 7px;border-radius:4px;border:0.5px solid rgba(192,64,48,.3);background:transparent;color:var(--red);cursor:pointer;font-family:var(--sans)">刪除</button>';
+  h += '<span style="font-size:12px;color:var(--t3);align-self:center">✏️</span>';
+  h += '</div>';
+
+  // 展開編輯區
+  h += '<div id="'+editId+'" style="display:none;padding:10px 12px;border-top:0.5px solid var(--bdr);background:var(--card)">';
+  if (!isAuto) {
+    h += '<div class="frow"><div class="flbl">標題</div><input class="fi" id="se-title-'+s.id+'" value="'+(s.title||'').replace(/"/g,'&quot;')+'"></div>';
+    h += '<div class="frow2" style="margin-top:6px"><div class="frow"><div class="flbl">日期</div><input class="fi" id="se-date-'+s.id+'" type="date" value="'+(s.schedule_date||'')+'"></div>';
+    h += '<div class="frow"><div class="flbl">時間</div><input class="fi" id="se-time-'+s.id+'" type="time" value="'+(s.schedule_time?s.schedule_time.slice(0,5):'')+'"></div></div>';
+    h += '<div class="frow2" style="margin-top:6px"><div class="frow"><div class="flbl">類型</div><select class="fi" id="se-type-'+s.id+'">';
+    ['follow_up:跟進','loan_apply:送件','reminder:提醒','other:其他'].forEach(function(opt){
+      var v=opt.split(':')[0], l2=opt.split(':')[1];
+      h += '<option value="'+v+'"'+(s.type===v?' selected':'')+'>'+l2+'</option>';
+    });
+    h += '</select></div>';
+    h += '<div class="frow"><div class="flbl">綁定客戶</div><select class="fi" id="se-lead-'+s.id+'">'+leadOptions+'</select></div></div>';
+    h += '<div class="frow" style="margin-top:6px"><div class="flbl">備註</div><input class="fi" id="se-desc-'+s.id+'" value="'+(s.description||'').replace(/"/g,'&quot;')+'"></div>';
+    h += '<div style="display:flex;gap:6px;margin-top:8px">';
+    if (!s.is_done) h += '<button onclick="doneSchedule(\''+s.id+'\')" style="padding:6px 10px;background:transparent;border:0.5px solid rgba(45,138,78,.3);color:var(--grn);border-radius:6px;cursor:pointer;font-family:var(--sans);font-size:13px">✓ 完成</button>';
+    h += '<button onclick="deleteSchedule(\''+s.id+'\')" style="padding:6px 10px;background:transparent;border:0.5px solid rgba(192,64,48,.3);color:var(--red);border-radius:6px;cursor:pointer;font-family:var(--sans);font-size:13px">刪除</button>';
+    h += '<button onclick="saveScheduleEdit(\''+s.id+'\')" style="flex:1;padding:6px;background:var(--acc);color:#FFF;border:none;border-radius:6px;cursor:pointer;font-family:var(--sans);font-size:13px">儲存</button>';
+    h += '</div>';
+  } else {
+    // 自動行程只顯示刪除
+    h += '<div style="font-size:13px;color:var(--t2);margin-bottom:8px">此為系統自動記錄的進度更新</div>';
+    h += '<button onclick="deleteSchedule(\''+s.id+'\')" style="padding:6px 12px;background:transparent;border:0.5px solid rgba(192,64,48,.3);color:var(--red);border-radius:6px;cursor:pointer;font-family:var(--sans);font-size:13px">刪除記錄</button>';
+  }
   h += '</div></div>';
   return h;
+}
+
+function toggleSchEdit(id) {
+  var el = document.getElementById(id);
+  if (el) el.style.display = el.style.display === 'none' ? 'block' : 'none';
+}
+
+async function saveScheduleEdit(id) {
+  var title  = document.getElementById('se-title-'+id) ? document.getElementById('se-title-'+id).value.trim() : '';
+  var date   = document.getElementById('se-date-'+id)  ? document.getElementById('se-date-'+id).value  : '';
+  var time   = document.getElementById('se-time-'+id)  ? document.getElementById('se-time-'+id).value  : null;
+  var type   = document.getElementById('se-type-'+id)  ? document.getElementById('se-type-'+id).value  : 'follow_up';
+  var leadId = document.getElementById('se-lead-'+id)  ? document.getElementById('se-lead-'+id).value  : null;
+  var desc   = document.getElementById('se-desc-'+id)  ? document.getElementById('se-desc-'+id).value.trim() : '';
+  if (!title || !date) { alert('請填寫標題和日期'); return; }
+  var data = { title:title, schedule_date:date, type:type, description:desc||null };
+  if (time) data.schedule_time = time; else data.schedule_time = null;
+  data.lead_id = leadId || null;
+  var res = await sb.from('schedules').update(data).eq('id', id);
+  if (res.error) { alert('儲存失敗：' + res.error.message); return; }
+  renderCalendar();
 }
 
 function showDayDetail(dateStr) {
