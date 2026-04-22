@@ -1961,29 +1961,34 @@ async function renderTeam() {
     el.innerHTML = '';
     var lockCard = document.createElement('div'); lockCard.className = 'card';
     lockCard.innerHTML =
-      '<div style="text-align:center;padding:20px 0">' +
-        '<div style="font-size:48px;margin-bottom:12px">🏢</div>' +
-        '<div style="font-size:18px;font-weight:600;margin-bottom:6px">團隊版專屬功能</div>' +
-        '<div style="font-size:14px;color:var(--t2);line-height:1.7;margin-bottom:16px">' +
-          '團隊管理需要升級至<strong>團隊版</strong>方案<br>' +
-          '包含：多成員管理、整體業績報表、公司收支追蹤' +
+      '<div style="text-align:center;padding:16px 0 8px">' +
+        '<div style="font-size:42px;margin-bottom:10px">🏢</div>' +
+        '<div style="font-size:18px;font-weight:600;margin-bottom:4px">團隊版專屬功能</div>' +
+        '<div style="font-size:14px;color:var(--t2);margin-bottom:16px">升級至團隊版即可使用</div>' +
+      '</div>' +
+      '<div style="font-size:14px;color:var(--t2);line-height:1.9;margin-bottom:16px;background:var(--inp);border-radius:10px;padding:12px 14px">' +
+        '✓ 建立 / 加入顧問團隊<br>' +
+        '✓ 查看所有成員客戶資料<br>' +
+        '✓ 成員業績排行與比較<br>' +
+        '✓ 公司收支記錄與報表<br>' +
+        '✓ 成員升降權限管理' +
+      '</div>' +
+      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px">' +
+        '<div style="background:var(--inp);border-radius:10px;padding:14px;text-align:center">' +
+          '<div style="font-size:13px;color:var(--t2);margin-bottom:4px">月繳</div>' +
+          '<div style="font-size:24px;font-weight:800;color:var(--acc)">$999</div>' +
+          '<div style="font-size:12px;color:var(--t3)">/月</div>' +
         '</div>' +
-        '<div style="background:var(--inp);border-radius:10px;padding:14px;margin-bottom:16px;text-align:left">' +
-          '<div style="font-size:15px;font-weight:600;margin-bottom:8px">團隊版功能</div>' +
-          '<div style="font-size:14px;color:var(--t2);line-height:1.8">' +
-            '✓ 建立/加入團隊<br>' +
-            '✓ 管理多位顧問成員<br>' +
-            '✓ 查看所有成員客戶資料<br>' +
-            '✓ 成員業績排行與比較<br>' +
-            '✓ 公司收支記錄與報表<br>' +
-            '✓ 當月/前月/前季/前年變化比' +
-          '</div>' +
+        '<div style="background:var(--al);border:0.5px solid rgba(200,81,26,.3);border-radius:10px;padding:14px;text-align:center">' +
+          '<div style="font-size:13px;color:var(--t2);margin-bottom:4px">年繳 <span style="color:var(--grn)">省$1,998</span></div>' +
+          '<div style="font-size:24px;font-weight:800;color:var(--acc)">$9,990</div>' +
+          '<div style="font-size:12px;color:var(--t3)">約 $833/月</div>' +
         '</div>' +
-        '<button class="btn-p" style="width:100%" onclick="alert(\'請聯繫客服升級團隊版方案\')">聯繫升級團隊版</button>' +
-        '<div style="font-size:13px;color:var(--t3);margin-top:8px">目前方案：' +
-          '<span class="badge ' + (plan==='pro'?'b-acc':'b-gray') + '">' +
-          (plan==='pro'?'進階版':'基本版') + '</span>' +
-        '</div>' +
+      '</div>' +
+      '<button class="btn-p" style="width:100%;margin-bottom:8px" onclick="navTo(\'settings\',null)">前往方案選擇 →</button>' +
+      '<div style="font-size:12px;color:var(--t3);text-align:center">目前方案：' +
+        '<span class="badge ' + (plan==='pro'?'b-acc':'b-gray') + '">' +
+        (plan==='pro'?'專業版':plan==='trial'?'試用中':'基本版') + '</span>' +
       '</div>';
     el.appendChild(lockCard);
     return;
@@ -2745,21 +2750,159 @@ function submitReport() {
 function renderSettings() {
   var m = currentMember || {};
   var el = document.getElementById('member-content');
-  var html = '<div style="font-size:16px;font-weight:600;margin-bottom:12px">帳號設定</div>';
-  html += '<div class="card"><div class="ct">帳號資訊</div>';
+  var plan = m.plan || 'trial';
+  var planLabel = plan==='team'?'團隊版':plan==='pro'?'專業版':plan==='trial'?'試用中':'基本版';
+  var planBadge = plan==='team'||plan==='pro' ? 'b-acc' : plan==='trial' ? 'b-yel' : 'b-gray';
+
+  // 試用剩餘天數
+  var trialDays = null;
+  if (plan === 'trial' && m.created_at) {
+    var trialEnd = new Date(new Date(m.created_at).getTime() + 7*24*60*60*1000);
+    trialDays = Math.max(0, Math.ceil((trialEnd - new Date()) / (1000*60*60*24)));
+  }
+
+  var html = '';
+
+  // 帳號資訊
+  html += '<div class="card">';
+  html += '<div class="ct">帳號資訊</div>';
   html += '<div class="ri"><span class="rl">姓名</span><span class="rv">' + (m.name||'—') + '</span></div>';
-  html += '<div class="ri"><span class="rl">Email</span><span class="rv">' + (m.email||'—') + '</span></div>';
-  html += '<div class="ri"><span class="rl">公司</span><span class="rv">' + (m.company||'—') + '</span></div>';
-  html += '<div class="ri"><span class="rl">所在地</span><span class="rv">' + (m.city||'') + (m.district||'') + '</span></div>';
-  html += '<div class="ri"><span class="rl">目前方案</span><span class="rv"><span class="badge b-gray">' + (m.plan==='pro'?'進階版':m.plan==='team'?'團隊版':'基本版') + '</span></span></div>';
-  html += '<div class="ri"><span class="rl">邀請碼</span><span class="rv" style="font-family:monospace;color:var(--yel)">' + (m.invite_code||'—') + '</span></div></div>';
-  html += '<div class="card"><div class="ct">升級方案</div>';
-  html += '<div class="ib-acc">升級進階版 $980/月，享有無限評估、自訂規則、PDF 報告等完整功能。7 天免費試用。</div>';
-  html += '<button class="btn-p" onclick="alert(\'Stripe 金流串接即將上線\')">升級進階版（7天免費試用）</button></div>';
-  html += '<div class="card"><div class="ct" style="color:var(--red)">登出</div>';
-  html += '<button class="btn-sm" style="color:var(--red);border-color:rgba(192,64,48,.3);width:100%;padding:10px" onclick="doLogout()">登出帳號</button></div>';
+  html += '<div class="ri"><span class="rl">Email</span><span class="rv" style="font-size:13px">' + (m.email||'—') + '</span></div>';
+  if (m.company) html += '<div class="ri"><span class="rl">公司</span><span class="rv">' + m.company + '</span></div>';
+  html += '<div class="ri"><span class="rl">邀請碼</span><span class="rv" style="font-family:monospace;color:var(--yel)">' + (m.invite_code||'—') + '</span></div>';
+  html += '<div class="ri"><span class="rl">目前方案</span><span class="rv"><span class="badge ' + planBadge + '">' + planLabel + '</span>';
+  if (trialDays !== null) html += ' <span style="font-size:13px;color:var(--yel)">剩 ' + trialDays + ' 天</span>';
+  html += '</span></div>';
+  if (trialDays !== null) {
+    html += '<div style="background:var(--yl);border:0.5px solid rgba(184,128,32,.3);border-radius:8px;padding:8px 12px;margin-top:8px;font-size:14px;color:var(--yel)">⏳ 試用期還有 ' + trialDays + ' 天到期，到期後需選擇方案繼續使用</div>';
+  }
+  html += '</div>';
+
+  // 方案選擇
+  if (plan !== 'pro' && plan !== 'team') {
+    html += '<div class="card">';
+    html += '<div class="ct">選擇方案</div>';
+
+    // 月繳/年繳切換
+    html += '<div style="display:flex;background:var(--inp);border-radius:8px;padding:3px;margin-bottom:16px" id="billing-toggle">';
+    html += '<button id="btn-monthly" onclick="setBilling(\'monthly\')" style="flex:1;padding:7px;border:none;border-radius:6px;background:var(--acc);color:#FFF;font-size:14px;font-weight:500;cursor:pointer;font-family:var(--sans);transition:all .2s">月繳</button>';
+    html += '<button id="btn-yearly" onclick="setBilling(\'yearly\')" style="flex:1;padding:7px;border:none;border-radius:6px;background:transparent;color:var(--t2);font-size:14px;cursor:pointer;font-family:var(--sans);transition:all .2s">年繳 <span style="color:var(--grn);font-size:12px">省17%</span></button>';
+    html += '</div>';
+
+    // 專業版卡片
+    html += '<div style="border:0.5px solid var(--bdr2);border-radius:12px;padding:16px;margin-bottom:12px">';
+    html += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">';
+    html += '<div><div style="font-size:17px;font-weight:700">專業版</div><div style="font-size:13px;color:var(--t2);margin-top:2px">個人顧問全功能方案</div></div>';
+    html += '<div style="text-align:right"><div style="font-size:26px;font-weight:800;color:var(--acc)" id="pro-price">$799</div><div style="font-size:13px;color:var(--t3)" id="pro-period">/月</div></div>';
+    html += '</div>';
+    html += '<div style="font-size:14px;color:var(--t2);line-height:1.9;margin-bottom:12px">';
+    html += '✓ 無限客戶名單<br>✓ AI 評估與評分規則設定<br>✓ 推廣連結 + 自動收件<br>✓ 政府資料查閱工具<br>✓ 完整收支理財報告<br>✓ 邀請碼折扣機制';
+    html += '</div>';
+    html += '<button class="btn-p" onclick="showUpgradeInfo(\'pro\')" style="width:100%">選擇專業版</button>';
+    html += '</div>';
+
+    // 團隊版卡片
+    html += '<div style="border:1.5px solid var(--acc);border-radius:12px;padding:16px;position:relative">';
+    html += '<div style="position:absolute;top:-10px;left:50%;transform:translateX(-50%);background:var(--acc);color:#FFF;font-size:12px;font-weight:600;padding:2px 12px;border-radius:20px">推薦</div>';
+    html += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">';
+    html += '<div><div style="font-size:17px;font-weight:700">團隊版</div><div style="font-size:13px;color:var(--t2);margin-top:2px">多人協作團隊方案</div></div>';
+    html += '<div style="text-align:right"><div style="font-size:26px;font-weight:800;color:var(--acc)" id="team-price">$999</div><div style="font-size:13px;color:var(--t3)" id="team-period">/月</div></div>';
+    html += '</div>';
+    html += '<div style="font-size:14px;color:var(--t2);line-height:1.9;margin-bottom:12px">';
+    html += '✓ 專業版所有功能<br>✓ 建立 / 加入顧問團隊<br>✓ 查看所有成員客戶資料<br>✓ 成員業績排行與比較<br>✓ 公司收支記錄與報表<br>✓ 團隊成員升降權限管理';
+    html += '</div>';
+    html += '<button class="btn-p" onclick="showUpgradeInfo(\'team\')" style="width:100%">選擇團隊版</button>';
+    html += '</div>';
+
+    html += '<div style="font-size:12px;color:var(--t3);margin-top:12px;text-align:center">付款確認後由管理員手動開通，通常於1個工作天內完成</div>';
+    html += '</div>';
+
+    // 付款資訊區（點選方案後顯示）
+    html += '<div id="upgrade-info" style="display:none"></div>';
+  } else {
+    // 已付費方案
+    html += '<div class="card">';
+    html += '<div style="text-align:center;padding:12px 0">';
+    html += '<div style="font-size:32px;margin-bottom:8px">' + (plan==='team'?'🏢':'⭐') + '</div>';
+    html += '<div style="font-size:16px;font-weight:600;margin-bottom:4px">目前使用 ' + planLabel + '</div>';
+    if (plan !== 'team') {
+      html += '<div style="font-size:14px;color:var(--t2);margin-bottom:12px">升級至團隊版可使用多人管理功能</div>';
+      html += '<button class="btn-sm" onclick="showUpgradeInfo(\'team\')" style="font-size:14px">升級至團隊版 $999/月</button>';
+    } else {
+      html += '<div style="font-size:14px;color:var(--t2)">感謝您使用顧問PRO團隊版</div>';
+    }
+    html += '</div></div>';
+    html += '<div id="upgrade-info" style="display:none"></div>';
+  }
+
+  // 登出
+  html += '<div class="card">';
+  html += '<button class="btn-sm" style="color:var(--red);border-color:rgba(192,64,48,.3);width:100%;padding:10px" onclick="doLogout()">🚪 登出帳號</button>';
+  html += '</div>';
+
   el.innerHTML = html;
 }
+
+var currentBilling = 'monthly';
+function setBilling(type) {
+  currentBilling = type;
+  var isYear = type === 'yearly';
+  var mBtn = document.getElementById('btn-monthly');
+  var yBtn = document.getElementById('btn-yearly');
+  if (mBtn) { mBtn.style.background = isYear?'transparent':'var(--acc)'; mBtn.style.color = isYear?'var(--t2)':'#FFF'; }
+  if (yBtn) { yBtn.style.background = isYear?'var(--acc)':'transparent'; yBtn.style.color = isYear?'#FFF':'var(--t2)'; }
+  var proP = document.getElementById('pro-price');
+  var proPd = document.getElementById('pro-period');
+  var teamP = document.getElementById('team-price');
+  var teamPd = document.getElementById('team-period');
+  if (proP) proP.textContent = isYear ? '$7,990' : '$799';
+  if (proPd) proPd.textContent = isYear ? '/年（約 $666/月）' : '/月';
+  if (teamP) teamP.textContent = isYear ? '$9,990' : '$999';
+  if (teamPd) teamPd.textContent = isYear ? '/年（約 $833/月）' : '/月';
+  // 更新付款資訊
+  var info = document.getElementById('upgrade-info');
+  if (info && info.style.display !== 'none') {
+    var planType = info.dataset.plan;
+    if (planType) showUpgradeInfo(planType);
+  }
+}
+
+function showUpgradeInfo(planType) {
+  var info = document.getElementById('upgrade-info');
+  if (!info) return;
+  info.dataset.plan = planType;
+  var isYear = currentBilling === 'yearly';
+  var isTeam = planType === 'team';
+  var price = isTeam ? (isYear?'$9,990':'$999') : (isYear?'$7,990':'$799');
+  var period = isYear ? '年' : '月';
+  var planName = isTeam ? '團隊版' : '專業版';
+  var m = currentMember || {};
+
+  info.style.display = 'block';
+  info.innerHTML =
+    '<div class="card" style="border-color:var(--acc)">' +
+    '<div class="ct">📋 付款資訊</div>' +
+    '<div style="background:var(--al);border-radius:8px;padding:12px 14px;margin-bottom:12px">' +
+    '<div class="ri"><span class="rl">方案</span><span class="rv" style="color:var(--acc);font-weight:600">' + planName + ' · ' + (isYear?'年繳':'月繳') + '</span></div>' +
+    '<div class="ri"><span class="rl">金額</span><span class="rv" style="font-size:18px;font-weight:700;color:var(--acc)">' + price + ' /' + period + '</span></div>' +
+    '<div class="ri"><span class="rl">帳號</span><span class="rv" style="font-size:13px">' + (m.email||'—') + '</span></div>' +
+    '</div>' +
+    '<div style="font-size:14px;color:var(--t2);line-height:1.8;margin-bottom:12px">' +
+    '① 完成付款後，請傳送以下資訊給管理員：<br>' +
+    '&nbsp;&nbsp;· 您的 Email：<strong style="color:var(--t0)">' + (m.email||'—') + '</strong><br>' +
+    '&nbsp;&nbsp;· 選擇方案：<strong style="color:var(--t0)">' + planName + ' ' + (isYear?'年繳':'月繳') + '</strong><br>' +
+    '&nbsp;&nbsp;· 付款截圖<br>' +
+    '② 管理員確認後於 1 個工作天內開通' +
+    '</div>' +
+    '<div style="background:var(--inp);border-radius:8px;padding:12px;margin-bottom:12px;text-align:center">' +
+    '<div style="font-size:13px;color:var(--t3);margin-bottom:6px">付款方式（金流串接完成後開放）</div>' +
+    '<div style="font-size:15px;color:var(--t2)">🔧 即將上線</div>' +
+    '</div>' +
+    '<button onclick="document.getElementById(\'upgrade-info\').style.display=\'none\'" style="width:100%;padding:8px;background:transparent;border:0.5px solid var(--bdr2);border-radius:8px;color:var(--t2);cursor:pointer;font-family:var(--sans)">取消</button>' +
+    '</div>';
+  info.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
 
 // ══════════════════════════════
 // 貸款試算
