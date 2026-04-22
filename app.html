@@ -470,6 +470,90 @@ let extraIncome = [];
 let extraExpenses = [];
 var dealCommissions = {}; // { lead_id: rate% }
 var dealData = {}; // { lead_id: { actualIncome, partners:[{name,work,rate}] } }
+var leadDocuments = {}; // { leadId: { asset:[], verdict:[], traffic:[], license:[] } }
+
+// ── 載入該客戶已有的文件 ──
+async function loadDocuments(leadId) {
+  var res = await sb.from('lead_documents').select('*').eq('lead_id', leadId).order('created_at');
+  if (!res.data) return;
+  if (!leadDocuments[leadId]) leadDocuments[leadId] = {};
+  res.data.forEach(function(doc) {
+    if (!leadDocuments[leadId][doc.type]) leadDocuments[leadId][doc.type] = [];
+    var url = sb.storage.from('lead-documents').getPublicUrl(doc.storage_path).data.publicUrl;
+    var existing = leadDocuments[leadId][doc.type].find(function(d){return d.id===doc.id;});
+    if (!existing) leadDocuments[leadId][doc.type].push({ id: doc.id, url: url, filename: doc.storage_path.split('/').pop(), ai_summary: doc.ai_summary, uploaded_at: new Date(doc.created_at).toLocaleDateString('zh-TW') });
+  });
+  var lead = leads.find(function(l){return l.id===leadId;});
+  if (lead) showLeadDetail(leadId);
+}
+
+// ── 上傳圖片並 AI 讀取 ──
+async function uploadDoc(event, leadId, type, aiPrompt) {
+  var file = event.target.files[0];
+  if (!file) return;
+  var loadEl = document.getElementById('doc-loading-' + leadId + '-' + type);
+  if (loadEl) loadEl.style.display = 'block';
+  try {
+    // 上傳 Storage
+    var ext = file.name.split('.').pop() || 'jpg';
+    var path = currentUser.id + '/' + leadId + '/' + type + '_' + Date.now() + '.' + ext;
+    var upRes = await sb.storage.from('lead-documents').upload(path, file, { upsert: false });
+    if (upRes.error) throw upRes.error;
+    var publicUrl = sb.storage.from('lead-documents').getPublicUrl(path).data.publicUrl;
+
+    // AI 讀圖
+    var base64 = await fileToBase64(file);
+    var mediaType = file.type || 'image/jpeg';
+    var aiRes = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-6',
+        max_tokens: 1000,
+        messages: [{ role: 'user', content: [
+          { type: 'image', source: { type: 'base64', media_type: mediaType, data: base64 } },
+          { type: 'text', text: aiPrompt }
+        ]}]
+      })
+    });
+    var aiData = await aiRes.json();
+    var summary = aiData.content && aiData.content[0] ? aiData.content[0].text : '';
+    // 清理 JSON
+    var cleanSummary = summary;
+    try { var m = summary.match(/\[[\s\S]*\]|\{[\s\S]*\}/); if (m) cleanSummary = m[0]; } catch(e){}
+
+    // 存 DB
+    await sb.from('lead_documents').insert({ lead_id: leadId, member_id: currentUser.id, type: type, storage_path: path, ai_summary: cleanSummary });
+
+    // 更新本地
+    if (!leadDocuments[leadId]) leadDocuments[leadId] = {};
+    if (!leadDocuments[leadId][type]) leadDocuments[leadId][type] = [];
+    leadDocuments[leadId][type].push({ url: publicUrl, filename: file.name, ai_summary: cleanSummary, uploaded_at: new Date().toLocaleDateString('zh-TW') });
+    showLeadDetail(leadId);
+  } catch(err) {
+    if (loadEl) loadEl.style.display = 'none';
+    alert('上傳失敗：' + (err.message||String(err)));
+  }
+}
+
+async function deleteDoc(leadId, type, idx) {
+  if (!confirm('確定刪除此文件？')) return;
+  var docs = leadDocuments[leadId] && leadDocuments[leadId][type];
+  if (!docs || !docs[idx]) return;
+  var doc = docs[idx];
+  if (doc.id) await sb.from('lead_documents').delete().eq('id', doc.id);
+  docs.splice(idx, 1);
+  showLeadDetail(leadId);
+}
+
+function fileToBase64(file) {
+  return new Promise(function(resolve, reject) {
+    var r = new FileReader();
+    r.onload = function(e) { resolve(e.target.result.split(',')[1]); };
+    r.onerror = reject;
+    r.readAsDataURL(file);
+  });
+}
 
 function addPartner(leadId) {
   if (!dealData[leadId]) dealData[leadId] = {};
@@ -1609,7 +1693,7 @@ function showLeadDetail(id) {
   html += '</div>';
 
   // 政府資料查閱
-  html += '<div class="card"><div class="ct">政府資料查閱 <span style="font-size:12px;color:var(--t2);font-weight:400">點連結自動帶入客戶姓名</span></div>';
+  html += '<div class="card"><div class="ct">政府資料查閱 <span style="font-size:12px;color:var(--t2);font-weight:400">查詢後截圖上傳，AI 自動讀取重點</span></div>';
 
   // MyData
   html += '<div style="background:var(--bl);border:0.5px solid rgba(42,106,184,.3);border-radius:9px;padding:12px 14px;margin-bottom:8px">';
@@ -1634,43 +1718,50 @@ function showLeadDetail(id) {
   html += '</div>';
 
   // 動產擔保
-  html += '<div style="background:var(--gl);border:0.5px solid rgba(45,138,78,.3);border-radius:9px;padding:10px 13px;margin-bottom:8px">';
-  html += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">';
-  html += '<div style="font-size:14px;font-weight:500;color:var(--grn)">🔍 動產擔保交易公示查詢（經濟部）</div>';
-  html += '<button class="btn-sm" onclick="queryAsset(\'' + id + '\')" style="font-size:12px;padding:4px 10px">查詢</button></div>';
-  html += '<div style="font-size:13px;color:var(--t2);margin-bottom:4px">點查詢→自動複製姓名「<strong style="color:var(--t0)">' + (lead.name||'') + '</strong>」並開啟網頁，進入後直接貼上查詢</div>';
-  html += '<div style="font-size:12px;color:var(--t3)">不需登入即可查詢，輸入姓名或身分證字號</div>';
-  html += '<div id="asset-result-' + id + '"></div></div>';
+  html += buildDocSection({
+    id: id, type: 'asset', lead: lead,
+    color: 'grn', borderColor: 'rgba(45,138,78,.3)',
+    title: '🔍 動產擔保交易公示查詢（經濟部）',
+    hint: '請截圖查詢結果後上傳保存，AI 將自動讀取擔保標的物、債權人等資訊',
+    queryBtn: '查詢 →',
+    queryFn: 'queryAsset(\'' + id + '\')',
+    aiPrompt: '這是動產擔保公示查詢的截圖。請提取：1.有無查到記錄（有/無）2.標的物類型（汽車/機車/機器等）3.債權人名稱 4.擔保金額 5.設定日期。以條列方式簡潔呈現，若無記錄請說「查無動產擔保記錄」。'
+  });
 
   // 司法判決書
-  html += '<div style="background:var(--yl);border:0.5px solid rgba(184,128,32,.3);border-radius:9px;padding:10px 13px;margin-bottom:8px">';
-  html += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">';
-  html += '<div style="font-size:14px;font-weight:500;color:var(--yel)">⚖️ 司法院裁判書查詢</div>';
-  html += '<button class="btn-sm" onclick="queryVerdict(\'' + id + '\',\'' + (lead.name||'') + '\')" style="font-size:12px;padding:4px 10px">查詢</button></div>';
-  html += '<div style="font-size:13px;color:var(--t2);margin-bottom:6px">自動搜尋「<strong style="color:var(--t0)">' + (lead.name||'') + '</strong>」相關裁判書，依地址分類顯示</div>';
-  html += '<div id="verdict-result-' + id + '"></div></div>';
+  html += buildDocSection({
+    id: id, type: 'verdict', lead: lead,
+    color: 'yel', borderColor: 'rgba(184,128,32,.3)',
+    title: '⚖️ 司法院裁判書查詢',
+    hint: '請截圖客戶現居地與戶籍地相關結果後上傳。AI 將讀取地區、筆數、判決主題並整理成可點擊清單。',
+    queryBtn: '查詢 →',
+    queryFn: 'queryVerdict(\'' + id + '\',\'' + (lead.name||'').replace(/'/g,"\\'") + '\')',
+    aiPrompt: '這是司法院裁判書查詢截圖。請提取每一筆裁判書資訊，格式為JSON陣列：[{"court":"法院名稱","date":"日期YYYY/MM/DD","title":"案由/罪名","type":"刑事/民事"}]。若查無資料回傳[]。只回傳JSON，不要其他文字。'
+  });
 
-  // 監理服務網 - 交通違規查詢
-  var idno = lead.id_number_hash || '';
-  html += '<div style="background:var(--inp);border:0.5px solid var(--bdr2);border-radius:9px;padding:10px 13px;margin-bottom:8px">';
-  html += '<div style="font-size:14px;font-weight:500;color:var(--t1);margin-bottom:4px">🚗 監理服務網 — 交通違規 / 強制險查詢</div>';
-  html += '<div style="font-size:13px;color:var(--t2);margin-bottom:8px">點按鈕自動複製身分證字號，進入後貼上查詢（需身分證字號）</div>';
-  html += '<div style="display:flex;gap:8px;flex-wrap:wrap">';
+  // 監理服務網
   var mvdisId = 'mvdis-btn-' + id;
   var idnoVal = (lead.id_number_hash||lead.name||'').replace(/'/g,"\\'");
   var idnoDisplay = lead.id_number_hash ? lead.id_number_hash : '（未填身分證）';
-  html += '<button id="' + mvdisId + '" onclick="openAndCopy(\'https://www.mvdis.gov.tw/m3-emv-vil/vil/penaltyQueryPay\',\'' + idnoVal + '\',\'' + mvdisId + '\')" style="padding:6px 14px;background:var(--card);border:0.5px solid var(--bdr2);color:var(--t1);border-radius:6px;cursor:pointer;font-family:var(--sans);font-size:13px">複製「' + idnoDisplay + '」並開啟查詢 →</button>';
-  html += '</div></div>';
+  html += buildDocSection({
+    id: id, type: 'traffic', lead: lead,
+    color: '', borderColor: 'var(--bdr2)',
+    title: '🚗 監理服務網 — 交通違規查詢',
+    hint: '請截圖違規查詢結果後上傳，AI 將自動計算總罰款金額並列出各筆違規',
+    extraBtn: '<button id="' + mvdisId + '" onclick="openAndCopy(\'https://www.mvdis.gov.tw/m3-emv-vil/vil/penaltyQueryPay\',\'' + idnoVal + '\',\'' + mvdisId + '\')" style="padding:5px 12px;background:var(--card);border:0.5px solid var(--bdr2);color:var(--t1);border-radius:6px;cursor:pointer;font-family:var(--sans);font-size:12px">複製身分證開啟 →</button>',
+    aiPrompt: '這是監理服務網交通違規查詢截圖。請提取所有違規記錄，格式為JSON：{"violations":[{"date":"日期","location":"地點","reason":"違規事由","fine":罰款數字}],"total_fine":總罰款數字}。只回傳JSON，不要其他文字。若查無違規記錄回傳{"violations":[],"total_fine":0}。'
+  });
 
-  // 技能檢定查詢（勞動部）
-  html += '<div style="background:var(--inp);border:0.5px solid var(--bdr2);border-radius:9px;padding:10px 13px;margin-bottom:8px">';
-  html += '<div style="font-size:14px;font-weight:500;color:var(--t1);margin-bottom:4px">🏆 技術士持有證照查詢（勞動部）</div>';
-  html += '<div style="font-size:13px;color:var(--t2);margin-bottom:4px">點按鈕自動複製姓名「<strong style="color:var(--t0)">' + (lead.name||'') + '</strong>」並開啟查詢頁面</div>';
-  html += '<div style="font-size:12px;color:var(--t3);margin-bottom:8px">進入後貼上姓名，並輸入身分證字號查詢</div>';
-  html += '<div style="display:flex;gap:8px;flex-wrap:wrap">';
+  // 技術士證照
   var skillId = 'skill-btn-' + id;
-  html += '<button id="' + skillId + '" onclick="openAndCopy(\'https://eservice.wdasec.gov.tw/www/CC95T\',\'' + (lead.name||'').replace(/'/g,"\\'") + '\',\'' + skillId + '\')" style="padding:6px 14px;background:var(--card);border:0.5px solid var(--bdr2);color:var(--t1);border-radius:6px;cursor:pointer;font-family:var(--sans);font-size:13px">複製「' + (lead.name||'') + '」並開啟查詢 →</button>';
-  html += '</div></div>';
+  html += buildDocSection({
+    id: id, type: 'license', lead: lead,
+    color: '', borderColor: 'var(--bdr2)',
+    title: '🏆 技術士持有證照查詢（勞動部）',
+    hint: '請截圖查詢結果後上傳，AI 將列出持有的技術士證照類別',
+    extraBtn: '<button id="' + skillId + '" onclick="openAndCopy(\'https://eservice.wdasec.gov.tw/www/CC95T\',\'' + (lead.name||'').replace(/'/g,"\\'") + '\',\'' + skillId + '\')" style="padding:5px 12px;background:var(--card);border:0.5px solid var(--bdr2);color:var(--t1);border-radius:6px;cursor:pointer;font-family:var(--sans);font-size:12px">複製姓名開啟 →</button>',
+    aiPrompt: '這是技術士持有證照查詢截圖。請提取所有持有的技術士證照資訊，格式為JSON陣列：[{"name":"證照名稱","level":"甲/乙/丙級","number":"證號","date":"發證日期"}]。只回傳JSON，不要其他文字。若查無資料回傳[]。'
+  });
 
   html += '<div style="font-size:12px;color:var(--t3);margin-top:4px">以上查詢依個資法第19條第1項第5款（客戶已同意），查詢公開登記資料。</div>';
   html += '</div>';
@@ -1679,7 +1770,140 @@ function showLeadDetail(id) {
   html += '<div style="font-size:14px;color:var(--t2)">' + new Date(lead.created_at).toLocaleString('zh-TW') + '</div></div>';
 
   el.innerHTML = html;
+  // 渲染完後載入已有的文件記錄
+  loadDocuments(id);
 }
+
+function buildDocSection(opts) {
+  var id = opts.id, type = opts.type, lead = opts.lead;
+  var docs = leadDocuments[id] ? (leadDocuments[id][type] || []) : [];
+  var bgStyle = opts.color ? 'background:var(--' + opts.color + 'l);border:0.5px solid ' + opts.borderColor : 'background:var(--inp);border:0.5px solid ' + opts.borderColor;
+  var h = '<div style="' + bgStyle + ';border-radius:9px;padding:10px 13px;margin-bottom:8px">';
+  h += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">';
+  h += '<div style="font-size:14px;font-weight:500;color:' + (opts.color?'var(--'+opts.color+')':'var(--t1)') + '">' + opts.title + '</div>';
+  h += '<div style="display:flex;gap:5px">';
+  if (opts.queryFn) h += '<button class="btn-sm" onclick="' + opts.queryFn + '" style="font-size:12px;padding:3px 9px">' + (opts.queryBtn||'查詢') + '</button>';
+  if (opts.extraBtn) h += opts.extraBtn;
+  h += '</div></div>';
+  h += '<div style="font-size:12px;color:var(--t3);margin-bottom:8px">📸 ' + opts.hint + '</div>';
+
+  // 上傳按鈕
+  h += '<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">';
+  h += '<label style="display:inline-flex;align-items:center;gap:5px;padding:5px 12px;background:var(--card);border:0.5px solid var(--bdr2);border-radius:6px;cursor:pointer;font-size:13px;color:var(--t1)">';
+  h += '📷 上傳截圖';
+  h += '<input type="file" accept="image/*,application/pdf" style="display:none" onchange="uploadDoc(event,\'' + id + '\',\'' + type + '\',\'' + opts.aiPrompt.replace(/'/g,"\\'").replace(/\n/g,' ') + '\')">';
+  h += '</label>';
+  if (docs.length > 0) h += '<span style="font-size:12px;color:var(--t3)">已上傳 ' + docs.length + ' 筆</span>';
+  h += '</div>';
+
+  // 已上傳的文件和 AI 分析結果
+  docs.forEach(function(doc, di) {
+    h += renderDocResult(id, type, doc, di);
+  });
+
+  h += '<div id="doc-loading-' + id + '-' + type + '" style="display:none;font-size:13px;color:var(--t2);margin-top:8px">⏳ AI 讀取中...</div>';
+  h += '</div>';
+  return h;
+}
+
+function renderDocResult(leadId, type, doc, di) {
+  var h = '<div style="margin-top:8px;background:var(--card);border:0.5px solid var(--bdr2);border-radius:8px;overflow:hidden">';
+  // 圖片預覽
+  h += '<div style="display:flex;align-items:center;gap:8px;padding:8px 10px;border-bottom:0.5px solid var(--bdr)">';
+  h += '<img src="' + doc.url + '" onclick="window.open(\'' + doc.url + '\')" style="width:48px;height:36px;object-fit:cover;border-radius:4px;cursor:pointer" onerror="this.style.display=\'none\'">';
+  h += '<div style="flex:1"><div style="font-size:13px;font-weight:500">' + (doc.filename||'截圖') + '</div>';
+  h += '<div style="font-size:11px;color:var(--t3)">' + (doc.uploaded_at||'') + '</div></div>';
+  h += '<a href="' + doc.url + '" download target="_blank" style="font-size:12px;padding:3px 8px;background:transparent;border:0.5px solid var(--bdr2);border-radius:5px;color:var(--t2);text-decoration:none">下載</a>';
+  h += '<button onclick="deleteDoc(\'' + leadId + '\',\'' + type + '\',' + di + ')" style="font-size:12px;padding:3px 8px;border-radius:5px;border:0.5px solid rgba(192,64,48,.3);background:transparent;color:var(--red);cursor:pointer;font-family:var(--sans)">刪</button>';
+  h += '</div>';
+
+  // AI 分析結果
+  if (doc.ai_summary) {
+    h += '<div style="padding:10px 12px">';
+    if (type === 'verdict') {
+      h += renderVerdictSummary(doc.ai_summary);
+    } else if (type === 'traffic') {
+      h += renderTrafficSummary(doc.ai_summary);
+    } else if (type === 'license') {
+      h += renderLicenseSummary(doc.ai_summary);
+    } else {
+      h += '<div style="font-size:13px;color:var(--t2);line-height:1.7;white-space:pre-wrap">' + doc.ai_summary + '</div>';
+    }
+    h += '</div>';
+  }
+  h += '</div>';
+  return h;
+}
+
+function renderVerdictSummary(summary) {
+  var data;
+  try { data = typeof summary==='string' ? JSON.parse(summary) : summary; } catch(e) { return '<div style="font-size:13px;color:var(--t2)">' + summary + '</div>'; }
+  if (!Array.isArray(data) || data.length === 0) return '<div style="font-size:13px;color:var(--grn)">✓ 查無相關裁判書記錄</div>';
+  // 依法院分組
+  var courts = {};
+  data.forEach(function(v) { var c=v.court||'未知法院'; if(!courts[c]) courts[c]=[]; courts[c].push(v); });
+  var h = '';
+  Object.keys(courts).forEach(function(court) {
+    var cases = courts[court];
+    var cid = 'vc-' + Math.random().toString(36).slice(2,8);
+    h += '<div style="margin-bottom:6px;border:0.5px solid rgba(184,128,32,.3);border-radius:7px;overflow:hidden">';
+    h += '<div onclick="toggleVerdictCourt(\'' + cid + '\')" style="display:flex;justify-content:space-between;align-items:center;padding:8px 10px;background:var(--yl);cursor:pointer">';
+    h += '<span style="font-size:13px;font-weight:500;color:var(--yel)">⚖️ ' + court + '</span>';
+    h += '<span style="font-size:13px;color:var(--yel);font-weight:600">' + cases.length + ' 筆 ▾</span>';
+    h += '</div>';
+    h += '<div id="' + cid + '" style="display:none">';
+    cases.forEach(function(v) {
+      h += '<div style="display:flex;gap:8px;align-items:flex-start;padding:7px 10px;border-top:0.5px solid var(--bdr)">';
+      h += '<span style="font-size:11px;color:var(--t3);white-space:nowrap;margin-top:1px">' + (v.date||'') + '</span>';
+      h += '<div><span style="font-size:12px;padding:1px 6px;border-radius:4px;background:' + (v.type==='刑事'?'var(--rl)':'var(--bl)') + ';color:' + (v.type==='刑事'?'var(--red)':'var(--blu)') + '">' + (v.type||'') + '</span>';
+      h += ' <span style="font-size:13px;color:var(--t1)">' + (v.title||'—') + '</span></div>';
+      h += '</div>';
+    });
+    h += '</div></div>';
+  });
+  return h;
+}
+
+function renderTrafficSummary(summary) {
+  var data;
+  try { data = typeof summary==='string' ? JSON.parse(summary) : summary; } catch(e) { return '<div style="font-size:13px;color:var(--t2)">' + summary + '</div>'; }
+  var violations = data.violations || [];
+  var totalFine = data.total_fine || 0;
+  if (violations.length === 0) return '<div style="font-size:13px;color:var(--grn)">✓ 查無交通違規記錄</div>';
+  var h = '<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:0.5px solid var(--bdr);margin-bottom:6px">';
+  h += '<span style="font-size:13px;font-weight:600">總罰款金額</span>';
+  h += '<span style="font-size:16px;font-weight:700;color:var(--red)">$' + totalFine.toLocaleString() + '</span></div>';
+  violations.forEach(function(v) {
+    h += '<div style="display:flex;gap:8px;align-items:center;padding:5px 0;border-bottom:0.5px solid var(--bdr)">';
+    h += '<div style="flex:1"><div style="font-size:13px">' + (v.reason||'—') + '</div>';
+    h += '<div style="font-size:11px;color:var(--t3)">' + (v.date||'') + (v.location?' · '+v.location:'') + '</div></div>';
+    h += '<span style="font-size:13px;font-weight:600;color:var(--red)">$' + (v.fine||0).toLocaleString() + '</span>';
+    h += '</div>';
+  });
+  return h;
+}
+
+function renderLicenseSummary(summary) {
+  var data;
+  try { data = typeof summary==='string' ? JSON.parse(summary) : summary; } catch(e) { return '<div style="font-size:13px;color:var(--t2)">' + summary + '</div>'; }
+  if (!Array.isArray(data) || data.length === 0) return '<div style="font-size:13px;color:var(--t2)">查無技術士證照記錄</div>';
+  var h = '';
+  data.forEach(function(lic) {
+    h += '<div style="display:flex;gap:8px;align-items:center;padding:5px 0;border-bottom:0.5px solid var(--bdr)">';
+    h += '<span style="font-size:18px">🏅</span>';
+    h += '<div style="flex:1"><div style="font-size:13px;font-weight:500">' + (lic.name||'—') + ' <span style="font-size:12px;padding:1px 6px;border-radius:4px;background:var(--gl);color:var(--grn)">' + (lic.level||'') + '</span></div>';
+    h += '<div style="font-size:11px;color:var(--t3)">' + (lic.number||'') + (lic.date?' · '+lic.date:'') + '</div></div>';
+    h += '</div>';
+  });
+  return h;
+}
+
+function toggleVerdictCourt(cid) {
+  var el = document.getElementById(cid);
+  if (el) el.style.display = el.style.display==='none'?'block':'none';
+}
+
+
 
 function toggleLeadEdit(id) {
   var view = document.getElementById('lead-view-' + id);
