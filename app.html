@@ -1789,7 +1789,7 @@ function showLeadDetail(id) {
   html += '<textarea class="fi" id="note-' + id + '" rows="3" style="resize:none;font-size:14px">' + (lead.advisor_note||'') + '</textarea>';
   html += '<button class="btn-grn" style="margin-top:6px;font-size:14px;padding:7px 14px" onclick="saveNote(\'' + id + '\')">儲存備註</button></div>';
 
-  html += '<div class="card"><div class="ct">基本資料 <button class="btn-sm" id="edit-btn-' + id + '" onclick="toggleLeadEdit(\'' + id + '\')" style="font-size:12px;padding:4px 10px">✏️ 編輯</button></div>';
+  html += '<div class="card" id="basic-card-' + id + '"><div class="ct">基本資料 <button class="btn-sm" id="edit-btn-' + id + '" style="font-size:12px;padding:4px 10px">✏️ 編輯</button></div>';
 
   // 檢視模式
   html += '<div id="lead-view-' + id + '">';
@@ -1927,7 +1927,14 @@ function showLeadDetail(id) {
 
   el.innerHTML = html;
 
-  // 綁定案件進度 select（已改為自製下拉，不需要）
+  // DOM 綁定編輯按鈕（避免 inline onclick 在某些情況失效）
+  var editBtn = document.getElementById('edit-btn-' + id);
+  if (editBtn) {
+    editBtn.addEventListener('click', function(e) {
+      e.stopPropagation();
+      toggleLeadEdit(id);
+    });
+  }
 
   loadDocuments(id);
 }
