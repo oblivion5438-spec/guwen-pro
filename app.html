@@ -1539,10 +1539,9 @@ function showLeadDetail(id) {
 
   html += '</div>';
 
-  // 新增自訂狀態列
-  html += '<div style="display:flex;gap:6px;align-items:center;margin-top:4px">';
-  html += '<input id="custom-status-input-' + id + '" placeholder="新增自訂狀態..." style="flex:1;min-width:0;max-width:300px;padding:7px 12px;font-size:13px;background:var(--inp);border:0.5px solid var(--bdr2);border-radius:9px;color:var(--inpt);font-family:var(--sans)">';
-  html += '<button onclick="addCustomStatus(\'' + id + '\')" style="flex-shrink:0;padding:7px 14px;border-radius:20px;font-size:13px;font-family:var(--sans);cursor:pointer;border:0.5px solid var(--acc);background:var(--al);color:var(--acc)">＋ 新增</button>';
+  // 新增自訂狀態按鈕
+  html += '<div style="margin-top:6px">';
+  html += '<button onclick="addCustomStatus(\'' + id + '\')" style="padding:7px 14px;border-radius:20px;font-size:13px;font-family:var(--sans);cursor:pointer;border:0.5px solid var(--acc);background:var(--al);color:var(--acc)">＋ 新增自訂狀態</button>';
   html += '</div>';
 
   // 結案收入完整填寫區（選結案才顯示）
@@ -3674,14 +3673,12 @@ function renderTeamSalary(el, isLeader, isAdmin) {
 }
 
 function addCustomStatus(leadId) {
-  var input = document.getElementById('custom-status-input-' + leadId);
-  if (!input) return;
-  var name = input.value.trim();
-  if (!name) return;
+  var name = prompt('請輸入自訂狀態名稱：');
+  if (!name || !name.trim()) return;
+  name = name.trim();
   if (!dealData[leadId]) dealData[leadId] = {};
   if (!dealData[leadId].customStatuses) dealData[leadId].customStatuses = [];
   dealData[leadId].customStatuses.push(name);
-  input.value = '';
   var container = document.getElementById('status-btns-' + leadId);
   if (container) {
     var ci = dealData[leadId].customStatuses.length - 1;
