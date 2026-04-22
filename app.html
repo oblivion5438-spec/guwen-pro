@@ -1809,12 +1809,11 @@ function buildDocSection(opts) {
   // 分隔線
   h += '<div style="border-top:0.5px dashed rgba(255,255,255,.1);margin:8px 0"></div>';
 
-  // 上傳區
+  // 上傳區 - 用隱藏 input + button 觸發，一鍵開啟
+  var inputId = 'file-' + id + '-' + type;
   h += '<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:4px">';
-  h += '<label style="display:inline-flex;align-items:center;gap:5px;padding:5px 12px;background:var(--card);border:0.5px solid var(--bdr2);border-radius:6px;cursor:pointer;font-size:13px;color:var(--t1);white-space:nowrap">';
-  h += '📷 上傳截圖 / 儲存圖檔';
-  h += '<input type="file" accept="image/*,application/pdf" style="display:none" onchange="uploadDoc(event,\'' + id + '\',\'' + type + '\',\'' + opts.aiPrompt.replace(/'/g,"\\'").replace(/\n/g,' ') + '\')">';
-  h += '</label>';
+  h += '<input type="file" id="' + inputId + '" accept="image/*,application/pdf" style="display:none" onchange="uploadDoc(event,\'' + id + '\',\'' + type + '\',\'' + opts.aiPrompt.replace(/'/g,"\\'").replace(/\n/g,' ') + '\')">';
+  h += '<button onclick="document.getElementById(\'' + inputId + '\').click()" style="display:inline-flex;align-items:center;gap:5px;padding:5px 12px;background:var(--card);border:0.5px solid var(--bdr2);border-radius:6px;cursor:pointer;font-size:13px;color:var(--t1);font-family:var(--sans);white-space:nowrap">📷 上傳截圖 / 儲存圖檔</button>';
   if (docs.length > 0) h += '<span style="font-size:12px;color:var(--t3)">已儲存 ' + docs.length + ' 筆</span>';
   h += '</div>';
 
