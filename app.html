@@ -1407,21 +1407,50 @@ function showLeadDetail(id) {
   html += '</div>';
 
   // 政府資料查閱
-  html += '<div class="card"><div class="ct">政府資料查閱</div>';
+  html += '<div class="card"><div class="ct">政府資料查閱 <span style="font-size:12px;color:var(--t2);font-weight:400">點連結自動帶入客戶姓名</span></div>';
+
+  // MyData
   html += '<div style="background:var(--bl);border:0.5px solid rgba(42,106,184,.3);border-radius:9px;padding:10px 13px;margin-bottom:8px">';
-  html += '<div style="font-size:14px;font-weight:500;color:var(--blu);margin-bottom:6px">① MyData 政府資料</div>';
-  html += '<div style="font-size:13px;color:var(--t2);margin-bottom:8px">請指導客戶至 mydata.nat.gov.tw 下載後上傳</div>';
-  html += '<a href="https://mydata.nat.gov.tw" target="_blank" style="display:inline-block;font-size:13px;padding:5px 12px;background:var(--blu);color:#FFF;border-radius:6px;text-decoration:none;margin-bottom:8px">前往 MyData 平台 →</a></div>';
+  html += '<div style="font-size:14px;font-weight:500;color:var(--blu);margin-bottom:4px">📋 MyData 政府資料（所得／勞保／健保）</div>';
+  html += '<div style="font-size:13px;color:var(--t2);margin-bottom:8px">請指導客戶至 mydata.nat.gov.tw 自行下載後上傳給您</div>';
+  html += '<a href="https://mydata.nat.gov.tw" target="_blank" style="display:inline-block;font-size:13px;padding:6px 14px;background:var(--blu);color:#FFF;border-radius:6px;text-decoration:none">前往 MyData 平台 →</a></div>';
+
+  // 動產擔保
   html += '<div style="background:var(--gl);border:0.5px solid rgba(45,138,78,.3);border-radius:9px;padding:10px 13px;margin-bottom:8px">';
-  html += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">';
-  html += '<div style="font-size:14px;font-weight:500;color:var(--grn)">④ 動產擔保登記查詢</div>';
-  html += '<button class="btn-sm" onclick="queryAsset(\'' + id + '\')" style="font-size:13px;padding:4px 10px">查詢</button></div>';
-  html += '<div id="asset-result-' + id + '" style="font-size:13px;color:var(--t2)">點查詢後搜尋動產擔保記錄</div></div>';
-  html += '<div style="background:var(--yl);border:0.5px solid rgba(184,128,32,.3);border-radius:9px;padding:10px 13px">';
-  html += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">';
-  html += '<div style="font-size:14px;font-weight:500;color:var(--yel)">⑤ 司法院判決書查詢</div>';
-  html += '<button class="btn-sm" onclick="queryVerdict(\'' + id + '\',\'' + (lead.name||'') + '\')" style="font-size:13px;padding:4px 10px">查詢</button></div>';
-  html += '<div id="verdict-result-' + id + '" style="font-size:13px;color:var(--t2)">點查詢後搜尋公開裁判書</div></div>';
+  html += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">';
+  html += '<div style="font-size:14px;font-weight:500;color:var(--grn)">🔍 動產擔保交易線上查詢（法務部）</div>';
+  html += '<button class="btn-sm" onclick="queryAsset(\'' + id + '\')" style="font-size:12px;padding:4px 10px">查詢</button></div>';
+  html += '<div style="font-size:13px;color:var(--t2);margin-bottom:6px">自動帶入姓名「<strong style="color:var(--t0)">' + (lead.name||'') + '</strong>」查詢名下汽機車動產擔保登記</div>';
+  html += '<div id="asset-result-' + id + '"></div></div>';
+
+  // 司法判決書
+  html += '<div style="background:var(--yl);border:0.5px solid rgba(184,128,32,.3);border-radius:9px;padding:10px 13px;margin-bottom:8px">';
+  html += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">';
+  html += '<div style="font-size:14px;font-weight:500;color:var(--yel)">⚖️ 司法院裁判書查詢</div>';
+  html += '<button class="btn-sm" onclick="queryVerdict(\'' + id + '\',\'' + (lead.name||'') + '\')" style="font-size:12px;padding:4px 10px">查詢</button></div>';
+  html += '<div style="font-size:13px;color:var(--t2);margin-bottom:6px">自動搜尋「<strong style="color:var(--t0)">' + (lead.name||'') + '</strong>」相關裁判書，依地址分類顯示</div>';
+  html += '<div id="verdict-result-' + id + '"></div></div>';
+
+  // 監理服務網 - 交通違規查詢
+  var idno = lead.id_number_hash || '';
+  html += '<div style="background:var(--inp);border:0.5px solid var(--bdr2);border-radius:9px;padding:10px 13px;margin-bottom:8px">';
+  html += '<div style="font-size:14px;font-weight:500;color:var(--t1);margin-bottom:4px">🚗 監理服務網 — 交通違規 / 強制險查詢</div>';
+  html += '<div style="font-size:13px;color:var(--t2);margin-bottom:8px">帶入客戶姓名查詢交通違規及強制險記錄（需客戶身分證末四碼協助查詢）</div>';
+  html += '<div style="display:flex;gap:8px;flex-wrap:wrap">';
+  html += '<a href="https://www.mvdis.gov.tw/m3-emv-mvdis/w10/query?query_type=person&name=' + encodeURIComponent(lead.name||'') + '" target="_blank" onclick="logAccess(\'' + id + '\',\'mvdis\')" style="display:inline-block;font-size:13px;padding:6px 14px;background:var(--card);border:0.5px solid var(--bdr2);color:var(--t1);border-radius:6px;text-decoration:none">交通違規查詢（帶入姓名）→</a>';
+  html += '<a href="https://www.mvdis.gov.tw/m3-emv-mvdis/" target="_blank" style="display:inline-block;font-size:13px;padding:6px 14px;background:var(--card);border:0.5px solid var(--bdr2);color:var(--t1);border-radius:6px;text-decoration:none">監理服務網首頁</a>';
+  html += '</div></div>';
+
+  // 技能檢定查詢（勞動部）
+  html += '<div style="background:var(--inp);border:0.5px solid var(--bdr2);border-radius:9px;padding:10px 13px;margin-bottom:8px">';
+  html += '<div style="font-size:14px;font-weight:500;color:var(--t1);margin-bottom:4px">🏆 技能檢定證照查詢（勞動部）</div>';
+  html += '<div style="font-size:13px;color:var(--t2);margin-bottom:8px">查詢客戶持有的技術士證照，帶入姓名快速查詢</div>';
+  html += '<div style="display:flex;gap:8px;flex-wrap:wrap">';
+  html += '<a href="https://skill.tcte.edu.tw/query/search_cert.php?type=person&name=' + encodeURIComponent(lead.name||'') + '" target="_blank" onclick="logAccess(\'' + id + '\',\'skill\')" style="display:inline-block;font-size:13px;padding:6px 14px;background:var(--card);border:0.5px solid var(--bdr2);color:var(--t1);border-radius:6px;text-decoration:none">技術士證照查詢（帶入姓名）→</a>';
+  html += '<a href="https://skill.tcte.edu.tw" target="_blank" style="display:inline-block;font-size:13px;padding:6px 14px;background:var(--card);border:0.5px solid var(--bdr2);color:var(--t1);border-radius:6px;text-decoration:none">技能檢定中心官網</a>';
+  html += '</div></div>';
+
+  html += '<div style="font-size:12px;color:var(--t3);margin-top:4px">以上查詢依個資法第19條第1項第5款（客戶已同意），查詢公開登記資料。</div>';
   html += '</div>';
 
   html += '<div class="card"><div class="ct">建立時間</div>';
