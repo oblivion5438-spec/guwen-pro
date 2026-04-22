@@ -315,6 +315,7 @@ input[type=number]{-moz-appearance:textfield}
       <button class="ds-ni on" onclick="navTo('dash',this)">📊 儀表板</button>
       <button class="ds-ni" onclick="navTo('leads',this)">👥 客戶名單</button>
       <button class="ds-ni" onclick="navTo('add-lead',this)">➕ 新增客戶資料</button>
+      <button class="ds-ni" onclick="navTo('calendar',this)">📅 行事曆</button>
       <button class="ds-ni" onclick="navTo('finance',this)">💰 收支理財工具</button>
       <button class="ds-ni" onclick="navTo('team',this)">🏢 團隊管理</button>
       <button class="ds-ni" onclick="navTo('invite',this)">🎁 邀請碼 / 折扣</button>
@@ -965,14 +966,15 @@ function navTo(key, el) {
   var bn = document.getElementById('bn-' + key);
   if (bn) bn.classList.add('on');
   // 更新桌機 topbar 標題
-  var titles = {'dash':'儀表板','leads':'客戶名單','add-lead':'新增客戶資料','finance':'收支理財工具','team':'團隊管理','invite':'邀請碼 / 折扣','calc':'貸款試算','antifraud':'詐騙辨識','score-rules':'評分規則','prop-thresholds':'貸款項目設定','appearance':'外觀設定','settings':'帳號設定','report':'問題回報'};
+  var titles = {'dash':'儀表板','leads':'客戶名單','add-lead':'新增客戶資料','calendar':'行事曆','finance':'收支理財工具','team':'團隊管理','invite':'邀請碼 / 折扣','calc':'貸款試算','antifraud':'詐騙辨識','score-rules':'評分規則','prop-thresholds':'貸款項目設定','appearance':'外觀設定','settings':'帳號設定','report':'問題回報'};
   var dt = document.getElementById('dt-title'); if (dt) dt.textContent = titles[key] || '';
   var renders = {
     'dash': renderDash, 'leads': renderLeads, 'add-lead': renderAddLead,
     'finance': renderFinance, 'invite': renderInvite, 'settings': renderSettings,
     'score-rules': renderScoreRules, 'prop-thresholds': renderPropThresholds,
     'appearance': renderAppearance, 'report': renderReport,
-    'calc': renderCalc, 'antifraud': renderAntiFraud, 'team': renderTeam
+    'calc': renderCalc, 'antifraud': renderAntiFraud, 'team': renderTeam,
+    'calendar': renderCalendar
   };
   if (renders[key]) renders[key]();
 }
@@ -4175,6 +4177,385 @@ function showUpgradeInfo(planType) {
 // ══════════════════════════════
 // 貸款試算
 // ══════════════════════════════
+// ══════════════════════════════
+// 行事曆
+// ══════════════════════════════
+var schedules = [];
+var loanReminders = [];
+var calViewDate = new Date();
+var calTab = 'month'; // month | week | add
+
+async function renderCalendar() {
+  var el = document.getElementById('member-content');
+  el.innerHTML = '<div style="text-align:center;padding:30px;color:var(--t2)"><div class="spinner" style="margin:0 auto 10px"></div>載入行程中...</div>';
+
+  // 載入資料
+  var now = new Date();
+  var monthStart = new Date(calViewDate.getFullYear(), calViewDate.getMonth(), 1);
+  var monthEnd   = new Date(calViewDate.getFullYear(), calViewDate.getMonth()+1, 31);
+
+  var [schRes, remRes] = await Promise.all([
+    sb.from('schedules').select('*, leads(name)').eq('member_id', currentUser.id)
+      .gte('schedule_date', monthStart.toISOString().split('T')[0])
+      .lte('schedule_date', monthEnd.toISOString().split('T')[0])
+      .order('schedule_date').order('schedule_time'),
+    sb.from('loan_reminders').select('*, leads(name)').eq('member_id', currentUser.id)
+  ]);
+  schedules = schRes.data || [];
+  loanReminders = remRes.data || [];
+
+  // 計算貸款提醒到期日
+  var loanAlerts = loanReminders.map(function(r) {
+    if (!r.last_loan_date) return null;
+    var d = new Date(r.last_loan_date);
+    d.setMonth(d.getMonth() + (r.remind_after_months||6));
+    return { id: r.id, lead_name: r.leads ? r.leads.name : '—', loan_type: r.loan_type, remind_date: d.toISOString().split('T')[0], note: r.note, months: r.remind_after_months };
+  }).filter(Boolean);
+
+  buildCalendarUI(el, loanAlerts);
+  // 請求推播權限
+  requestNotificationPermission();
+  // 排程提醒
+  scheduleNotifications(loanAlerts);
+}
+
+function buildCalendarUI(el, loanAlerts) {
+  el.innerHTML = '';
+  var now = new Date();
+  var todayStr = now.toISOString().split('T')[0];
+
+  // 本週待辦摘要（頂部）
+  var weekStart = new Date(now); weekStart.setDate(now.getDate() - now.getDay() + 1);
+  var weekEnd   = new Date(weekStart); weekEnd.setDate(weekStart.getDate() + 6);
+  var weekScheds = schedules.filter(function(s){
+    return s.schedule_date >= weekStart.toISOString().split('T')[0] && s.schedule_date <= weekEnd.toISOString().split('T')[0] && !s.is_done;
+  });
+  var todayScheds = schedules.filter(function(s){ return s.schedule_date === todayStr && !s.is_done; });
+  var urgentLoan = loanAlerts.filter(function(r){
+    var d = new Date(r.remind_date);
+    var diff = Math.ceil((d - now)/(1000*60*60*24));
+    return diff <= 7 && diff >= 0;
+  });
+
+  // 頂部提醒條
+  if (todayScheds.length > 0 || urgentLoan.length > 0) {
+    var alertDiv = document.createElement('div');
+    alertDiv.style.cssText = 'background:var(--al);border:0.5px solid rgba(200,81,26,.3);border-radius:10px;padding:10px 14px;margin-bottom:12px';
+    var alertH = '<div style="font-size:13px;font-weight:600;color:var(--acc);margin-bottom:6px">🔔 今日提醒</div>';
+    todayScheds.forEach(function(s){
+      alertH += '<div style="font-size:13px;color:var(--t1);padding:3px 0">📅 ' + (s.schedule_time?s.schedule_time.slice(0,5)+' ':'') + s.title + (s.leads?' · '+s.leads.name:'') + '</div>';
+    });
+    urgentLoan.forEach(function(r){
+      var diff = Math.ceil((new Date(r.remind_date)-now)/(1000*60*60*24));
+      alertH += '<div style="font-size:13px;color:var(--yel);padding:3px 0">💰 ' + r.lead_name + ' · ' + (r.loan_type||'貸款') + ' 再辦提醒（' + (diff===0?'今天':diff+'天後') + '）</div>';
+    });
+    alertDiv.innerHTML = alertH;
+    el.appendChild(alertDiv);
+  }
+
+  // Tab 切換
+  var tabDiv = document.createElement('div');
+  tabDiv.style.cssText = 'display:flex;gap:6px;margin-bottom:12px;align-items:center';
+  tabDiv.innerHTML =
+    ['month','week'].map(function(t){
+      var label = t==='month'?'📅 月曆':'📋 本週待辦';
+      var on = calTab===t;
+      return '<button onclick="calTab=\''+t+'\';buildCalendarUI(document.getElementById(\'member-content\'),'+JSON.stringify(loanAlerts)+')" style="padding:6px 14px;border-radius:20px;font-size:14px;cursor:pointer;border:0.5px solid '+(on?'var(--acc)':'var(--bdr2)')+';background:'+(on?'var(--al)':'transparent')+';color:'+(on?'var(--acc)':'var(--t1)')+';font-family:var(--sans)">'+label+'</button>';
+    }).join('') +
+    '<button onclick="showAddSchedule()" style="margin-left:auto;padding:6px 14px;border-radius:20px;font-size:14px;cursor:pointer;border:0.5px solid var(--acc);background:var(--acc);color:#FFF;font-family:var(--sans)">+ 新增行程</button>';
+  el.appendChild(tabDiv);
+
+  if (calTab === 'month') {
+    buildMonthView(el, loanAlerts, todayStr);
+  } else {
+    buildWeekView(el, loanAlerts, weekStart, weekEnd, todayStr);
+  }
+
+  // 新增行程表單
+  var formDiv = document.createElement('div');
+  formDiv.id = 'add-schedule-form';
+  formDiv.style.display = 'none';
+  formDiv.className = 'card';
+  formDiv.innerHTML = buildAddScheduleForm();
+  el.appendChild(formDiv);
+
+  // 貸款提醒設定
+  buildLoanReminderSection(el, loanAlerts);
+}
+
+function buildMonthView(el, loanAlerts, todayStr) {
+  var year = calViewDate.getFullYear(), month = calViewDate.getMonth();
+  var firstDay = new Date(year, month, 1).getDay();
+  if (firstDay === 0) firstDay = 7; // 週一開始
+  var daysInMonth = new Date(year, month+1, 0).getDate();
+
+  var card = document.createElement('div'); card.className = 'card';
+  var h = '';
+
+  // 月份導航
+  h += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">';
+  h += '<button onclick="calViewDate.setMonth(calViewDate.getMonth()-1);renderCalendar()" style="padding:6px 12px;background:transparent;border:0.5px solid var(--bdr2);border-radius:7px;color:var(--t1);cursor:pointer;font-family:var(--sans);font-size:16px">‹</button>';
+  h += '<div style="font-size:17px;font-weight:700">' + year + ' 年 ' + (month+1) + ' 月</div>';
+  h += '<button onclick="calViewDate.setMonth(calViewDate.getMonth()+1);renderCalendar()" style="padding:6px 12px;background:transparent;border:0.5px solid var(--bdr2);border-radius:7px;color:var(--t1);cursor:pointer;font-family:var(--sans);font-size:16px">›</button>';
+  h += '</div>';
+
+  // 星期標頭
+  h += '<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:2px;margin-bottom:4px">';
+  ['一','二','三','四','五','六','日'].forEach(function(d,i){
+    h += '<div style="text-align:center;font-size:12px;color:'+(i>=5?'var(--red)':'var(--t2)')+';padding:4px 0">'+d+'</div>';
+  });
+  h += '</div>';
+
+  // 日期格子
+  h += '<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:2px">';
+
+  // 空格
+  for (var b = 1; b < firstDay; b++) h += '<div></div>';
+
+  for (var d = 1; d <= daysInMonth; d++) {
+    var dateStr = year + '-' + String(month+1).padStart(2,'0') + '-' + String(d).padStart(2,'0');
+    var dayScheds = schedules.filter(function(s){ return s.schedule_date === dateStr; });
+    var dayLoans  = loanAlerts.filter(function(r){ return r.remind_date === dateStr; });
+    var isToday   = dateStr === todayStr;
+    var dayOfWeek = new Date(year, month, d).getDay();
+    var isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+    var hasEvent  = dayScheds.length > 0 || dayLoans.length > 0;
+
+    h += '<div onclick="showDayDetail(\''+dateStr+'\')" style="min-height:52px;padding:4px;border-radius:6px;cursor:'+(hasEvent?'pointer':'default')+';background:'+(isToday?'var(--acc)':hasEvent?'var(--inp)':'transparent')+';border:0.5px solid '+(isToday?'var(--acc)':hasEvent?'var(--bdr2)':'transparent')+';position:relative">';
+    h += '<div style="font-size:13px;font-weight:'+(isToday?'700':'400')+';color:'+(isToday?'#FFF':isWeekend?'var(--red)':'var(--t1)')+';margin-bottom:2px">'+d+'</div>';
+
+    // 點點指示
+    if (dayScheds.length > 0) {
+      dayScheds.slice(0,2).forEach(function(s){
+        h += '<div style="font-size:10px;padding:1px 3px;border-radius:3px;margin-bottom:1px;background:'+(isToday?'rgba(255,255,255,.25)':'var(--al)')+';color:'+(isToday?'#FFF':'var(--acc)')+';overflow:hidden;white-space:nowrap;text-overflow:ellipsis;max-width:100%">' + (s.schedule_time?s.schedule_time.slice(0,5)+' ':'') + s.title + '</div>';
+      });
+      if (dayScheds.length > 2) h += '<div style="font-size:10px;color:'+(isToday?'rgba(255,255,255,.7)':'var(--t3)')+'>+' + (dayScheds.length-2) + '</div>';
+    }
+    if (dayLoans.length > 0) {
+      h += '<div style="font-size:10px;padding:1px 3px;border-radius:3px;background:'+(isToday?'rgba(255,255,255,.2)':'var(--yl)')+';color:'+(isToday?'#FFF':'var(--yel)')+';overflow:hidden;white-space:nowrap">💰 貸款提醒</div>';
+    }
+    h += '</div>';
+  }
+  h += '</div>';
+
+  // 日期詳情區
+  h += '<div id="day-detail" style="margin-top:12px"></div>';
+  card.innerHTML = h;
+  el.appendChild(card);
+}
+
+function buildWeekView(el, loanAlerts, weekStart, weekEnd, todayStr) {
+  var card = document.createElement('div'); card.className = 'card';
+  var h = '<div class="ct">📋 本週待辦（' + (weekStart.getMonth()+1) + '/' + weekStart.getDate() + ' – ' + (weekEnd.getMonth()+1) + '/' + weekEnd.getDate() + '）</div>';
+
+  var weekDays = [];
+  for (var i=0; i<7; i++) { var d = new Date(weekStart); d.setDate(weekStart.getDate()+i); weekDays.push(d); }
+  var hasAny = false;
+
+  weekDays.forEach(function(day) {
+    var dateStr = day.toISOString().split('T')[0];
+    var dayScheds = schedules.filter(function(s){ return s.schedule_date === dateStr; });
+    var dayLoans  = loanAlerts.filter(function(r){ return r.remind_date === dateStr; });
+    if (dayScheds.length === 0 && dayLoans.length === 0) return;
+    hasAny = true;
+    var isToday = dateStr === todayStr;
+    var dayNames = ['日','一','二','三','四','五','六'];
+    h += '<div style="margin-bottom:12px">';
+    h += '<div style="font-size:14px;font-weight:600;color:'+(isToday?'var(--acc)':'var(--t2)')+';margin-bottom:6px;padding:4px 8px;background:'+(isToday?'var(--al)':'var(--inp)')+';border-radius:6px">';
+    h += (day.getMonth()+1) + '/' + day.getDate() + ' 週' + dayNames[day.getDay()] + (isToday?' · 今天':'');
+    h += '</div>';
+    dayScheds.forEach(function(s){
+      h += buildScheduleItem(s);
+    });
+    dayLoans.forEach(function(r){
+      h += '<div style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--yl);border-radius:8px;margin-bottom:5px">';
+      h += '<span style="font-size:18px">💰</span><div style="flex:1"><div style="font-size:14px;font-weight:500">' + r.lead_name + ' · ' + (r.loan_type||'貸款') + ' 再辦提醒</div>';
+      h += '<div style="font-size:12px;color:var(--t2)">距設定日起 ' + r.months + ' 個月</div></div></div>';
+    });
+    h += '</div>';
+  });
+
+  if (!hasAny) h += '<div style="text-align:center;padding:20px;color:var(--t2)">本週無待辦行程</div>';
+  card.innerHTML = h;
+  el.appendChild(card);
+}
+
+function buildScheduleItem(s) {
+  var typeColor = s.type==='follow_up'?'var(--acc)':s.type==='loan_apply'?'var(--grn)':s.type==='reminder'?'var(--yel)':'var(--t2)';
+  var typeLabel = s.type==='follow_up'?'跟進':s.type==='loan_apply'?'送件':s.type==='reminder'?'提醒':'其他';
+  var h = '<div style="display:flex;align-items:flex-start;gap:8px;padding:8px 10px;background:var(--inp);border-left:3px solid '+typeColor+';border-radius:0 8px 8px 0;margin-bottom:5px">';
+  h += '<div style="flex:1">';
+  h += '<div style="display:flex;align-items:center;gap:6px;margin-bottom:3px">';
+  h += '<span style="font-size:14px;font-weight:500;'+(s.is_done?'text-decoration:line-through;color:var(--t3)':'color:var(--t1)')+'">'+s.title+'</span>';
+  h += '<span style="font-size:11px;padding:1px 5px;border-radius:4px;background:var(--al);color:var(--acc)">'+typeLabel+'</span>';
+  if (s.is_done) h += '<span style="font-size:11px;color:var(--grn)">✓ 完成</span>';
+  h += '</div>';
+  if (s.leads) h += '<div style="font-size:12px;color:var(--t2)">👤 ' + s.leads.name + '</div>';
+  if (s.schedule_time) h += '<div style="font-size:12px;color:var(--t3)">🕐 ' + s.schedule_time.slice(0,5) + '</div>';
+  if (s.description) h += '<div style="font-size:12px;color:var(--t2);margin-top:2px">' + s.description + '</div>';
+  h += '</div>';
+  h += '<div style="display:flex;flex-direction:column;gap:4px">';
+  if (!s.is_done) h += '<button onclick="doneSchedule(\''+s.id+'\')" style="font-size:11px;padding:2px 7px;border-radius:4px;border:0.5px solid rgba(45,138,78,.3);background:transparent;color:var(--grn);cursor:pointer;font-family:var(--sans)">完成</button>';
+  h += '<button onclick="deleteSchedule(\''+s.id+'\')" style="font-size:11px;padding:2px 7px;border-radius:4px;border:0.5px solid rgba(192,64,48,.3);background:transparent;color:var(--red);cursor:pointer;font-family:var(--sans)">刪除</button>';
+  h += '</div></div>';
+  return h;
+}
+
+function showDayDetail(dateStr) {
+  var el = document.getElementById('day-detail');
+  if (!el) return;
+  var dayScheds = schedules.filter(function(s){ return s.schedule_date === dateStr; });
+  if (dayScheds.length === 0) { el.innerHTML = ''; return; }
+  var d = new Date(dateStr);
+  var dayNames = ['日','一','二','三','四','五','六'];
+  var h = '<div style="border-top:0.5px solid var(--bdr);padding-top:10px">';
+  h += '<div style="font-size:14px;font-weight:600;margin-bottom:8px">' + (d.getMonth()+1) + '/' + d.getDate() + ' 週' + dayNames[d.getDay()] + ' 行程</div>';
+  dayScheds.forEach(function(s){ h += buildScheduleItem(s); });
+  h += '</div>';
+  el.innerHTML = h;
+}
+
+function buildAddScheduleForm() {
+  var leadOptions = '<option value="">— 無 —</option>' + leads.map(function(l){
+    return '<option value="'+l.id+'">'+l.name+'</option>';
+  }).join('');
+  var h = '<div class="ct">➕ 新增行程</div>';
+  h += '<div class="frow"><div class="flbl">行程標題</div><input class="fi" id="sch-title" placeholder="與客戶會面"></div>';
+  h += '<div class="frow2" style="margin-top:8px"><div class="frow"><div class="flbl">日期</div><input class="fi" id="sch-date" type="date"></div>';
+  h += '<div class="frow"><div class="flbl">時間</div><input class="fi" id="sch-time" type="time"></div></div>';
+  h += '<div class="frow2" style="margin-top:8px"><div class="frow"><div class="flbl">類型</div><select class="fi" id="sch-type"><option value="follow_up">跟進</option><option value="loan_apply">送件</option><option value="reminder">提醒</option><option value="other">其他</option></select></div>';
+  h += '<div class="frow"><div class="flbl">綁定客戶</div><select class="fi" id="sch-lead">' + leadOptions + '</select></div></div>';
+  h += '<div class="frow" style="margin-top:8px"><div class="flbl">備註</div><input class="fi" id="sch-desc" placeholder="備註說明"></div>';
+  h += '<div style="display:flex;gap:6px;margin-top:10px"><button class="btn-sm" onclick="document.getElementById(\'add-schedule-form\').style.display=\'none\'">取消</button>';
+  h += '<button class="btn-p" onclick="saveSchedule()" style="flex:1">儲存行程</button></div>';
+  return h;
+}
+
+function buildLoanReminderSection(el, loanAlerts) {
+  var card = document.createElement('div'); card.className = 'card';
+  var h = '<div class="ct">💰 貸款再辦提醒 <button class="btn-sm" onclick="showAddLoanReminder()">+ 新增</button></div>';
+  h += '<div style="font-size:13px;color:var(--t2);margin-bottom:10px">設定客戶多久後可再辦貸款，系統自動提醒</div>';
+
+  // 新增表單
+  var leadOptions2 = leads.map(function(l){ return '<option value="'+l.id+'">'+l.name+'</option>'; }).join('');
+  h += '<div id="add-loan-reminder-form" style="display:none;background:var(--inp);border-radius:8px;padding:12px;margin-bottom:12px">';
+  h += '<div class="frow2"><div class="frow"><div class="flbl">客戶</div><select class="fi" id="lr-lead">'+leadOptions2+'</select></div>';
+  h += '<div class="frow"><div class="flbl">貸款類型</div><input class="fi" id="lr-type" placeholder="信貸 / 車貸"></div></div>';
+  h += '<div class="frow2" style="margin-top:8px"><div class="frow"><div class="flbl">最後辦理日期</div><input class="fi" id="lr-date" type="date"></div>';
+  h += '<div class="frow"><div class="flbl">幾個月後再辦</div><select class="fi" id="lr-months"><option value="3">3個月</option><option value="6" selected>6個月</option><option value="12">12個月</option><option value="24">24個月</option></select></div></div>';
+  h += '<div class="frow" style="margin-top:8px"><div class="flbl">備註</div><input class="fi" id="lr-note" placeholder="備註"></div>';
+  h += '<div style="display:flex;gap:6px;margin-top:10px"><button class="btn-sm" onclick="document.getElementById(\'add-loan-reminder-form\').style.display=\'none\'">取消</button>';
+  h += '<button class="btn-p" onclick="saveLoanReminder()" style="flex:1">儲存</button></div></div>';
+
+  // 現有提醒列表
+  if (loanAlerts.length === 0) {
+    h += '<div style="text-align:center;padding:12px;color:var(--t2)">尚未設定任何貸款提醒</div>';
+  } else {
+    var now2 = new Date();
+    loanAlerts.forEach(function(r) {
+      var diff = Math.ceil((new Date(r.remind_date) - now2)/(1000*60*60*24));
+      var color = diff<=0?'red':diff<=7?'yel':'grn';
+      var label = diff<0?'已到期':diff===0?'今天':diff+'天後';
+      h += '<div style="display:flex;align-items:center;gap:8px;padding:9px 10px;background:var(--'+color+'l);border-radius:8px;margin-bottom:6px">';
+      h += '<span style="font-size:20px">💰</span>';
+      h += '<div style="flex:1"><div style="font-size:14px;font-weight:500">'+r.lead_name+' · '+(r.loan_type||'貸款')+'</div>';
+      h += '<div style="font-size:12px;color:var(--t2)">提醒日：'+r.remind_date+' · '+label+'</div>';
+      if (r.note) h += '<div style="font-size:12px;color:var(--t3)">'+r.note+'</div>';
+      h += '</div>';
+      h += '<button onclick="deleteLoanReminder(\''+r.id+'\')" style="font-size:12px;padding:2px 8px;border-radius:5px;border:0.5px solid rgba(192,64,48,.3);background:transparent;color:var(--red);cursor:pointer;font-family:var(--sans)">刪</button>';
+      h += '</div>';
+    });
+  }
+  card.innerHTML = h;
+  el.appendChild(card);
+}
+
+function showAddSchedule() {
+  var f = document.getElementById('add-schedule-form');
+  if (f) {
+    f.style.display = f.style.display==='none'?'block':'none';
+    var d = document.getElementById('sch-date');
+    if (d && !d.value) d.value = new Date().toISOString().split('T')[0];
+  }
+}
+function showAddLoanReminder() {
+  var f = document.getElementById('add-loan-reminder-form');
+  if (f) f.style.display = f.style.display==='none'?'block':'none';
+}
+
+async function saveSchedule() {
+  var title   = document.getElementById('sch-title') ? document.getElementById('sch-title').value.trim() : '';
+  var date    = document.getElementById('sch-date')  ? document.getElementById('sch-date').value  : '';
+  var time    = document.getElementById('sch-time')  ? document.getElementById('sch-time').value  : null;
+  var type    = document.getElementById('sch-type')  ? document.getElementById('sch-type').value  : 'follow_up';
+  var leadId  = document.getElementById('sch-lead')  ? document.getElementById('sch-lead').value  : null;
+  var desc    = document.getElementById('sch-desc')  ? document.getElementById('sch-desc').value.trim() : '';
+  if (!title) { alert('請填寫行程標題'); return; }
+  if (!date)  { alert('請選擇日期'); return; }
+  var data = { member_id: currentUser.id, title: title, schedule_date: date, type: type, description: desc||null };
+  if (time) data.schedule_time = time;
+  if (leadId) data.lead_id = leadId;
+  var res = await sb.from('schedules').insert(data);
+  if (res.error) { alert('儲存失敗：' + res.error.message); return; }
+  renderCalendar();
+}
+
+async function doneSchedule(id) {
+  await sb.from('schedules').update({ is_done: true }).eq('id', id);
+  renderCalendar();
+}
+async function deleteSchedule(id) {
+  if (!confirm('確定刪除此行程？')) return;
+  await sb.from('schedules').delete().eq('id', id);
+  renderCalendar();
+}
+
+async function saveLoanReminder() {
+  var leadId = document.getElementById('lr-lead')   ? document.getElementById('lr-lead').value   : '';
+  var type   = document.getElementById('lr-type')   ? document.getElementById('lr-type').value.trim()   : '';
+  var date   = document.getElementById('lr-date')   ? document.getElementById('lr-date').value   : '';
+  var months = document.getElementById('lr-months') ? parseInt(document.getElementById('lr-months').value) : 6;
+  var note   = document.getElementById('lr-note')   ? document.getElementById('lr-note').value.trim()   : '';
+  if (!leadId || !date) { alert('請選擇客戶和最後辦理日期'); return; }
+  await sb.from('loan_reminders').insert({ member_id: currentUser.id, lead_id: leadId, loan_type: type||null, last_loan_date: date, remind_after_months: months, note: note||null });
+  renderCalendar();
+}
+async function deleteLoanReminder(id) {
+  if (!confirm('確定刪除此提醒？')) return;
+  await sb.from('loan_reminders').delete().eq('id', id);
+  renderCalendar();
+}
+
+// 推播通知
+function requestNotificationPermission() {
+  if ('Notification' in window && Notification.permission === 'default') {
+    Notification.requestPermission();
+  }
+}
+function scheduleNotifications(loanAlerts) {
+  if (!('Notification' in window) || Notification.permission !== 'granted') return;
+  var now = new Date();
+  var todayStr = now.toISOString().split('T')[0];
+  // 今天有行程的推播
+  schedules.filter(function(s){ return s.schedule_date === todayStr && !s.is_done; }).forEach(function(s){
+    setTimeout(function(){
+      new Notification('📅 顧問PRO 行程提醒', {
+        body: s.title + (s.leads?' · '+s.leads.name:'') + (s.schedule_time?' '+s.schedule_time.slice(0,5):''),
+        icon: '/icon.png'
+      });
+    }, 1000);
+  });
+  // 今天貸款提醒
+  loanAlerts.filter(function(r){ return r.remind_date === todayStr; }).forEach(function(r){
+    setTimeout(function(){
+      new Notification('💰 顧問PRO 貸款再辦提醒', {
+        body: r.lead_name + ' · ' + (r.loan_type||'貸款') + ' 已到可再辦時間',
+        icon: '/icon.png'
+      });
+    }, 2000);
+  });
+}
+
 function renderCalc() {
   var el = document.getElementById('member-content');
   var html = '<div style="font-size:18px;font-weight:600;margin-bottom:14px">貸款試算工具</div>';
