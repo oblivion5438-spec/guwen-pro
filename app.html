@@ -2397,7 +2397,35 @@ var teamMembers = [];
 var teamLeads = [];
 var teamTab = 'overview';
 var teamExpenses = [];
-var teamCompany = { revenuePerDeal: 20000, salaries: [] };
+var teamCompany = {
+  revenuePerDeal: 20000,
+  salaries: [],
+  splitItems: [{ name:'公司', rate:40 }]
+};
+
+// 測試假資料（可在確認功能正常後移除）
+function injectTestData() {
+  if (teamCompany.salaries.length === 0) {
+    teamCompany.salaries = [{
+      name: '測試員工 王小明',
+      amount: 35000,
+      adjustments: [
+        { icon:'🎯', name:'全勤獎金', amount: 1000 },
+        { icon:'⏰', name:'遲到扣款', amount: -500 }
+      ]
+    }];
+  }
+  // 在現有 teamLeads 第一筆掛上假收入
+  if (teamLeads.length > 0) {
+    var l = teamLeads[0];
+    if (!dealData[l.id] || !dealData[l.id].actualIncome) {
+      dealData[l.id] = { actualIncome:28000, isEmployee:true, companyRate:40, myRate:60, partners:[] };
+      l.closed_amount = 28000;
+      l.status = 'closed';
+    }
+  }
+  renderTeam();
+}
 
 async function renderTeam() {
   var el = document.getElementById('member-content');
@@ -2950,6 +2978,16 @@ function filterTeamLeads(memberId) {
 function renderTeamFinance(el, isLeader, isAdmin) {
   var now = new Date();
   var thisM  = new Date(now.getFullYear(), now.getMonth(), 1);
+
+  // 測試按鈕（無員工且無案件時顯示）
+  if (isAdmin && teamCompany.salaries.length === 0) {
+    var testDiv = document.createElement('div');
+    testDiv.style.cssText = 'background:var(--yl);border:0.5px solid rgba(184,128,32,.3);border-radius:8px;padding:10px 14px;margin-bottom:12px;display:flex;align-items:center;justify-content:space-between';
+    testDiv.innerHTML = '<span style="font-size:13px;color:var(--yel)">🧪 尚無員工資料，可載入測試資料查看效果</span>' +
+      '<button onclick="injectTestData()" style="font-size:13px;padding:5px 12px;background:var(--yel);color:#FFF;border:none;border-radius:6px;cursor:pointer;font-family:var(--sans)">載入測試資料</button>';
+    el.appendChild(testDiv);
+  }
+
   var lastM  = new Date(now.getFullYear(), now.getMonth()-1, 1);
   var lastME = thisM;
   var lastQ  = new Date(now.getFullYear(), now.getMonth()-3, 1);
@@ -3273,6 +3311,10 @@ function renderTeamFinance(el, isLeader, isAdmin) {
   el.appendChild(sumCard);
 }
 
+function showAddSalary() {
+  var el = document.getElementById('add-salary-form');
+  if (el) el.style.display = el.style.display === 'none' ? 'block' : 'none';
+}
 function addSplitItem() {
   var el = document.getElementById('add-split-form');
   if (el) el.style.display = el.style.display==='none'?'block':'none';
