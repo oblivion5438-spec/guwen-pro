@@ -466,6 +466,22 @@ let fixedExpenses = [
 ];
 let extraIncome = [];
 let extraExpenses = [];
+var dealCommissions = {}; // { lead_id: rate% }
+
+function showAddIncome() {
+  var el = document.getElementById('add-income-form');
+  if (el) { el.style.display = 'block'; var d = document.getElementById('inc-date'); if(d) d.value = new Date().toISOString().split('T')[0]; }
+}
+function saveIncome() {
+  var icon = document.getElementById('inc-icon') ? document.getElementById('inc-icon').value||'💵' : '💵';
+  var name = document.getElementById('inc-name') ? document.getElementById('inc-name').value.trim() : '';
+  var amount = parseInt(document.getElementById('inc-amount') ? document.getElementById('inc-amount').value : 0) || 0;
+  var date = document.getElementById('inc-date') ? document.getElementById('inc-date').value : '';
+  if (!name||!amount) { alert('請填寫名稱和金額'); return; }
+  extraIncome.push({ icon:icon, name:name, amount:amount, date:date });
+  renderFinance();
+}
+function removeIncome(idx) { extraIncome.splice(idx,1); renderFinance(); }
 
 // 貸款計數器
 let loanCounters = { credit:0, car:0, bike:0, phone:0, pawn:0 };
@@ -1616,7 +1632,21 @@ function renderFinance() {
   var perDeal    = finSettings.revenuePerDeal || 20000;
   var totalFixed = fixedExpenses.reduce(function(s,e){return s+e.amount;},0);
   var totalExtraOut = extraExpenses.reduce(function(s,e){return s+e.amount;},0);
-  var thisRev    = thisClosed.length * perDeal;
+  var totalExtraIncome = extraIncome.reduce(function(s,e){return s+e.amount;},0);
+
+  // 實際佣金（填了比例就用實際，沒填用估算每件20000）
+  function calcRealRevenue(closedArr) {
+    return closedArr.reduce(function(s,l) {
+      var rate = dealCommissions[l.id];
+      if (rate !== undefined && rate !== '') {
+        var amt = l.required_amount || 0;
+        return s + Math.round(amt * parseFloat(rate) / 100);
+      }
+      return s + perDeal; // 未填用估算
+    }, 0);
+  }
+
+  var thisRev    = calcRealRevenue(thisClosed) + totalExtraIncome;
   var lmRev      = lmClosed.length * perDeal;
   var lqRev      = lqClosed.length * perDeal;
   var lyRev      = lyClosed.length * perDeal;
@@ -1838,24 +1868,100 @@ function renderFinance() {
 
   // ──────────────────────────────────
   } else if (financeTab === 'income') {
-    content += '<div class="card">';
-    content += '<div class="ct">💰 收入基準設定</div>';
-    content += '<div style="font-size:14px;color:var(--t2);margin-bottom:12px">設定每件成交的平均佣金，用於計算業績收入估算</div>';
-    content += '<div class="frow"><div class="flbl">每件成交平均收入（元）</div>';
-    content += '<input class="fi" id="fin-per-deal" type="number" value="'+(finSettings.revenuePerDeal||20000)+'" inputmode="numeric"></div>';
-    content += '<button class="btn-p" style="margin-top:10px" onclick="saveFinSettings()">儲存設定</button>';
-    content += '<div style="font-size:12px;color:var(--t3);margin-top:8px">此數字僅用於本工具的收入估算，不會影響其他功能</div>';
+
+    // 本月結案客戶
+    var thisClosedLeads = thisClosed;
+    var totalCommission = thisClosedLeads.reduce(function(s,l){
+      var rate = dealCommissions[l.id] !== undefined ? dealCommissions[l.id] : null;
+      if (rate === null) return s;
+      var amt = l.required_amount || 0;
+      return s + Math.round(amt * rate / 100);
+    }, 0);
+    var totalExtraIncome = extraIncome.reduce(function(s,e){return s+e.amount;},0);
+    var totalIncome = totalCommission + totalExtraIncome;
+
+    // 本月收入合計卡
+    content += '<div style="background:linear-gradient(135deg,rgba(45,138,78,.15),rgba(45,138,78,.05));border:0.5px solid rgba(45,138,78,.4);border-radius:12px;padding:14px;margin-bottom:12px">';
+    content += '<div style="font-size:13px;color:var(--t2);margin-bottom:4px">本月收入合計</div>';
+    content += '<div style="font-size:36px;font-weight:800;color:var(--grn)">$' + totalIncome.toLocaleString() + '</div>';
+    content += '<div style="display:flex;gap:12px;margin-top:8px;font-size:13px;color:var(--t2)">';
+    content += '<span>佣金 $' + totalCommission.toLocaleString() + '</span>';
+    content += '<span>額外收入 $' + totalExtraIncome.toLocaleString() + '</span>';
+    content += '</div></div>';
+
+    // 結案客戶佣金輸入
+    content += '<div class="card" style="margin-bottom:12px">';
+    content += '<div class="ct">💼 本月結案客戶佣金</div>';
+    if (thisClosedLeads.length === 0) {
+      content += '<div style="text-align:center;padding:16px;color:var(--t2)">本月尚無結案客戶</div>';
+    } else {
+      content += '<div style="font-size:13px;color:var(--t2);margin-bottom:10px">填入每筆案件的佣金比例，系統自動計算收入</div>';
+      thisClosedLeads.forEach(function(l) {
+        var rate = dealCommissions[l.id] !== undefined ? dealCommissions[l.id] : '';
+        var amt = l.required_amount || 0;
+        var commission = (rate !== '' && amt > 0) ? Math.round(amt * parseFloat(rate) / 100) : null;
+        var addrShort = '';
+        if (l.address) { var mm = l.address.match(/^(.{2,3}[市縣])/); if(mm) addrShort = mm[1]; }
+        content += '<div style="padding:10px 0;border-bottom:0.5px solid var(--bdr)">';
+        content += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">';
+        content += '<div>';
+        content += '<div style="font-size:15px;font-weight:500">' + (l.name||'—') + (addrShort?' <span style="font-size:12px;color:var(--t2)">'+addrShort+'</span>':'') + '</div>';
+        content += '<div style="font-size:12px;color:var(--t2)">需求 $' + amt.toLocaleString() + '</div>';
+        content += '</div>';
+        content += '<div style="text-align:right">';
+        content += '<div style="font-size:15px;font-weight:600;color:var(--grn)">' + (commission!==null ? '$'+commission.toLocaleString() : '—') + '</div>';
+        content += '</div></div>';
+        content += '<div style="display:flex;align-items:center;gap:8px">';
+        content += '<div style="font-size:13px;color:var(--t2);white-space:nowrap">佣金比例</div>';
+        content += '<input type="number" step="0.1" min="0" max="100" placeholder="例：2.5" value="' + rate + '" ';
+        content += 'style="flex:1;padding:7px 10px;background:var(--inp);border:0.5px solid var(--bdr2);border-radius:7px;color:var(--inpt);font-size:14px;font-family:var(--sans)" ';
+        content += 'oninput="dealCommissions[\'' + l.id + '\']=this.value;renderFinance()">';
+        content += '<div style="font-size:13px;color:var(--t2)">%</div>';
+        content += '</div>';
+        content += '</div>';
+      });
+      content += '<div style="display:flex;justify-content:space-between;padding-top:10px;border-top:0.5px solid var(--bdr);margin-top:4px">';
+      content += '<span style="font-size:14px;color:var(--t2)">佣金小計</span>';
+      content += '<span style="font-size:16px;font-weight:700;color:var(--grn)">$' + totalCommission.toLocaleString() + '</span>';
+      content += '</div>';
+    }
     content += '</div>';
 
-    // 收入趨勢
-    content += '<div class="card" style="margin-top:10px">';
+    // 額外收入
+    content += '<div class="card">';
+    content += '<div class="ct">➕ 額外收入 <button class="btn-sm" onclick="showAddIncome()">+ 新增</button></div>';
+    if (extraIncome.length === 0) {
+      content += '<div style="text-align:center;padding:12px;color:var(--t2);font-size:14px">尚無額外收入</div>';
+    } else {
+      extraIncome.forEach(function(e, i) {
+        content += '<div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:0.5px solid var(--bdr)">';
+        content += '<span style="font-size:18px">' + e.icon + '</span>';
+        content += '<div style="flex:1"><div style="font-size:14px;font-weight:500">' + e.name + '</div>';
+        content += '<div style="font-size:12px;color:var(--t3)">' + (e.date||'') + '</div></div>';
+        content += '<span style="font-weight:600;color:var(--grn);font-size:14px">+$' + e.amount.toLocaleString() + '</span>';
+        content += '<button onclick="removeIncome(' + i + ')" style="font-size:12px;padding:2px 8px;border-radius:5px;border:0.5px solid rgba(192,64,48,.3);background:transparent;color:var(--red);cursor:pointer;font-family:var(--sans)">刪</button>';
+        content += '</div>';
+      });
+      content += '<div style="display:flex;justify-content:space-between;padding-top:8px"><span style="color:var(--t2)">小計</span><span style="font-weight:600;color:var(--grn)">+$' + totalExtraIncome.toLocaleString() + '</span></div>';
+    }
+    content += '<div id="add-income-form" style="display:none;margin-top:10px">';
+    content += '<div class="frow2"><div class="frow"><div class="flbl">圖示</div><input class="fi" id="inc-icon" value="💵" maxlength="2"></div>';
+    content += '<div class="frow"><div class="flbl">收入名稱</div><input class="fi" id="inc-name" placeholder="介紹費"></div></div>';
+    content += '<div class="frow2" style="margin-top:6px"><div class="frow"><div class="flbl">金額（元）</div><input class="fi" id="inc-amount" type="number" inputmode="numeric" placeholder="0"></div>';
+    content += '<div class="frow"><div class="flbl">日期</div><input class="fi" id="inc-date" type="date"></div></div>';
+    content += '<div style="display:flex;gap:6px;margin-top:8px"><button class="btn-sm" onclick="document.getElementById(\'add-income-form\').style.display=\'none\'">取消</button>';
+    content += '<button class="btn-p" onclick="saveIncome()" style="flex:1">新增</button></div>';
+    content += '</div></div>';
+
+    // 近6個月成交趨勢
+    content += '<div class="card" style="margin-top:12px">';
     content += '<div class="ct">📈 近6個月成交趨勢</div>';
     var months = [];
     for(var i=5;i>=0;i--) {
       var ms = new Date(now.getFullYear(), now.getMonth()-i, 1);
       var me = new Date(now.getFullYear(), now.getMonth()-i+1, 1);
       var mc = closedIn(ms, me);
-      months.push({label:(ms.getMonth()+1)+'月', count:mc.length, rev:mc.length*perDeal});
+      months.push({label:(ms.getMonth()+1)+'月', count:mc.length});
     }
     var maxCount = Math.max.apply(null, months.map(function(m){return m.count;})) || 1;
     content += '<div style="display:flex;align-items:flex-end;gap:6px;height:80px;margin-bottom:8px">';
@@ -1918,12 +2024,7 @@ function renderFinance() {
 }
 
 var finSettings = { revenuePerDeal: 20000 };
-function saveFinSettings() {
-  var v = parseInt(document.getElementById('fin-per-deal') ? document.getElementById('fin-per-deal').value : 20000) || 20000;
-  finSettings.revenuePerDeal = v;
-  alert('✓ 已儲存，每件成交收入：$' + v.toLocaleString());
-  renderFinance();
-}
+
 function showAddExtra() {
   var el = document.getElementById('add-extra-form');
   if (el) { el.style.display = 'block'; var d = document.getElementById('ext-date'); if(d) d.value = new Date().toISOString().split('T')[0]; }
