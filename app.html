@@ -1499,20 +1499,14 @@ function showLeadDetail(id) {
   }
   html += '</div>';  // 關閉 AI 評估 card
 
-  // 案件進度 — 獨立 card，用按鈕取代 select
+  // 案件進度 — 獨立 card
   html += '<div class="card">';
   html += '<div class="ct">案件進度</div>';
-  var statuses = ['new','invited','submitting','approved','closed','pending_guarantor','rejected','lost'];
-  html += '<div style="display:flex;flex-wrap:wrap;gap:6px">';
-  statuses.forEach(function(s) {
-    var isActive = lead.status === s;
-    var badgeCol = statusBadge(s);
-    html += '<button onclick="updateStatus(\'' + id + '\',\'' + s + '\');this.closest(\'.card\').querySelectorAll(\'button\').forEach(function(b){b.style.opacity=\'0.4\';b.style.fontWeight=\'400\'});this.style.opacity=\'1\';this.style.fontWeight=\'700\'" ';
-    html += 'style="padding:6px 12px;border-radius:20px;font-size:13px;cursor:pointer;font-family:var(--sans);border:1.5px solid ' + (isActive?'var(--acc)':'var(--bdr2)') + ';background:' + (isActive?'var(--al)':'transparent') + ';color:' + (isActive?'var(--acc)':'var(--t2)') + ';font-weight:' + (isActive?'700':'400') + ';opacity:1">';
-    html += statusText(s);
-    html += '</button>';
+  html += '<select class="fi" id="status-sel-' + id + '" style="appearance:auto;-webkit-appearance:auto;cursor:pointer">';
+  ['new','invited','submitting','approved','closed','pending_guarantor','rejected','lost'].forEach(function(s) {
+    html += '<option value="' + s + '"' + (lead.status===s?' selected':'') + '>' + statusText(s) + '</option>';
   });
-  html += '</div>';
+  html += '</select>';
 
   // 結案收入完整填寫區（選結案才顯示）
   var d = dealData[id] || {};
@@ -1758,7 +1752,12 @@ function showLeadDetail(id) {
 
   el.innerHTML = html;
 
-  // 渲染完後載入已有的文件記錄
+  // 綁定案件進度 select
+  var sel = document.getElementById('status-sel-' + id);
+  if (sel) {
+    sel.onchange = function() { updateStatus(id, this.value); };
+  }
+
   loadDocuments(id);
 }
 
@@ -1964,44 +1963,32 @@ async function saveLeadEdit(id) {
 }
 
 async function updateStatus(id, status) {
-  // 更新 DB
-  await sb.from('leads').update({ status: status }).eq('id', id);
-
-  // 更新本地快取
+  // UI 立即反應
   var lead = leads.find(function(l) { return l.id === id; });
   if (lead) lead.status = status;
-
-  // 結案收入欄顯示/隱藏（安全操作 DOM）
   var incomeDiv = document.getElementById('closed-income-' + id);
   if (incomeDiv) incomeDiv.style.display = status === 'closed' ? 'block' : 'none';
-
-  // 更新縮圖列表上的 badge（不重繪整頁）
   var badgeEls = document.querySelectorAll('[data-lead-badge="'+id+'"]');
   badgeEls.forEach(function(b){
     b.className = 'badge ' + statusBadge(status);
     b.textContent = statusText(status);
   });
 
-  // 自動同步行事曆
+  // 背景執行 DB 和行事曆（不等待）
+  sb.from('leads').update({ status: status }).eq('id', id);
   if (currentUser && lead) {
     var today = new Date().toISOString().split('T')[0];
-    var statusLabel = statusText(status);
-    var schedTitle = (lead.name||'客戶') + ' · ' + statusLabel;
-    await sb.from('schedules')
-      .delete()
-      .eq('member_id', currentUser.id)
-      .eq('lead_id', id)
-      .eq('schedule_date', today)
-      .eq('type', 'auto_status');
-    await sb.from('schedules').insert({
-      member_id: currentUser.id,
-      lead_id: id,
-      title: schedTitle,
-      schedule_date: today,
-      type: 'auto_status',
-      description: '案件進度：' + statusLabel,
-      is_done: false
-    });
+    var schedTitle = (lead.name||'客戶') + ' · ' + statusText(status);
+    sb.from('schedules').delete()
+      .eq('member_id', currentUser.id).eq('lead_id', id)
+      .eq('schedule_date', today).eq('type', 'auto_status');
+    setTimeout(function(){
+      sb.from('schedules').insert({
+        member_id: currentUser.id, lead_id: id, title: schedTitle,
+        schedule_date: today, type: 'auto_status',
+        description: '案件進度：' + statusText(status), is_done: false
+      });
+    }, 500);
   }
 }
 
