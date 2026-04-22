@@ -1499,14 +1499,20 @@ function showLeadDetail(id) {
   }
   html += '</div>';  // 關閉 AI 評估 card
 
-  // 案件進度 — 獨立 card
+  // 案件進度 — 獨立 card，用按鈕取代 select
   html += '<div class="card">';
   html += '<div class="ct">案件進度</div>';
-  html += '<select class="fi" id="status-sel-' + id + '" style="-webkit-appearance:auto;appearance:auto">';
-  ['new','invited','submitting','approved','closed','pending_guarantor','rejected','lost'].forEach(function(s) {
-    html += '<option value="' + s + '"' + (lead.status===s?' selected':'') + '>' + statusText(s) + '</option>';
+  var statuses = ['new','invited','submitting','approved','closed','pending_guarantor','rejected','lost'];
+  html += '<div style="display:flex;flex-wrap:wrap;gap:6px">';
+  statuses.forEach(function(s) {
+    var isActive = lead.status === s;
+    var badgeCol = statusBadge(s);
+    html += '<button onclick="updateStatus(\'' + id + '\',\'' + s + '\');this.closest(\'.card\').querySelectorAll(\'button\').forEach(function(b){b.style.opacity=\'0.4\';b.style.fontWeight=\'400\'});this.style.opacity=\'1\';this.style.fontWeight=\'700\'" ';
+    html += 'style="padding:6px 12px;border-radius:20px;font-size:13px;cursor:pointer;font-family:var(--sans);border:1.5px solid ' + (isActive?'var(--acc)':'var(--bdr2)') + ';background:' + (isActive?'var(--al)':'transparent') + ';color:' + (isActive?'var(--acc)':'var(--t2)') + ';font-weight:' + (isActive?'700':'400') + ';opacity:1">';
+    html += statusText(s);
+    html += '</button>';
   });
-  html += '</select>';
+  html += '</div>';
 
   // 結案收入完整填寫區（選結案才顯示）
   var d = dealData[id] || {};
@@ -1751,20 +1757,6 @@ function showLeadDetail(id) {
   html += '<div style="font-size:14px;color:var(--t2)">' + new Date(lead.created_at).toLocaleString('zh-TW') + '</div></div>';
 
   el.innerHTML = html;
-
-  // select 加 stopPropagation 防止 click 冒泡觸發父層
-  var statusSel = document.getElementById('status-sel-' + id);
-  if (statusSel) {
-    statusSel.addEventListener('click', function(e) { e.stopPropagation(); });
-    statusSel.addEventListener('mousedown', function(e) { e.stopPropagation(); });
-    statusSel.addEventListener('change', function(e) {
-      e.stopPropagation();
-      var newStatus = this.value;
-      var incDiv = document.getElementById('closed-income-' + id);
-      if (incDiv) incDiv.style.display = newStatus === 'closed' ? 'block' : 'none';
-      updateStatus(id, newStatus);
-    });
-  }
 
   // 渲染完後載入已有的文件記錄
   loadDocuments(id);
