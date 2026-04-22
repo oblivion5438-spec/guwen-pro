@@ -1465,9 +1465,10 @@ function showLeadDetail(id) {
   // 動產擔保
   html += '<div style="background:var(--gl);border:0.5px solid rgba(45,138,78,.3);border-radius:9px;padding:10px 13px;margin-bottom:8px">';
   html += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">';
-  html += '<div style="font-size:14px;font-weight:500;color:var(--grn)">🔍 動產擔保交易線上查詢（法務部）</div>';
+  html += '<div style="font-size:14px;font-weight:500;color:var(--grn)">🔍 動產擔保交易公示查詢（經濟部）</div>';
   html += '<button class="btn-sm" onclick="queryAsset(\'' + id + '\')" style="font-size:12px;padding:4px 10px">查詢</button></div>';
-  html += '<div style="font-size:13px;color:var(--t2);margin-bottom:6px">自動帶入姓名「<strong style="color:var(--t0)">' + (lead.name||'') + '</strong>」查詢名下汽機車動產擔保登記</div>';
+  html += '<div style="font-size:13px;color:var(--t2);margin-bottom:4px">點查詢→自動複製姓名「<strong style="color:var(--t0)">' + (lead.name||'') + '</strong>」並開啟網頁，進入後直接貼上查詢</div>';
+  html += '<div style="font-size:12px;color:var(--t3)">不需登入即可查詢，輸入姓名或身分證字號</div>';
   html += '<div id="asset-result-' + id + '"></div></div>';
 
   // 司法判決書
@@ -1482,19 +1483,22 @@ function showLeadDetail(id) {
   var idno = lead.id_number_hash || '';
   html += '<div style="background:var(--inp);border:0.5px solid var(--bdr2);border-radius:9px;padding:10px 13px;margin-bottom:8px">';
   html += '<div style="font-size:14px;font-weight:500;color:var(--t1);margin-bottom:4px">🚗 監理服務網 — 交通違規 / 強制險查詢</div>';
-  html += '<div style="font-size:13px;color:var(--t2);margin-bottom:8px">帶入客戶姓名查詢交通違規及強制險記錄（需客戶身分證末四碼協助查詢）</div>';
+  html += '<div style="font-size:13px;color:var(--t2);margin-bottom:8px">點按鈕自動複製身分證字號，進入後貼上查詢（需身分證字號）</div>';
   html += '<div style="display:flex;gap:8px;flex-wrap:wrap">';
-  html += '<a href="https://www.mvdis.gov.tw/m3-emv-vil/vil/penaltyQueryPay" target="_blank" onclick="logAccess(\'' + id + '\',\'mvdis\')" style="display:inline-block;font-size:13px;padding:6px 14px;background:var(--card);border:0.5px solid var(--bdr2);color:var(--t1);border-radius:6px;text-decoration:none">交通違規查詢（進入後輸入身分證）→</a>';
-  html += '<a href="https://www.mvdis.gov.tw" target="_blank" style="display:inline-block;font-size:13px;padding:6px 14px;background:var(--card);border:0.5px solid var(--bdr2);color:var(--t1);border-radius:6px;text-decoration:none">監理服務網</a>';
+  var mvdisId = 'mvdis-btn-' + id;
+  var idnoVal = (lead.id_number_hash||lead.name||'').replace(/'/g,"\\'");
+  var idnoDisplay = lead.id_number_hash ? lead.id_number_hash : '（未填身分證）';
+  html += '<button id="' + mvdisId + '" onclick="openAndCopy(\'https://www.mvdis.gov.tw/m3-emv-vil/vil/penaltyQueryPay\',\'' + idnoVal + '\',\'' + mvdisId + '\')" style="padding:6px 14px;background:var(--card);border:0.5px solid var(--bdr2);color:var(--t1);border-radius:6px;cursor:pointer;font-family:var(--sans);font-size:13px">複製「' + idnoDisplay + '」並開啟查詢 →</button>';
   html += '</div></div>';
 
   // 技能檢定查詢（勞動部）
   html += '<div style="background:var(--inp);border:0.5px solid var(--bdr2);border-radius:9px;padding:10px 13px;margin-bottom:8px">';
-  html += '<div style="font-size:14px;font-weight:500;color:var(--t1);margin-bottom:4px">🏆 技能檢定證照查詢（勞動部）</div>';
-  html += '<div style="font-size:13px;color:var(--t2);margin-bottom:8px">查詢客戶持有的技術士證照，帶入姓名快速查詢</div>';
+  html += '<div style="font-size:14px;font-weight:500;color:var(--t1);margin-bottom:4px">🏆 技術士持有證照查詢（勞動部）</div>';
+  html += '<div style="font-size:13px;color:var(--t2);margin-bottom:4px">點按鈕自動複製姓名「<strong style="color:var(--t0)">' + (lead.name||'') + '</strong>」並開啟查詢頁面</div>';
+  html += '<div style="font-size:12px;color:var(--t3);margin-bottom:8px">進入後貼上姓名，並輸入身分證字號查詢</div>';
   html += '<div style="display:flex;gap:8px;flex-wrap:wrap">';
-  html += '<a href="https://eservice.wdasec.gov.tw/WWW/CC92Q" target="_blank" onclick="logAccess(\'' + id + '\',\'skill\')" style="display:inline-block;font-size:13px;padding:6px 14px;background:var(--card);border:0.5px solid var(--bdr2);color:var(--t1);border-radius:6px;text-decoration:none">技術士證照查詢（進入後輸入姓名）→</a>';
-  html += '<a href="https://www.wdasec.gov.tw/" target="_blank" style="display:inline-block;font-size:13px;padding:6px 14px;background:var(--card);border:0.5px solid var(--bdr2);color:var(--t1);border-radius:6px;text-decoration:none">技能檢定中心官網</a>';
+  var skillId = 'skill-btn-' + id;
+  html += '<button id="' + skillId + '" onclick="openAndCopy(\'https://eservice.wdasec.gov.tw/www/CC95T\',\'' + (lead.name||'').replace(/'/g,"\\'") + '\',\'' + skillId + '\')" style="padding:6px 14px;background:var(--card);border:0.5px solid var(--bdr2);color:var(--t1);border-radius:6px;cursor:pointer;font-family:var(--sans);font-size:13px">複製「' + (lead.name||'') + '」並開啟查詢 →</button>';
   html += '</div></div>';
 
   html += '<div style="font-size:12px;color:var(--t3);margin-top:4px">以上查詢依個資法第19條第1項第5款（客戶已同意），查詢公開登記資料。</div>';
@@ -1572,7 +1576,7 @@ async function queryAsset(leadId) {
   el.innerHTML = '<span style="color:var(--yel)">查詢中…</span>';
   await new Promise(function(r) { setTimeout(r, 1000); });
   el.innerHTML = '<div style="margin-bottom:5px;color:var(--t1)">查詢完成</div>';
-  el.innerHTML += '<a href="https://ppstrq.nat.gov.tw/pps/identity/Identity/init.do" target="_blank" style="font-size:13px;color:var(--blu);text-decoration:underline">前往動產擔保公示查詢系統 →</a>';
+  el.innerHTML += '<a href="https://ppstrq.nat.gov.tw/pps/pubQuery/PropertyQuery/propertyQuery.do" target="_blank" style="font-size:13px;color:var(--blu);text-decoration:underline">前往動產擔保公示查詢系統 →</a>';
   await sb.from('data_access_logs').insert({ lead_id: leadId, member_id: currentUser.id, access_type: 'asset_query' });
 }
 
@@ -2755,7 +2759,10 @@ function saveClientFormData() {
   var fields = ['c-name','c-idno','c-age','c-work','c-alert','c-addr','c-huji','c-amount','c-purpose',
     'c-salary','c-transfer','c-cc','c-cc-limit','c-cc-count','c-car-lic','c-bike-lic',
     'c-labor-type','c-labor-this-years','c-labor-years',
-    'c-property','c-collateral','c-bank-rej','c-fin-rej'];
+    'c-property','c-collateral','c-bank-rej','c-fin-rej',
+    'c-prop1-inst','c-prop1-amt','c-prop1-pay','c-prop1-penalty',
+    'c-prop2-inst','c-prop2-amt','c-prop2-pay','c-prop2-penalty',
+    'c-prop3-inst','c-prop3-amt','c-prop3-pay','c-prop3-penalty'];
   fields.forEach(function(id) {
     var el = document.getElementById(id);
     if (el) clientFormData[id] = el.value;
@@ -2770,7 +2777,10 @@ function restoreClientFormData(step) {
   var fields2 = ['c-name','c-idno','c-age','c-work','c-alert','c-addr','c-huji','c-amount','c-purpose'];
   var fields3 = ['c-salary','c-transfer','c-cc','c-cc-limit','c-cc-count','c-car-lic','c-bike-lic',
     'c-labor-type','c-labor-this-years','c-labor-years',
-    'c-property','c-collateral','c-bank-rej','c-fin-rej'];
+    'c-property','c-collateral','c-bank-rej','c-fin-rej',
+    'c-prop1-inst','c-prop1-amt','c-prop1-pay','c-prop1-penalty',
+    'c-prop2-inst','c-prop2-amt','c-prop2-pay','c-prop2-penalty',
+    'c-prop3-inst','c-prop3-amt','c-prop3-pay','c-prop3-penalty'];
   var fieldsToRestore = step === 2 ? fields2 : fields3;
   fieldsToRestore.forEach(function(id) {
     if (clientFormData[id] !== undefined) {
@@ -2792,6 +2802,16 @@ function restoreClientFormData(step) {
     var prop = document.getElementById('c-property');
     var propDetail = document.getElementById('c-prop-detail');
     if (prop && propDetail) propDetail.style.display = prop.value === 'true' ? 'block' : 'none';
+    // 還原二三胎顯示狀態
+    [2,3].forEach(function(n) {
+      var tier = document.getElementById('c-prop-tier-' + n);
+      var addBtn = document.getElementById('c-prop-add' + n);
+      var hasData = clientFormData['c-prop' + n + '-inst'] || clientFormData['c-prop' + n + '-amt'];
+      if (tier && hasData) {
+        tier.style.display = 'block';
+        if (addBtn) addBtn.style.display = 'none';
+      }
+    });
     // 還原勞保年資展開狀態
     var laborType = document.getElementById('c-labor-type');
     if (laborType) toggleLaborYears(laborType.value);
@@ -3100,7 +3120,7 @@ function clientStep3() {
   var propCard = document.createElement('div'); propCard.className = 'card';
   var propHeader = document.createElement('div');
   propHeader.style.cssText = 'display:flex;align-items:center;justify-content:space-between;margin-bottom:10px';
-  propHeader.innerHTML = '<div style="font-size:16px;font-weight:600">🏠 不動產貸款</div>';
+  propHeader.innerHTML = '<div style="font-size:16px;font-weight:600">🏠 名下不動產貸款</div>';
   var propToggle = document.createElement('select');
   propToggle.className = 'fi';
   propToggle.id = 'c-property';
@@ -3113,23 +3133,100 @@ function clientStep3() {
   propDetail.id = 'c-prop-detail';
   propDetail.style.display = 'none';
 
-  ['一胎','二胎（選填）','三胎（選填）'].forEach(function(label, i) {
-    var n = i + 1;
-    var sec = document.createElement('div');
-    sec.style.cssText = 'margin-bottom:12px;padding-bottom:12px;border-bottom:0.5px solid var(--bdr)';
-    sec.innerHTML =
-      '<div style="font-size:14px;font-weight:500;color:var(--t2);margin-bottom:6px">' + label + '</div>' +
-      '<div class="frow"><div class="flbl">貸款單位名稱</div><input class="fi" id="c-prop' + n + '-inst" placeholder="例：台灣銀行、地下金融"></div>' +
-      '<div class="frow2" style="margin-top:6px">' +
-        '<div class="frow"><div class="flbl">貸款金額（萬）</div><input class="fi" id="c-prop' + n + '-amt" type="number" placeholder="0" inputmode="numeric" step="0.1"></div>' +
-        '<div class="frow"><div class="flbl">月繳（萬）</div><input class="fi" id="c-prop' + n + '-pay" type="number" placeholder="0" inputmode="numeric" step="0.01"></div>' +
-      '</div>' +
-      '<div class="frow2" style="margin-top:6px">' +
-        '<div class="frow"><div class="flbl">已繳期數（期）</div><input class="fi" id="c-prop' + n + '-paid" type="number" placeholder="0" inputmode="numeric"></div>' +
-        '<div class="frow"><div class="flbl">違約金（萬）</div><input class="fi" id="c-prop' + n + '-penalty" type="number" placeholder="0" inputmode="numeric" step="0.1"></div>' +
-      '</div>';
-    propDetail.appendChild(sec);
-  });
+  // 說明文字
+  var propNote = document.createElement('div');
+  propNote.style.cssText = 'font-size:13px;color:var(--t2);margin-bottom:10px;line-height:1.6';
+  propNote.textContent = '請依實際情況填寫各胎貸款資料，二胎三胎選填。';
+  propDetail.appendChild(propNote);
+
+  // 建立各胎的函數
+  function buildPropTier(n, label, required) {
+    var wrap = document.createElement('div');
+    wrap.id = 'c-prop-tier-' + n;
+    wrap.style.cssText = 'background:var(--inp);border-radius:10px;padding:12px;margin-bottom:8px;border:0.5px solid var(--bdr)';
+
+    var tierHeader = document.createElement('div');
+    tierHeader.style.cssText = 'display:flex;align-items:center;justify-content:space-between;margin-bottom:10px';
+    var tierTitle = document.createElement('div');
+    tierTitle.style.cssText = 'font-size:15px;font-weight:600;color:' + (n===1?'var(--t0)':'var(--t2)');
+    tierTitle.textContent = label;
+    tierHeader.appendChild(tierTitle);
+
+    if (!required) {
+      var removeBtn = document.createElement('button');
+      removeBtn.style.cssText = 'font-size:12px;padding:2px 8px;border-radius:5px;border:0.5px solid rgba(192,64,48,.3);background:transparent;color:var(--red);cursor:pointer;font-family:var(--sans)';
+      removeBtn.textContent = '移除';
+      removeBtn.onclick = (function(tierWrap, tierN) {
+        return function() {
+          tierWrap.style.display = 'none';
+          // 清空欄位
+          ['inst','amt','pay','penalty'].forEach(function(f) {
+            var el = document.getElementById('c-prop' + tierN + '-' + f);
+            if (el) el.value = '';
+          });
+        };
+      })(wrap, n);
+      tierHeader.appendChild(removeBtn);
+    }
+    wrap.appendChild(tierHeader);
+
+    // 貸款單位名稱（整行）
+    var r0 = document.createElement('div'); r0.className = 'frow'; r0.style.marginBottom = '8px';
+    r0.innerHTML = '<div class="flbl">貸款單位名稱</div><input class="fi" id="c-prop' + n + '-inst" placeholder="' + (n===1?'例：台灣銀行、國泰世華':n===2?'例：地下金融、二胎公司':'例：民間借貸') + '">';
+    wrap.appendChild(r0);
+
+    // 貸款金額 + 月繳
+    var r1 = document.createElement('div'); r1.className = 'frow2'; r1.style.marginBottom = '8px';
+    r1.innerHTML =
+      '<div class="frow"><div class="flbl">貸款金額（萬）</div><input class="fi" id="c-prop' + n + '-amt" type="number" placeholder="0" inputmode="numeric" step="0.1"></div>' +
+      '<div class="frow"><div class="flbl">月繳款（萬）</div><input class="fi" id="c-prop' + n + '-pay" type="number" placeholder="0" inputmode="numeric" step="0.01"></div>';
+    wrap.appendChild(r1);
+
+    // 解約金
+    var r2 = document.createElement('div'); r2.className = 'frow';
+    r2.innerHTML = '<div class="flbl">解約金（違約金，萬）</div><input class="fi" id="c-prop' + n + '-penalty" type="number" placeholder="0" inputmode="numeric" step="0.1">';
+    wrap.appendChild(r2);
+
+    return wrap;
+  }
+
+  // 預設只顯示一胎
+  var tier1 = buildPropTier(1, '🔑 一胎貸款', true);
+  var tier2 = buildPropTier(2, '🔑 二胎貸款（選填）', false);
+  var tier3 = buildPropTier(3, '🔑 三胎貸款（選填）', false);
+  tier2.style.display = 'none';
+  tier3.style.display = 'none';
+
+  propDetail.appendChild(tier1);
+  propDetail.appendChild(tier2);
+  propDetail.appendChild(tier3);
+
+  // 新增胎次按鈕列
+  var addTierBtns = document.createElement('div');
+  addTierBtns.style.cssText = 'display:flex;gap:8px;margin-top:4px;flex-wrap:wrap';
+
+  var add2Btn = document.createElement('button');
+  add2Btn.className = 'btn-sm';
+  add2Btn.id = 'c-prop-add2';
+  add2Btn.textContent = '+ 新增二胎';
+  add2Btn.onclick = function() {
+    tier2.style.display = 'block';
+    add2Btn.style.display = 'none';
+  };
+
+  var add3Btn = document.createElement('button');
+  add3Btn.className = 'btn-sm';
+  add3Btn.id = 'c-prop-add3';
+  add3Btn.textContent = '+ 新增三胎';
+  add3Btn.onclick = function() {
+    tier3.style.display = 'block';
+    add3Btn.style.display = 'none';
+  };
+
+  addTierBtns.appendChild(add2Btn);
+  addTierBtns.appendChild(add3Btn);
+  propDetail.appendChild(addTierBtns);
+
   propCard.appendChild(propDetail);
   el.appendChild(propCard);
 
@@ -3797,22 +3894,47 @@ function logAccess(leadId, type) {
   if (currentUser) sb.from("data_access_logs").insert({ lead_id: leadId, member_id: currentUser.id, access_type: type + "_query" });
 }
 
-// ── 動產擔保查詢（帶入姓名開啟）──
+// 開啟網頁並自動複製文字到剪貼簿
+function openAndCopy(url, text, btnId) {
+  // 先複製
+  navigator.clipboard.writeText(text).then(function() {
+    var btn = document.getElementById(btnId);
+    if (btn) {
+      var orig = btn.innerHTML;
+      btn.innerHTML = '✓ 已複製「' + text + '」，請貼到網頁';
+      btn.style.background = 'var(--grn)';
+      btn.style.color = '#FFF';
+      btn.style.borderColor = 'var(--grn)';
+      setTimeout(function() {
+        if (btn) { btn.innerHTML = orig; btn.style.background = ''; btn.style.color = ''; btn.style.borderColor = ''; }
+      }, 4000);
+    }
+  }).catch(function() {
+    // 複製失敗也沒關係，還是開啟網頁
+  });
+  // 開啟網頁
+  window.open(url, '_blank');
+}
+
+// ── 動產擔保查詢 ──
 async function queryAsset(leadId) {
   var lead = leads.find(function(l) { return l.id === leadId; });
   var el = document.getElementById("asset-result-" + leadId);
   if (!el || !lead) return;
   var name = lead.name || "";
   logAccess(leadId, "asset");
-  el.innerHTML = "<div style='background:var(--inp);border-radius:8px;padding:10px 12px;margin-bottom:6px'>" +
-    "<div style='font-size:14px;font-weight:500;color:var(--t1);margin-bottom:6px'>動產擔保查詢說明</div>" +
-    "<div style='font-size:13px;color:var(--t2);line-height:1.7;margin-bottom:8px'>" +
-    "① 點下方連結進入法務部系統<br>" +
-    "② 在「設定人姓名」欄位輸入：<strong style='color:var(--t0)'>" + name + "</strong><br>" +
-    "③ 查詢客戶名下汽機車動產擔保登記</div>" +
-    "<a href='https://onlineadmin.doj.gov.tw/AOAPS/A2/A2.aspx' target='_blank' " +
-    "style='display:inline-block;padding:8px 16px;background:var(--grn);color:#FFF;border-radius:7px;font-size:14px;text-decoration:none'>前往法務部動產擔保查詢 →</a></div>" +
-    "<div style='font-size:12px;color:var(--t3)'>依個資法第19條第1項第5款（客戶已同意），查詢公開登記資料。</div>";
+  var btnId = "asset-btn-" + leadId;
+  el.innerHTML =
+    "<div style='background:var(--inp);border-radius:8px;padding:10px 12px;margin-top:8px'>" +
+    "<div style='font-size:13px;color:var(--t2);line-height:1.8;margin-bottom:8px'>" +
+    "① 點下方按鈕，自動複製姓名並開啟查詢頁面<br>" +
+    "② 在「設定人姓名」欄位按 <strong style='color:var(--t0)'>Ctrl+V</strong>（手機長按貼上）<br>" +
+    "③ 按查詢即可看到名下動產擔保記錄</div>" +
+    "<button id='" + btnId + "' onclick=\"openAndCopy('https://ppstrq.nat.gov.tw/pps/pubQuery/PropertyQuery/propertyQuery.do','" + name.replace(/'/g,"\\'") + "','" + btnId + "')\" " +
+    "style='padding:8px 16px;background:var(--grn);color:#FFF;border:none;border-radius:7px;font-size:14px;cursor:pointer;font-family:var(--sans);transition:all .2s'>" +
+    "複製「" + name + "」並開啟查詢 →</button>" +
+    "<div style='font-size:12px;color:var(--t3);margin-top:6px'>依個資法第19條第1項第5款，查詢公開登記資料。</div>" +
+    "</div>";
 }
 
 // ── 判決書查詢（爬司法院公開資料）──
