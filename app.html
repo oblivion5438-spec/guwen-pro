@@ -437,19 +437,49 @@ let termsAgreed = true;
 
 // 評分規則（可自訂）
 let scoreRules = {
-  bankAlertBlock: true, bankTransferBonus: 15,
+  // 銀行信貸
+  bankAlertBlock: true,
+  bankTransferBonus: 15,
   bankCC1y: 18, bankCC6m: 12, bankCC3m: 8,
-  // 銀行婉拒次數（3個月內）：1次扣少、2次扣中、3次扣重、4次封鎖
   bankRej1: -8, bankRej2: -18, bankRej3: -30, bankRej4Block: true,
   bankRejectLt1m: -10, bankReject1_3m: -5, bankReject3_6m: 0,
-  // 融資端婉拒次數
-  carLicBonus: 20, bikeLicBonus: 15,
+  // 信貸剛申辦6個月內
+  bankNewBlock: false,       // true=封鎖, false=扣分
+  bankNewPenalty: -20,       // 封鎖為false時扣幾分
+
+  // 汽車貸款
+  carLicBonus: 20,
   finRej1: -10, finRej2: -25, finRejOver2: -40,
   finRejectLt1m: -10, finReject1_3m: -5, finReject3_6m: 0,
-  // 遲繳扣分
-  latePay7: -5, latePay14: -12, latePay21: -20, latePay30: -35, latePayOver30: -50,
-  // 當鋪：沒借=0，有借有擔=扣借貸分，有借無擔=兩項都扣
-  pawnHasBorrow: -15, pawnNoCollateral: -20,
+  // 未滿20歲
+  carUnder20Block: false,    // true=無法申辦, false=建議補保人, 'penalty'=扣分
+  carUnder20Penalty: -25,    // 模式為penalty時扣幾分
+  // 目前有汽車貸款
+  carHasLoanLt3m: -30,       // 3個月內扣分（或設為-999=無法申辦）
+  carHasLoanLt6m: -15,       // 3~6個月內扣分
+  carHasLoanBlock3m: false,  // true=3個月內無法申辦
+  carHasLoanBlock6m: false,  // true=6個月內無法申辦
+  carHasLoanWaitMonths: 3,   // 需等幾個月後才可申辦（行事曆提醒用）
+
+  // 機車貸款
+  bikeLicBonus: 15,
+
+  // 融資遲繳（套用到所有融資貸款）
+  latePayLt7: -5,            // 7天以內
+  latePay7_14: -12,          // 7~14天
+  latePay14_30: -25,         // 14~30天
+  latePayOver30: -50,        // 1個月以上
+
+  // 當鋪借款（改為依抵押品殘值/負債比判斷）
+  pawnHasBorrow: -15,
+  pawnNoCollateral: -20,
+  // 新增當鋪相關
+  pawnDebtRatioWarn: 70,     // 負債比超過此%警告
+  pawnDebtRatioBlock: 90,    // 負債比超過此%封鎖
+  pawnHasVehicle: 10,        // 名下有汽機車加分
+  pawnSelfOwned: 8,          // 自住加分
+  pawnRenting: -5,           // 租屋扣分
+
   // 可貸倍數
   salaryMultiplier: 22,
   scoreGuarantorThreshold: 60,
@@ -662,43 +692,86 @@ function calcScores(lead) {
   var finRejCount = parseInt(lead.fin_reject_count) || 0;
   var bankRej = lead.bank_recent_reject || 'none';
   var finRej = lead.finance_recent_reject || 'none';
+  var age = parseInt(lead.age) || 0;
+  var hasCarLoan = lead.has_car_loan || false;
+  var carLoanAge = lead.car_loan_age || 'none'; // 'lt3m','3-6m','6m+'
+  var bankNewCredit = lead.bank_new_credit || false; // 信貸剛申辦6個月內
+  var latePayDays = parseInt(lead.late_pay_days) || 0; // 最長遲繳天數
+  var housingStatus = lead.housing_status || 'none'; // 'self','rent','family','other'
+  var hasVehicle = lead.has_car_license || lead.has_bike_license;
+  var debtRatio = lead.debt_ratio || 0; // 負債比%
   var R = scoreRules;
 
   // ── 銀行信貸 ──
   var bank = 0;
+  var bankBlocked = false;
   if (hasAlert && R.bankAlertBlock) {
-    bank = 0;
+    bankBlocked = true;
   } else if (bankRejCount >= 4 && R.bankRej4Block) {
-    bank = 0; // 4次以上封鎖
+    bankBlocked = true;
+  } else if (bankNewCredit && R.bankNewBlock) {
+    bankBlocked = true;
   } else {
     bank = 40;
     if (hasTransfer) bank += R.bankTransferBonus;
     if (ccAge === '1y+') bank += R.bankCC1y;
     else if (ccAge === '6m+') bank += R.bankCC6m;
     else if (ccAge === '3m+') bank += R.bankCC3m;
-    // 婉拒次數（越多扣越重）
     if (bankRejCount === 1) bank += R.bankRej1;
     else if (bankRejCount === 2) bank += R.bankRej2;
     else if (bankRejCount === 3) bank += R.bankRej3;
-    // 距今時間
     if (bankRej === '<1m') bank += R.bankRejectLt1m;
     else if (bankRej === '1-3m') bank += R.bankReject1_3m;
     else if (bankRej === 'none') bank += 12;
+    // 信貸剛申辦6個月內扣分
+    if (bankNewCredit && !R.bankNewBlock) bank += R.bankNewPenalty;
+    // 遲繳
+    if (latePayDays > 30) bank += R.latePayOver30;
+    else if (latePayDays > 14) bank += R.latePay14_30;
+    else if (latePayDays > 7) bank += R.latePay7_14;
+    else if (latePayDays > 0) bank += R.latePayLt7;
     bank = Math.min(95, Math.max(0, bank));
   }
+  if (bankBlocked) bank = 0;
 
   // ── 汽車貸款 ──
   var car = 0;
+  var carBlocked = false;
+  var carWaitMonths = 0;
   if (salary > 0) {
-    if (hasCarLic) car += R.carLicBonus;
-    car += salary >= 50000 ? 35 : salary >= 35000 ? 25 : salary >= 25000 ? 15 : 5;
-    if (finRejCount === 1) car += R.finRej1;
-    else if (finRejCount === 2) car += R.finRej2;
-    else if (finRejCount > 2) car += R.finRejOver2;
-    if (finRej === '<1m') car += R.finRejectLt1m;
-    else if (finRej === 'none') car += 15;
-    car = Math.min(92, Math.max(0, car));
+    // 未滿20歲
+    if (age > 0 && age < 20) {
+      if (R.carUnder20Block === true) { carBlocked = true; }
+      else if (R.carUnder20Block === 'penalty') { car += R.carUnder20Penalty; }
+      // false = 建議補保人（不封鎖，在顯示時標注）
+    }
+    // 目前有汽車貸款
+    if (!carBlocked && hasCarLoan) {
+      if (carLoanAge === 'lt3m') {
+        if (R.carHasLoanBlock3m) { carBlocked = true; carWaitMonths = R.carHasLoanWaitMonths; }
+        else car += R.carHasLoanLt3m;
+      } else if (carLoanAge === '3-6m') {
+        if (R.carHasLoanBlock6m) { carBlocked = true; carWaitMonths = R.carHasLoanWaitMonths; }
+        else car += R.carHasLoanLt6m;
+      }
+    }
+    if (!carBlocked) {
+      if (hasCarLic) car += R.carLicBonus;
+      car += salary >= 50000 ? 35 : salary >= 35000 ? 25 : salary >= 25000 ? 15 : 5;
+      if (finRejCount === 1) car += R.finRej1;
+      else if (finRejCount === 2) car += R.finRej2;
+      else if (finRejCount > 2) car += R.finRejOver2;
+      if (finRej === '<1m') car += R.finRejectLt1m;
+      else if (finRej === 'none') car += 15;
+      // 遲繳
+      if (latePayDays > 30) car += R.latePayOver30;
+      else if (latePayDays > 14) car += R.latePay14_30;
+      else if (latePayDays > 7) car += R.latePay7_14;
+      else if (latePayDays > 0) car += R.latePayLt7;
+      car = Math.min(92, Math.max(0, car));
+    }
   }
+  if (carBlocked) car = 0;
 
   // ── 機車貸款 ──
   var bike = 0;
@@ -709,6 +782,11 @@ function calcScores(lead) {
     else if (finRejCount === 1) bike += R.finRej1;
     if (finRej === '<1m') bike += R.finRejectLt1m;
     else if (finRej === 'none') bike += 15;
+    // 遲繳
+    if (latePayDays > 30) bike += R.latePayOver30;
+    else if (latePayDays > 14) bike += R.latePay14_30;
+    else if (latePayDays > 7) bike += R.latePay7_14;
+    else if (latePayDays > 0) bike += R.latePayLt7;
     bike = Math.min(95, Math.max(0, bike));
   }
 
@@ -718,21 +796,34 @@ function calcScores(lead) {
     phone = 45 + (salary >= 40000 ? 20 : salary >= 30000 ? 12 : 5);
     if (finRejCount >= 2) phone += R.finRej2;
     if (finRej === '<1m') phone += R.finRejectLt1m;
+    // 遲繳
+    if (latePayDays > 30) phone += R.latePayOver30;
+    else if (latePayDays > 14) phone += R.latePay14_30;
+    else if (latePayDays > 7) phone += R.latePay7_14;
+    else if (latePayDays > 0) phone += R.latePayLt7;
     phone = Math.min(88, Math.max(0, phone));
   }
 
-  // ── 當鋪借貸：沒借=0不扣，有借有擔=扣借貸分，有借無擔=兩項都扣 ──
+  // ── 當鋪借貸 ──
   var pawn = 0;
   var hasPawnBorrow = lead.has_pawn_borrow;
   if (hasPawnBorrow) {
-    pawn = 50 + R.pawnHasBorrow;
-    if (!lead.has_collateral) pawn += R.pawnNoCollateral;
-    pawn = Math.max(0, pawn);
+    // 負債比封鎖
+    if (debtRatio >= R.pawnDebtRatioBlock) {
+      pawn = 0;
+    } else {
+      pawn = 50 + R.pawnHasBorrow;
+      if (!lead.has_collateral) pawn += R.pawnNoCollateral;
+      // 負債比警告扣分
+      if (debtRatio >= R.pawnDebtRatioWarn) pawn -= 15;
+      // 名下有汽機車
+      if (hasVehicle) pawn += R.pawnHasVehicle;
+      // 居住狀況
+      if (housingStatus === 'self') pawn += R.pawnSelfOwned;
+      else if (housingStatus === 'rent') pawn += R.pawnRenting;
+      pawn = Math.max(0, Math.min(90, pawn));
+    }
   }
-
-  // ── 遲繳警告（任一貸款有遲繳超過1個月→呆帳警告）──
-  var lateWarning = false;
-  if (lead.has_overdue_over1m) lateWarning = true;
 
   // ── 不動產 ──
   var propRatio = null, propStatus = null;
@@ -743,11 +834,18 @@ function calcScores(lead) {
   }
 
   var noSalary = (salary <= 0);
-  var bankBlocked = (bank === 0 && ((hasAlert && R.bankAlertBlock) || (bankRejCount >= 4 && R.bankRej4Block)));
   var bankNoData = (bank === 0 && !bankBlocked && noSalary);
   var noPawn = !lead.has_pawn_borrow;
+  var carUnder20NeedGuarantor = (age > 0 && age < 20 && R.carUnder20Block === false && !carBlocked);
 
-  return { bank:bank, car:car, bike:bike, phone:phone, pawn:pawn, propRatio:propRatio, propStatus:propStatus, maxLoan:maxLoan, lateWarning:lateWarning, bankRejBlock: (bankRejCount>=4 && R.bankRej4Block), bankBlocked:bankBlocked, bankNoData:bankNoData, noSalary:noSalary, noPawn:noPawn };
+  return {
+    bank, car, bike, phone, pawn,
+    propRatio, propStatus, maxLoan,
+    bankBlocked, bankNoData, noSalary, noPawn,
+    carBlocked, carWaitMonths, carUnder20NeedGuarantor,
+    bankRejBlock: (bankRejCount >= 4 && R.bankRej4Block),
+    lateWarning: latePayDays > 30
+  };
 }
 
 function scoreColor(s) {
@@ -1242,11 +1340,25 @@ function renderAddLead() {
   html += '<div class="frow"><div class="flbl">機車駕照</div><select class="fi" id="n-bike-lic"><option value="true">有</option><option value="false">無</option></select></div></div>';
   html += '<div class="frow2"><div class="frow"><div class="flbl">名下不動產</div><select class="fi" id="n-property" onchange="togglePropFields(this.value)"><option value="false">無</option><option value="true">有</option></select></div>';
   html += '<div class="frow"><div class="flbl">有無抵押品</div><select class="fi" id="n-collateral"><option value="false">無</option><option value="true">有實物抵押</option></select></div></div>';
+
+  // 居住狀況
+  html += '<div class="frow2"><div class="frow"><div class="flbl">居住狀況</div><select class="fi" id="n-housing"><option value="none">未填</option><option value="self">自有/自住</option><option value="rent">租屋</option><option value="family">家人住所</option><option value="other">其他</option></select></div>';
+  html += '<div class="frow"><div class="flbl">負債比（%）</div><input class="fi" id="n-debt-ratio" type="number" min="0" max="100" placeholder="0" inputmode="numeric"></div></div>';
   html += '</div>';
 
-  html += '<div class="form-section"><div class="fs-title">📋 未過件記錄</div>';
+  html += '<div class="form-section"><div class="fs-title">📋 未過件與貸款記錄</div>';
   html += '<div class="frow2"><div class="frow"><div class="flbl">銀行端未過件距今</div><select class="fi" id="n-bank-rej"><option value="none">無</option><option value="&lt;1m">未滿1個月</option><option value="1-3m">1–3個月</option><option value="3-6m">3–6個月</option></select></div>';
   html += '<div class="frow"><div class="flbl">融資端未過件距今</div><select class="fi" id="n-fin-rej"><option value="none">無</option><option value="&lt;1m">未滿1個月</option><option value="1-3m">1–3個月</option><option value="3-6m">3–6個月</option></select></div></div>';
+  // 信貸6個月內申辦
+  html += '<div class="frow2"><div class="frow"><div class="flbl">信貸6個月內申辦</div><select class="fi" id="n-bank-new"><option value="false">否</option><option value="true">是（6個月內剛申辦）</option></select></div>';
+  // 目前有汽車貸款
+  html += '<div class="frow"><div class="flbl">目前有汽車貸款</div><select class="fi" id="n-has-car-loan" onchange="toggleCarLoan(this.value)"><option value="false">無</option><option value="true">有</option></select></div></div>';
+  // 汽車貸款時間
+  html += '<div class="frow2" id="n-car-loan-age-row" style="display:none"><div class="frow"><div class="flbl">汽車貸款貸款時間</div><select class="fi" id="n-car-loan-age"><option value="lt3m">3個月內</option><option value="3-6m">3~6個月</option><option value="6m+">6個月以上</option></select></div>';
+  html += '<div class="frow"></div></div>';
+  // 最長遲繳天數
+  html += '<div class="frow2"><div class="frow"><div class="flbl">最長遲繳天數</div><select class="fi" id="n-late-pay"><option value="0">無遲繳</option><option value="3">7天以內</option><option value="10">7~14天</option><option value="20">14~30天</option><option value="35">1個月以上</option></select></div>';
+  html += '<div class="frow"></div></div>';
   html += '</div>';
 
   // 各類貸款（DOM 方式建立，避免引號衝突）
@@ -1431,6 +1543,13 @@ async function saveLead() {
     advisor_note: gv('n-note'), status: 'new',
     property_ratio: propRatio, property_valuation: hasProp ? propVal : null,
     property_loan1: p1 || null, property_loan2: p2 || null, property_loan3: p3 || null,
+    // 新增欄位
+    housing_status: gv('n-housing') || 'none',
+    debt_ratio: parseInt(gv('n-debt-ratio')) || 0,
+    bank_new_credit: gv('n-bank-new') === 'true',
+    has_car_loan: gv('n-has-car-loan') === 'true',
+    car_loan_age: gv('n-has-car-loan') === 'true' ? (gv('n-car-loan-age') || 'lt3m') : null,
+    late_pay_days: parseInt(gv('n-late-pay')) || 0,
   };
 
   var r = await sb.from('leads').insert(payload).select().single();
@@ -6090,6 +6209,10 @@ function togglePrivacy() {
 }
 
 // ── 學貸開關 ──
+function toggleCarLoan(val) {
+  var row = document.getElementById('n-car-loan-age-row');
+  if (row) row.style.display = val === 'true' ? 'flex' : 'none';
+}
 function toggleStudentLoan(val) {
   var el = document.getElementById("n-student-amt");
   if (el) { el.disabled = val !== "true"; el.style.opacity = val === "true" ? "1" : "0.5"; }
