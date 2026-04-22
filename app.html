@@ -1500,21 +1500,33 @@ function showLeadDetail(id) {
   }
   html += '</div>';  // 關閉 AI 評估 card
 
-  // 案件進度 — 獨立 card，自製下拉不受 overflow 影響
-  var statusList = ['new','invited','submitting','approved','closed','pending_guarantor','rejected','lost'];
-  html += '<div class="card">';
+  // 案件進度 — 固定8個按鈕，立即反應
+  var statusList = [
+    {v:'new',           l:'新名單',   c:'var(--t2)'},
+    {v:'invited',       l:'邀約',     c:'var(--blu)'},
+    {v:'submitting',    l:'送件中',   c:'var(--yel)'},
+    {v:'approved',      l:'核准',     c:'var(--grn)'},
+    {v:'closed',        l:'結案',     c:'var(--grn)'},
+    {v:'pending_guarantor', l:'待補保人', c:'var(--yel)'},
+    {v:'rejected',      l:'無法承作', c:'var(--red)'},
+    {v:'lost',          l:'失聯',     c:'var(--t3)'},
+  ];
+  html += '<div class="card" id="status-card-' + id + '">';
   html += '<div class="ct">案件進度</div>';
-  html += '<div style="position:relative" id="status-wrap-' + id + '">';
-  html += '<button onclick="toggleStatusMenu(\'' + id + '\')" style="width:100%;padding:12px 14px;background:var(--inp);border:0.5px solid var(--bdr2);border-radius:9px;color:var(--inpt);font-size:16px;font-family:var(--sans);text-align:left;cursor:pointer;display:flex;justify-content:space-between;align-items:center">';
-  html += '<span id="status-label-' + id + '">' + statusText(lead.status) + '</span>';
-  html += '<span style="font-size:12px;color:var(--t3)">▾</span>';
-  html += '</button>';
-  html += '<div id="status-menu-' + id + '" style="display:none;position:fixed;z-index:9999;background:var(--card);border:0.5px solid var(--bdr2);border-radius:10px;box-shadow:0 4px 20px rgba(0,0,0,.5);overflow:hidden;min-width:180px">';
+  html += '<div style="display:flex;flex-wrap:wrap;gap:6px">';
   statusList.forEach(function(s) {
-    var active = lead.status === s;
-    html += '<button onclick="selectStatus(\'' + id + '\',\'' + s + '\')" style="width:100%;padding:10px 16px;background:' + (active?'var(--al)':'transparent') + ';border:none;color:' + (active?'var(--acc)':'var(--t1)') + ';font-size:15px;font-family:var(--sans);text-align:left;cursor:pointer;display:block;font-weight:' + (active?'600':'400') + '">' + statusText(s) + '</button>';
+    var active = lead.status === s.v;
+    html += '<button id="sbtn-' + id + '-' + s.v + '" ';
+    html += 'onclick="selectStatus(\'' + id + '\',\'' + s.v + '\')" ';
+    html += 'style="padding:7px 13px;border-radius:20px;font-size:13px;font-family:var(--sans);cursor:pointer;transition:none;';
+    if (active) {
+      html += 'border:1.5px solid ' + s.c + ';background:' + s.c + ';color:#FFF;font-weight:600">';
+    } else {
+      html += 'border:0.5px solid var(--bdr2);background:transparent;color:var(--t2);font-weight:400">';
+    }
+    html += s.l + '</button>';
   });
-  html += '</div></div>';
+  html += '</div>';
 
   // 結案收入完整填寫區（選結案才顯示）
   var d = dealData[id] || {};
@@ -3674,10 +3686,29 @@ function toggleStatusMenu(id) {
 }
 
 function selectStatus(id, status) {
-  var menu  = document.getElementById('status-menu-' + id);
-  var label = document.getElementById('status-label-' + id);
-  if (menu)  menu.style.display = 'none';
-  if (label) label.textContent = statusText(status);
+  // 立即更新按鈕樣式
+  var statusColors = {new:'var(--t2)',invited:'var(--blu)',submitting:'var(--yel)',approved:'var(--grn)',closed:'var(--grn)',pending_guarantor:'var(--yel)',rejected:'var(--red)',lost:'var(--t3)'};
+  var statusList = ['new','invited','submitting','approved','closed','pending_guarantor','rejected','lost'];
+  statusList.forEach(function(s) {
+    var btn = document.getElementById('sbtn-' + id + '-' + s);
+    if (!btn) return;
+    if (s === status) {
+      var c = statusColors[s] || 'var(--acc)';
+      btn.style.border = '1.5px solid ' + c;
+      btn.style.background = c;
+      btn.style.color = '#FFF';
+      btn.style.fontWeight = '600';
+    } else {
+      btn.style.border = '0.5px solid var(--bdr2)';
+      btn.style.background = 'transparent';
+      btn.style.color = 'var(--t2)';
+      btn.style.fontWeight = '400';
+    }
+  });
+  // 結案收入顯示
+  var incomeDiv = document.getElementById('closed-income-' + id);
+  if (incomeDiv) incomeDiv.style.display = status === 'closed' ? 'block' : 'none';
+  // 背景儲存
   updateStatus(id, status);
 }
 
