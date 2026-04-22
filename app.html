@@ -467,7 +467,20 @@ let fixedExpenses = [
 let extraIncome = [];
 let extraExpenses = [];
 var dealCommissions = {}; // { lead_id: rate% }
-var dealData = {}; // { lead_id: { actualIncome, partnerName, partnerWork, partnerRate } }
+var dealData = {}; // { lead_id: { actualIncome, partners:[{name,work,rate}] } }
+
+function addPartner(leadId) {
+  if (!dealData[leadId]) dealData[leadId] = {};
+  if (!dealData[leadId].partners) dealData[leadId].partners = [];
+  dealData[leadId].partners.push({ name:'', work:'', rate:'' });
+  renderFinance();
+}
+function removePartner(leadId, idx) {
+  if (dealData[leadId] && dealData[leadId].partners) {
+    dealData[leadId].partners.splice(idx, 1);
+    renderFinance();
+  }
+}
 
 function showAddIncome() {
   var el = document.getElementById('add-income-form');
@@ -1423,16 +1436,92 @@ function showLeadDetail(id) {
     html += '<option value="' + s + '"' + (lead.status===s?' selected':'') + '>' + statusText(s) + '</option>';
   });
   html += '</select>';
-  // 結案收入欄位（已是結案狀態時直接顯示）
-  var closedAmount = lead.closed_amount || '';
-  html += '<div id="closed-income-' + id + '" style="display:' + (lead.status==='closed'?'block':'none') + ';margin-top:8px">';
-  html += '<div class="flbl" style="margin-bottom:5px">成交收入（元）</div>';
-  html += '<div style="display:flex;gap:6px">';
-  html += '<input class="fi" id="closed-amt-' + id + '" type="number" placeholder="例：15000" inputmode="numeric" value="' + closedAmount + '">';
-  html += '<button class="btn-grn" style="padding:0 14px;font-size:14px;white-space:nowrap" onclick="saveClosedAmount(\'' + id + '\')">儲存</button>';
+
+  // 結案收入完整填寫區（選結案才顯示）
+  var d = dealData[id] || {};
+  var actualIncome = d.actualIncome !== undefined ? d.actualIncome : (lead.closed_amount || '');
+  var partners = d.partners || [];
+  var totalPartnerRate = partners.reduce(function(ps,p){ return ps+(parseFloat(p.rate)||0); },0);
+  totalPartnerRate = Math.min(totalPartnerRate,100);
+  var myShare = actualIncome ? Math.round(actualIncome*(1-totalPartnerRate/100)) : '';
+
+  html += '<div id="closed-income-' + id + '" style="display:' + (lead.status==='closed'?'block':'none') + ';margin-top:10px">';
+  html += '<div style="background:var(--gl);border:0.5px solid rgba(45,138,78,.3);border-radius:10px;padding:12px 14px">';
+  html += '<div style="font-size:14px;font-weight:600;color:var(--grn);margin-bottom:10px">💰 結案收入明細</div>';
+
+  // ① 實際收入
+  html += '<div style="margin-bottom:10px">';
+  html += '<div class="flbl" style="margin-bottom:5px">① 實際成交收入（元）</div>';
+  html += '<input class="fi" id="closed-amt-' + id + '" type="number" inputmode="numeric" placeholder="例：15000" value="' + actualIncome + '" ';
+  html += 'oninput="dealData[\'' + id + '\']=dealData[\'' + id + '\']||{};dealData[\'' + id + '\'].actualIncome=parseInt(this.value)||0;refreshClosedBlock(\'' + id + '\')">';
   html += '</div>';
-  if (closedAmount) html += '<div style="font-size:13px;color:var(--grn);margin-top:4px">✓ 已記錄收入 $' + parseInt(closedAmount).toLocaleString() + '</div>';
+
+  // ② 合作人員
+  html += '<div style="margin-bottom:10px">';
+  html += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">';
+  html += '<div class="flbl">② 合作人員分潤</div>';
+  html += '<button onclick="addPartnerLead(\'' + id + '\')" style="font-size:12px;padding:3px 10px;background:transparent;border:0.5px solid var(--bdr2);border-radius:5px;color:var(--t1);cursor:pointer;font-family:var(--sans)">+ 新增</button>';
   html += '</div>';
+  html += '<div id="partners-list-' + id + '">';
+  if (partners.length === 0) {
+    html += '<div style="font-size:13px;color:var(--t3);padding:4px 0">無合作人員</div>';
+  } else {
+    partners.forEach(function(p, pi) {
+      var pAmt = actualIncome ? Math.round(actualIncome*(parseFloat(p.rate)||0)/100) : 0;
+      html += '<div style="background:var(--inp);border-radius:8px;padding:10px;margin-bottom:6px">';
+      html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">';
+      html += '<span style="font-size:13px;font-weight:500">合作人員 '+(pi+1)+'</span>';
+      html += '<div style="display:flex;align-items:center;gap:6px">';
+      if(pAmt) html += '<span style="font-size:13px;color:var(--yel)">$'+pAmt.toLocaleString()+'</span>';
+      html += '<button onclick="removePartnerLead(\'' + id + '\',' + pi + ')" style="font-size:12px;padding:2px 8px;border-radius:5px;border:0.5px solid rgba(192,64,48,.3);background:transparent;color:var(--red);cursor:pointer;font-family:var(--sans)">刪</button>';
+      html += '</div></div>';
+      // 姓名
+      if (typeof teamMembers !== 'undefined' && teamMembers.length > 1) {
+        html += '<select style="width:100%;padding:7px 10px;background:var(--bg2);border:0.5px solid var(--bdr2);border-radius:7px;color:var(--inpt);font-size:13px;font-family:var(--sans);margin-bottom:6px" ';
+        html += 'onchange="dealData[\'' + id + '\'].partners[' + pi + '].name=this.value">';
+        html += '<option value="">— 選擇合作人員 —</option>';
+        teamMembers.forEach(function(tm) {
+          if (tm.members && tm.member_id !== currentUser.id) {
+            var sel = (p.name===tm.members.name)?' selected':'';
+            html += '<option value="'+tm.members.name+'"'+sel+'>'+tm.members.name+'</option>';
+          }
+        });
+        html += '</select>';
+      } else {
+        html += '<input type="text" placeholder="姓名" value="'+(p.name||'')+'" ';
+        html += 'style="width:100%;padding:7px 10px;background:var(--bg2);border:0.5px solid var(--bdr2);border-radius:7px;color:var(--inpt);font-size:13px;font-family:var(--sans);margin-bottom:6px" ';
+        html += 'oninput="dealData[\'' + id + '\'].partners[' + pi + '].name=this.value">';
+      }
+      // 工作內容 + 比率
+      html += '<div style="display:grid;grid-template-columns:1fr auto;gap:6px">';
+      html += '<input type="text" placeholder="工作內容" value="'+(p.work||'')+'" ';
+      html += 'style="padding:7px 10px;background:var(--bg2);border:0.5px solid var(--bdr2);border-radius:7px;color:var(--inpt);font-size:13px;font-family:var(--sans)" ';
+      html += 'oninput="dealData[\'' + id + '\'].partners[' + pi + '].work=this.value">';
+      html += '<div style="display:flex;align-items:center;gap:4px">';
+      html += '<input type="number" min="0" max="100" placeholder="%" value="'+(p.rate||'')+'" ';
+      html += 'style="width:58px;padding:7px 6px;background:var(--bg2);border:0.5px solid var(--bdr2);border-radius:7px;color:var(--inpt);font-size:13px;font-family:var(--sans);text-align:center" ';
+      html += 'oninput="dealData[\'' + id + '\'].partners[' + pi + '].rate=this.value;refreshClosedBlock(\'' + id + '\')">';
+      html += '<span style="font-size:13px;color:var(--t2)">%</span></div>';
+      html += '</div></div>';
+    });
+  }
+  html += '</div></div>';
+
+  // ③ 結算
+  if (actualIncome) {
+    html += '<div style="border-top:0.5px solid rgba(45,138,78,.3);margin-top:8px;padding-top:8px">';
+    html += '<div style="display:flex;justify-content:space-between;margin-bottom:4px"><span style="font-size:14px;font-weight:600;color:var(--grn)">我的收入</span><span style="font-size:16px;font-weight:700;color:var(--grn)">$'+parseInt(myShare).toLocaleString()+'</span></div>';
+    partners.forEach(function(p,pi){
+      var pAmt2=Math.round(actualIncome*(parseFloat(p.rate)||0)/100);
+      html += '<div style="display:flex;justify-content:space-between;font-size:13px;color:var(--t2);margin-bottom:2px">';
+      html += '<span>'+(p.name||'合作人員'+(pi+1))+(p.work?' · '+p.work:'')+'（'+(p.rate||0)+'%）</span>';
+      html += '<span>$'+pAmt2.toLocaleString()+'</span></div>';
+    });
+  }
+
+  // 儲存按鈕
+  html += '<button class="btn-grn" style="width:100%;margin-top:10px" onclick="saveClosedIncome(\'' + id + '\')">儲存結案收入</button>';
+  html += '</div></div>';
   html += '</div></div>';
 
   html += '<div class="card"><div class="ct">顧問備註</div>';
@@ -1613,33 +1702,48 @@ async function updateStatus(id, status) {
   await sb.from('leads').update({ status: status }).eq('id', id);
   var lead = leads.find(function(l) { return l.id === id; });
   if (lead) lead.status = status;
-  // 選結案時顯示收入金額欄位
   var incomeDiv = document.getElementById('closed-income-' + id);
   if (incomeDiv) incomeDiv.style.display = status === 'closed' ? 'block' : 'none';
-  // 同步更新 dealCommissions 讓收支理財可以使用
-  if (status !== 'closed' && dealCommissions[id] !== undefined) {
-    delete dealCommissions[id];
+}
+
+function addPartnerLead(leadId) {
+  if (!dealData[leadId]) dealData[leadId] = {};
+  if (!dealData[leadId].partners) dealData[leadId].partners = [];
+  dealData[leadId].partners.push({ name:'', work:'', rate:'' });
+  showLeadDetail(leadId);
+}
+
+function removePartnerLead(leadId, idx) {
+  if (dealData[leadId] && dealData[leadId].partners) {
+    dealData[leadId].partners.splice(idx,1);
+    showLeadDetail(leadId);
   }
 }
 
-async function saveClosedAmount(id) {
-  var inp = document.getElementById('closed-amt-' + id);
-  var amount = inp ? parseInt(inp.value) || 0 : 0;
-  if (!amount) { alert('請填寫收入金額'); return; }
-  await sb.from('leads').update({ closed_amount: amount }).eq('id', id);
-  var lead = leads.find(function(l) { return l.id === id; });
-  if (lead) lead.closed_amount = amount;
-  // 同步到收支理財佣金
-  dealCommissions['_direct_' + id] = amount;
-  // 更新顯示
-  var hint = inp.parentElement.nextElementSibling;
-  if (hint) { hint.style.display = 'block'; hint.textContent = '✓ 已記錄收入 $' + amount.toLocaleString(); hint.style.color = 'var(--grn)'; }
-  else {
-    var d = document.createElement('div');
-    d.style.cssText = 'font-size:13px;color:var(--grn);margin-top:4px';
-    d.textContent = '✓ 已記錄收入 $' + amount.toLocaleString();
-    inp.parentElement.parentElement.appendChild(d);
+function refreshClosedBlock(leadId) {
+  // 輕量更新：只刷新結算數字，不重繪整頁
+  var d = dealData[leadId] || {};
+  var ai = d.actualIncome || 0;
+  var partners = d.partners || [];
+  var totalRate = Math.min(partners.reduce(function(s,p){return s+(parseFloat(p.rate)||0);},0), 100);
+  var myShare = ai ? Math.round(ai*(1-totalRate/100)) : 0;
+  // 更新我的收入顯示
+  var el = document.getElementById('my-share-' + leadId);
+  if (el && myShare) el.textContent = '$' + myShare.toLocaleString();
+}
+
+async function saveClosedIncome(leadId) {
+  var inp = document.getElementById('closed-amt-' + leadId);
+  var amount = inp ? parseInt(inp.value)||0 : 0;
+  var d = dealData[leadId] || {};
+  if (amount) {
+    await sb.from('leads').update({ closed_amount: amount }).eq('id', leadId);
+    var lead = leads.find(function(l){return l.id===leadId;});
+    if (lead) lead.closed_amount = amount;
+    if (!dealData[leadId]) dealData[leadId] = {};
+    dealData[leadId].actualIncome = amount;
   }
+  alert('✓ 已儲存結案收入');
 }
 
 async function saveNote(id) {
@@ -1939,14 +2043,15 @@ function renderFinance() {
     // 本月結案客戶
     var thisClosedLeads = thisClosed;
 
-    // 計算總佣金：用 dealData[id].actualIncome * (1 - 合作比率/100)
+    // 計算總佣金：實際收入 - 所有合作人員分潤
     var totalCommission = thisClosedLeads.reduce(function(s,l){
       var d = dealData[l.id] || {};
       var actualIncome = d.actualIncome || l.closed_amount || 0;
       if (!actualIncome) return s;
-      var partnerRate = parseFloat(d.partnerRate) || 0;
-      var myShare = Math.round(actualIncome * (1 - partnerRate/100));
-      return s + myShare;
+      var partners = d.partners || [];
+      var totalPartnerRate = partners.reduce(function(ps,p){ return ps + (parseFloat(p.rate)||0); }, 0);
+      totalPartnerRate = Math.min(totalPartnerRate, 100);
+      return s + Math.round(actualIncome * (1 - totalPartnerRate/100));
     }, 0);
     var totalExtraIncome = extraIncome.reduce(function(s,e){return s+e.amount;},0);
     var totalIncome = totalCommission + totalExtraIncome;
@@ -1968,92 +2073,119 @@ function renderFinance() {
     } else {
       thisClosedLeads.forEach(function(l) {
         var d = dealData[l.id] || {};
+        if (!dealData[l.id]) dealData[l.id] = {};
         var actualIncome = d.actualIncome !== undefined ? d.actualIncome : (l.closed_amount || '');
-        var partnerName  = d.partnerName  || '';
-        var partnerWork  = d.partnerWork  || '';
-        var partnerRate  = d.partnerRate  !== undefined ? d.partnerRate  : '';
-        var hasPartner   = partnerName || partnerRate;
-        var myShare = (actualIncome && partnerRate !== '') ? Math.round(actualIncome * (1 - parseFloat(partnerRate)/100)) : actualIncome;
+        var partners = d.partners || [];
+        var totalPartnerRate = partners.reduce(function(ps,p){ return ps + (parseFloat(p.rate)||0); }, 0);
+        totalPartnerRate = Math.min(totalPartnerRate, 100);
+        var totalPartnerAmt = actualIncome ? Math.round(actualIncome * totalPartnerRate / 100) : 0;
+        var myShare = actualIncome ? Math.round(actualIncome * (1 - totalPartnerRate/100)) : '';
         var addrShort = '';
         if (l.address) { var mm = l.address.match(/^(.{2,3}[市縣])/); if(mm) addrShort = mm[1]; }
-        var lid = l.id.replace(/-/g,'_');
 
-        content += '<div style="padding:12px 0;border-bottom:0.5px solid var(--bdr)">';
+        content += '<div style="padding:14px 0;border-bottom:0.5px solid var(--bdr)">';
 
-        // 客戶標題列
-        content += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">';
+        // 客戶標題
+        content += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">';
         content += '<div><div style="font-size:15px;font-weight:600">' + (l.name||'—') + (addrShort?' <span style="font-size:12px;color:var(--t2)">'+addrShort+'</span>':'') + '</div>';
         content += '<div style="font-size:12px;color:var(--t2);margin-top:1px">結案日期：' + new Date(l.created_at).toLocaleDateString('zh-TW') + '</div></div>';
-        content += '<div style="text-align:right"><div style="font-size:16px;font-weight:700;color:var(--grn)">$' + (myShare?parseInt(myShare).toLocaleString():'—') + '</div>';
+        content += '<div style="text-align:right"><div style="font-size:17px;font-weight:700;color:var(--grn)">$' + (myShare!==''?parseInt(myShare).toLocaleString():'—') + '</div>';
         content += '<div style="font-size:11px;color:var(--t3)">我的收入</div></div>';
         content += '</div>';
 
-        // ① 實際收入金額
-        content += '<div style="margin-bottom:8px">';
+        // ① 實際收入
+        content += '<div style="margin-bottom:10px">';
         content += '<div style="font-size:13px;font-weight:500;color:var(--t2);margin-bottom:4px">① 實際成交收入（元）</div>';
         content += '<input type="number" inputmode="numeric" placeholder="填入實際收到的金額" value="' + actualIncome + '" ';
         content += 'style="width:100%;padding:8px 10px;background:var(--inp);border:0.5px solid var(--bdr2);border-radius:7px;color:var(--inpt);font-size:14px;font-family:var(--sans)" ';
-        content += 'oninput="dealData[\'' + l.id + '\']=dealData[\'' + l.id + '\']||{};dealData[\'' + l.id + '\'].actualIncome=parseInt(this.value)||0;renderFinance()">';
+        content += 'oninput="dealData[\'' + l.id + '\'].actualIncome=parseInt(this.value)||0;renderFinance()">';
         content += '</div>';
 
-        // ② 合作人員（有團隊則下拉，否則文字輸入）
+        // ② 合作人員列表（多人）
         content += '<div style="margin-bottom:8px">';
-        content += '<div style="font-size:13px;font-weight:500;color:var(--t2);margin-bottom:4px">② 合作人員（選填）</div>';
-        // 團隊成員下拉（若有載入）
-        if (typeof teamMembers !== 'undefined' && teamMembers.length > 0) {
-          content += '<select style="width:100%;padding:8px 10px;background:var(--inp);border:0.5px solid var(--bdr2);border-radius:7px;color:var(--inpt);font-size:14px;font-family:var(--sans)" ';
-          content += 'onchange="dealData[\'' + l.id + '\']=dealData[\'' + l.id + '\']||{};dealData[\'' + l.id + '\'].partnerName=this.value;renderFinance()">';
-          content += '<option value="">— 無合作人員 —</option>';
-          teamMembers.forEach(function(tm) {
-            if (tm.members && tm.member_id !== currentUser.id) {
-              var sel = partnerName === tm.members.name ? ' selected' : '';
-              content += '<option value="' + tm.members.name + '"' + sel + '>' + tm.members.name + '</option>';
+        content += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">';
+        content += '<div style="font-size:13px;font-weight:500;color:var(--t2)">② 合作人員分潤</div>';
+        content += '<button onclick="addPartner(\'' + l.id + '\')" style="font-size:12px;padding:3px 10px;background:transparent;border:0.5px solid var(--bdr2);border-radius:5px;color:var(--t1);cursor:pointer;font-family:var(--sans)">+ 新增合作人員</button>';
+        content += '</div>';
+
+        if (partners.length === 0) {
+          content += '<div style="font-size:13px;color:var(--t3);padding:8px 0">無合作人員（全數歸我）</div>';
+        } else {
+          partners.forEach(function(p, pi) {
+            var pAmt = actualIncome ? Math.round(actualIncome * (parseFloat(p.rate)||0) / 100) : 0;
+            content += '<div style="background:var(--inp);border-radius:8px;padding:10px 12px;margin-bottom:6px">';
+
+            // 人員標題 + 刪除
+            content += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">';
+            content += '<div style="font-size:13px;font-weight:600;color:var(--t1)">合作人員 ' + (pi+1) + '</div>';
+            content += '<div style="display:flex;align-items:center;gap:8px">';
+            if (actualIncome && p.rate) {
+              content += '<span style="font-size:13px;color:var(--yel)">$' + pAmt.toLocaleString() + ' (' + p.rate + '%)</span>';
             }
+            content += '<button onclick="removePartner(\'' + l.id + '\',' + pi + ')" style="font-size:12px;padding:2px 8px;border-radius:5px;border:0.5px solid rgba(192,64,48,.3);background:transparent;color:var(--red);cursor:pointer;font-family:var(--sans)">刪除</button>';
+            content += '</div></div>';
+
+            // 姓名
+            var nameInput;
+            if (typeof teamMembers !== 'undefined' && teamMembers.length > 0) {
+              nameInput = '<select style="width:100%;padding:7px 10px;background:var(--bg2);border:0.5px solid var(--bdr2);border-radius:7px;color:var(--inpt);font-size:13px;font-family:var(--sans);margin-bottom:6px" ';
+              nameInput += 'onchange="dealData[\'' + l.id + '\'].partners[' + pi + '].name=this.value">';
+              nameInput += '<option value="">— 選擇合作人員 —</option>';
+              teamMembers.forEach(function(tm) {
+                if (tm.members && tm.member_id !== currentUser.id) {
+                  var sel = (p.name === tm.members.name) ? ' selected' : '';
+                  nameInput += '<option value="' + tm.members.name + '"' + sel + '>' + tm.members.name + '</option>';
+                }
+              });
+              nameInput += '</select>';
+            } else {
+              nameInput = '<input type="text" placeholder="姓名" value="' + (p.name||'') + '" ';
+              nameInput += 'style="width:100%;padding:7px 10px;background:var(--bg2);border:0.5px solid var(--bdr2);border-radius:7px;color:var(--inpt);font-size:13px;font-family:var(--sans);margin-bottom:6px" ';
+              nameInput += 'oninput="dealData[\'' + l.id + '\'].partners[' + pi + '].name=this.value">';
+            }
+            content += nameInput;
+
+            // 工作內容 + 比率 並排
+            content += '<div style="display:grid;grid-template-columns:1fr auto;gap:6px">';
+            content += '<input type="text" placeholder="工作內容（例：開發客戶）" value="' + (p.work||'') + '" ';
+            content += 'style="padding:7px 10px;background:var(--bg2);border:0.5px solid var(--bdr2);border-radius:7px;color:var(--inpt);font-size:13px;font-family:var(--sans)" ';
+            content += 'oninput="dealData[\'' + l.id + '\'].partners[' + pi + '].work=this.value">';
+            content += '<div style="display:flex;align-items:center;gap:4px">';
+            content += '<input type="number" step="1" min="0" max="100" placeholder="%" value="' + (p.rate||'') + '" ';
+            content += 'style="width:60px;padding:7px 8px;background:var(--bg2);border:0.5px solid var(--bdr2);border-radius:7px;color:var(--inpt);font-size:13px;font-family:var(--sans);text-align:center" ';
+            content += 'oninput="dealData[\'' + l.id + '\'].partners[' + pi + '].rate=this.value;renderFinance()">';
+            content += '<span style="font-size:13px;color:var(--t2)">%</span></div>';
+            content += '</div>';
+            content += '</div>';
           });
-          content += '</select>';
-        } else {
-          content += '<input type="text" placeholder="合作顧問姓名" value="' + partnerName + '" ';
-          content += 'style="width:100%;padding:8px 10px;background:var(--inp);border:0.5px solid var(--bdr2);border-radius:7px;color:var(--inpt);font-size:14px;font-family:var(--sans)" ';
-          content += 'oninput="dealData[\'' + l.id + '\']=dealData[\'' + l.id + '\']||{};dealData[\'' + l.id + '\'].partnerName=this.value">';
         }
         content += '</div>';
 
-        // ③ 工作內容
-        content += '<div style="margin-bottom:8px">';
-        content += '<div style="font-size:13px;font-weight:500;color:var(--t2);margin-bottom:4px">③ 合作工作內容（選填）</div>';
-        content += '<input type="text" placeholder="例：開發客戶、後續追蹤" value="' + partnerWork + '" ';
-        content += 'style="width:100%;padding:8px 10px;background:var(--inp);border:0.5px solid var(--bdr2);border-radius:7px;color:var(--inpt);font-size:14px;font-family:var(--sans)" ';
-        content += 'oninput="dealData[\'' + l.id + '\']=dealData[\'' + l.id + '\']||{};dealData[\'' + l.id + '\'].partnerWork=this.value">';
-        content += '</div>';
-
-        // ④ 分潤比率 + 自動計算
-        content += '<div style="background:var(--inp);border-radius:8px;padding:10px 12px">';
-        content += '<div style="font-size:13px;font-weight:500;color:var(--t2);margin-bottom:6px">④ 合作人員分潤比率</div>';
-        content += '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">';
-        content += '<div style="flex:1"><input type="number" step="1" min="0" max="100" placeholder="0" value="' + partnerRate + '" ';
-        content += 'style="width:100%;padding:7px 10px;background:var(--bg2);border:0.5px solid var(--bdr2);border-radius:7px;color:var(--inpt);font-size:14px;font-family:var(--sans)" ';
-        content += 'oninput="dealData[\'' + l.id + '\']=dealData[\'' + l.id + '\']||{};dealData[\'' + l.id + '\'].partnerRate=this.value;renderFinance()"></div>';
-        content += '<div style="font-size:14px;color:var(--t2)">%</div>';
-        content += '</div>';
-        if (actualIncome) {
-          var pShare = partnerRate !== '' ? Math.round(actualIncome * parseFloat(partnerRate)/100) : 0;
-          var mShare2 = actualIncome - pShare;
-          content += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">';
-          content += '<div style="background:var(--gl);border-radius:6px;padding:8px;text-align:center">';
-          content += '<div style="font-size:11px;color:var(--t2);margin-bottom:2px">我的收入</div>';
-          content += '<div style="font-size:16px;font-weight:700;color:var(--grn)">$' + mShare2.toLocaleString() + '</div>';
-          content += '<div style="font-size:11px;color:var(--t3)">' + (100-(parseFloat(partnerRate)||0)) + '%</div></div>';
-          content += '<div style="background:var(--inp);border-radius:6px;padding:8px;text-align:center">';
-          content += '<div style="font-size:11px;color:var(--t2);margin-bottom:2px">' + (partnerName||'合作人員') + '</div>';
-          content += '<div style="font-size:16px;font-weight:700;color:var(--t1)">$' + pShare.toLocaleString() + '</div>';
-          content += '<div style="font-size:11px;color:var(--t3)">' + (parseFloat(partnerRate)||0) + '%</div></div>';
+        // 分潤結算
+        if (actualIncome && partners.length > 0) {
+          content += '<div style="background:var(--inp);border-radius:8px;padding:10px 12px;margin-top:4px">';
+          content += '<div style="font-size:13px;font-weight:500;color:var(--t2);margin-bottom:8px">分潤結算</div>';
+          // 我的
+          content += '<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:0.5px solid var(--bdr)">';
+          content += '<span style="font-size:14px;color:var(--grn);font-weight:500">我的收入（' + (100-totalPartnerRate) + '%）</span>';
+          content += '<span style="font-size:15px;font-weight:700;color:var(--grn)">$' + parseInt(myShare).toLocaleString() + '</span></div>';
+          // 每位合作人員
+          partners.forEach(function(p, pi) {
+            var pAmt2 = Math.round(actualIncome * (parseFloat(p.rate)||0) / 100);
+            content += '<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:0.5px solid var(--bdr)">';
+            content += '<span style="font-size:13px;color:var(--t2)">' + (p.name||'合作人員'+(pi+1)) + (p.work?' · '+p.work:'') + '（' + (p.rate||0) + '%）</span>';
+            content += '<span style="font-size:14px;color:var(--t1)">$' + pAmt2.toLocaleString() + '</span></div>';
+          });
+          // 合計
+          content += '<div style="display:flex;justify-content:space-between;padding-top:6px;margin-top:2px">';
+          content += '<span style="font-size:13px;color:var(--t3)">合計分潤 ' + totalPartnerRate + '%</span>';
+          content += '<span style="font-size:13px;color:var(--t3)">$' + totalPartnerAmt.toLocaleString() + '</span></div>';
           content += '</div>';
-        } else {
-          content += '<div style="font-size:12px;color:var(--t3)">先填寫實際收入後顯示分潤計算</div>';
         }
-        content += '</div>';
-        content += '</div>';
+
+        content += '</div>'; // end lead row
       });
+
       content += '<div style="display:flex;justify-content:space-between;padding-top:10px;border-top:0.5px solid var(--bdr);margin-top:4px">';
       content += '<span style="font-size:14px;color:var(--t2)">案件收入小計（扣除分潤）</span>';
       content += '<span style="font-size:16px;font-weight:700;color:var(--grn)">$' + totalCommission.toLocaleString() + '</span>';
