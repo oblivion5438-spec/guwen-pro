@@ -1459,7 +1459,7 @@ function showLeadDetail(id) {
   html += '<div style="margin-bottom:10px">';
   html += '<div class="flbl" style="margin-bottom:5px">① 實際成交收入（元）</div>';
   html += '<input class="fi" id="closed-amt-' + id + '" type="number" inputmode="numeric" placeholder="例：20000" value="' + actualIncome + '" ';
-  html += 'oninput="dealData[\'' + id + '\'].actualIncome=parseInt(this.value)||0;showLeadDetail(\'' + id + '\')">';
+  html += 'oninput="if(!dealData[\'' + id + '\'])dealData[\'' + id + '\']={}; dealData[\'' + id + '\'].actualIncome=parseInt(this.value)||0" onchange="showLeadDetail(\'' + id + '\')">';
   html += '</div>';
 
   // ② 接案類型切換
@@ -1483,7 +1483,7 @@ function showLeadDetail(id) {
     html += '<span style="font-size:13px;color:var(--t2);flex:1">🏢 公司</span>';
     html += '<input type="number" min="0" max="100" placeholder="%" value="' + companyRate + '" ';
     html += 'style="width:58px;padding:6px 8px;background:var(--bg2);border:0.5px solid var(--bdr2);border-radius:7px;color:var(--inpt);font-size:14px;font-weight:600;font-family:var(--sans);text-align:center" ';
-    html += 'oninput="dealData[\'' + id + '\'].companyRate=this.value;showLeadDetail(\'' + id + '\')">';
+    html += 'oninput="dealData[\'' + id + '\'].companyRate=this.value" onchange="showLeadDetail(\'' + id + '\')">'; 
     html += '<span style="font-size:13px;color:var(--t2)">%</span>';
     if (cShare !== null) html += '<span style="font-size:13px;color:var(--t2);min-width:70px;text-align:right">$' + cShare.toLocaleString() + '</span>';
     html += '</div>';
@@ -1494,7 +1494,7 @@ function showLeadDetail(id) {
   html += '<span style="font-size:13px;font-weight:600;color:var(--grn);flex:1">👤 我</span>';
   html += '<input type="number" min="0" max="100" placeholder="%" value="' + myRate + '" ';
   html += 'style="width:58px;padding:6px 8px;background:var(--bg2);border:0.5px solid rgba(45,138,78,.5);border-radius:7px;color:var(--inpt);font-size:14px;font-weight:700;font-family:var(--sans);text-align:center" ';
-  html += 'oninput="dealData[\'' + id + '\'].myRate=this.value;showLeadDetail(\'' + id + '\')">';
+  html += 'oninput="dealData[\'' + id + '\'].myRate=this.value" onchange="showLeadDetail(\'' + id + '\')">'; 
   html += '<span style="font-size:13px;color:var(--grn)">%</span>';
   if (myShare !== '') html += '<span style="font-size:14px;font-weight:700;color:var(--grn);min-width:70px;text-align:right">$' + parseInt(myShare).toLocaleString() + '</span>';
   html += '</div>';
@@ -1523,7 +1523,7 @@ function showLeadDetail(id) {
     }
     html += '<input type="number" min="0" max="100" placeholder="%" value="'+(p.rate||'')+'" ';
     html += 'style="width:58px;padding:6px 8px;background:var(--bg2);border:0.5px solid var(--bdr2);border-radius:7px;color:var(--inpt);font-size:14px;font-weight:600;font-family:var(--sans);text-align:center" ';
-    html += 'oninput="dealData[\'' + id + '\'].partners[' + pi + '].rate=this.value;showLeadDetail(\'' + id + '\')">';
+    html += 'oninput="dealData[\'' + id + '\'].partners[' + pi + '].rate=this.value" onchange="showLeadDetail(\'' + id + '\')">'; 
     html += '<span style="font-size:13px;color:var(--t2)">%</span>';
     if (pAmt !== null && p.rate) html += '<span style="font-size:13px;color:var(--t1);min-width:70px;text-align:right">$'+pAmt.toLocaleString()+'</span>';
     html += '<button onclick="removePartnerLead(\'' + id + '\',' + pi + ')" style="font-size:12px;padding:3px 6px;border-radius:5px;border:0.5px solid rgba(192,64,48,.3);background:transparent;color:var(--red);cursor:pointer;font-family:var(--sans)">✕</button>';
@@ -2120,7 +2120,7 @@ function renderFinance() {
         content += '<div style="font-size:13px;font-weight:500;color:var(--t2);margin-bottom:4px">① 實際成交收入（元）</div>';
         content += '<input type="number" inputmode="numeric" placeholder="填入實際收到的金額" value="' + actualIncome + '" ';
         content += 'style="width:100%;padding:8px 10px;background:var(--inp);border:0.5px solid var(--bdr2);border-radius:7px;color:var(--inpt);font-size:14px;font-family:var(--sans)" ';
-        content += 'oninput="dealData[\'' + l.id + '\'].actualIncome=parseInt(this.value)||0;renderFinance()">';
+        content += 'oninput="if(!dealData[\'' + l.id + '\'])dealData[\'' + l.id + '\']={};dealData[\'' + l.id + '\'].actualIncome=parseInt(this.value)||0" onchange="renderFinance()">'; 
         content += '</div>';
 
         // ② 合作人員列表（多人）
@@ -2175,7 +2175,7 @@ function renderFinance() {
             content += '<div style="display:flex;align-items:center;gap:4px">';
             content += '<input type="number" step="1" min="0" max="100" placeholder="%" value="' + (p.rate||'') + '" ';
             content += 'style="width:60px;padding:7px 8px;background:var(--bg2);border:0.5px solid var(--bdr2);border-radius:7px;color:var(--inpt);font-size:13px;font-family:var(--sans);text-align:center" ';
-            content += 'oninput="dealData[\'' + l.id + '\'].partners[' + pi + '].rate=this.value;renderFinance()">';
+            content += 'oninput="dealData[\'' + l.id + '\'].partners[' + pi + '].rate=this.value" onchange="renderFinance()">'; 
             content += '<span style="font-size:13px;color:var(--t2)">%</span></div>';
             content += '</div>';
             content += '</div>';
