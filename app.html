@@ -1416,6 +1416,8 @@ function showLeadDetail(id) {
   html += '<div id="lead-edit-' + id + '" style="display:none">';
   html += '<div class="sl">個人識別</div>';
   html += '<div class="frow"><div class="flbl">姓名</div><input class="fi" id="ef-name-' + id + '" value="' + (lead.name||'') + '"></div>';
+  html += '<div class="frow" style="margin-top:6px"><div class="flbl">身分證字號</div><input class="fi" id="ef-idno-' + id + '" placeholder="A123456789" maxlength="10" style="letter-spacing:2px;font-family:monospace" value="' + (lead.id_number_hash||'') + '" oninput="validateIDField(this)"></div>';
+  html += '<div id="ef-idno-err-' + id + '" style="font-size:12px;color:var(--red);display:none;margin-bottom:4px">格式錯誤（英文+9位數字，共10碼）</div>';
   html += '<div class="frow" style="margin-top:6px"><div class="flbl">年齡</div><input class="fi" id="ef-age-' + id + '" type="number" value="' + (lead.age||'') + '"></div>';
   html += '<div class="frow" style="margin-top:6px"><div class="flbl">工作類型</div><select class="fi" id="ef-work-' + id + '"><option value="">選擇</option><option' + (lead.work_type==='受雇職員'?' selected':'') + '>受雇職員</option><option' + (lead.work_type==='自行業主'?' selected':'') + '>自行業主</option><option' + (lead.work_type==='自由業'?' selected':'') + '>自由業</option><option' + (lead.work_type==='其他'?' selected':'') + '>其他</option></select></div>';
   html += '<div class="frow" style="margin-top:6px"><div class="flbl">警示/協商</div><select class="fi" id="ef-alert-' + id + '"><option value="none"' + (lead.alert_status==='none'?' selected':'') + '>否</option><option value="alert"' + (lead.alert_status==='alert'?' selected':'') + '>警示戶</option><option value="negotiation"' + (lead.alert_status==='negotiation'?' selected':'') + '>協商中</option><option value="rehabilitation"' + (lead.alert_status==='rehabilitation'?' selected':'') + '>更生</option><option value="liquidation"' + (lead.alert_status==='liquidation'?' selected':'') + '>清算</option></select></div>';
@@ -1520,8 +1522,10 @@ async function saveLeadEdit(id) {
     var el = document.getElementById('ef-' + suffix + '-' + id);
     return el ? el.value : '';
   };
+  var idno = gv('idno').trim().toUpperCase();
   var payload = {
     name:               gv('name').trim() || null,
+    id_number_hash:     idno || null,
     age:                parseInt(gv('age')) || null,
     work_type:          gv('work') || null,
     alert_status:       gv('alert') || 'none',
