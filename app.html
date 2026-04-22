@@ -501,15 +501,13 @@ async function uploadDoc(event, leadId, type, aiPrompt) {
     if (upRes.error) throw upRes.error;
     var publicUrl = sb.storage.from('lead-documents').getPublicUrl(path).data.publicUrl;
 
-    // AI 讀圖
+    // AI 讀圖（透過 Vercel API 代理）
     var base64 = await fileToBase64(file);
     var mediaType = file.type || 'image/jpeg';
-    var aiRes = await fetch('https://api.anthropic.com/v1/messages', {
+    var aiRes = await fetch('/api/analyze-image', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        model: 'claude-sonnet-4-6',
-        max_tokens: 1000,
         messages: [{ role: 'user', content: [
           { type: 'image', source: { type: 'base64', media_type: mediaType, data: base64 } },
           { type: 'text', text: aiPrompt }
