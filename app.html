@@ -1389,21 +1389,50 @@ function showLeadDetail(id) {
   html += '<textarea class="fi" id="note-' + id + '" rows="3" style="resize:none;font-size:14px">' + (lead.advisor_note||'') + '</textarea>';
   html += '<button class="btn-grn" style="margin-top:6px;font-size:14px;padding:7px 14px" onclick="saveNote(\'' + id + '\')">儲存備註</button></div>';
 
-  html += '<div class="card"><div class="ct">基本資料</div>';
+  html += '<div class="card"><div class="ct">基本資料 <button class="btn-sm" id="edit-btn-' + id + '" onclick="toggleLeadEdit(\'' + id + '\')" style="font-size:12px;padding:4px 10px">✏️ 編輯</button></div>';
+
+  // 檢視模式
+  html += '<div id="lead-view-' + id + '">';
   html += '<div class="sl">個人識別</div>';
-  html += '<div class="ri"><span class="rl">姓名</span><span class="rv">' + lead.name + '</span></div>';
+  html += '<div class="ri"><span class="rl">姓名</span><span class="rv">' + (lead.name||'—') + '</span></div>';
+  if (lead.id_number_hash) html += '<div class="ri"><span class="rl">身分證</span><span class="rv" style="font-family:monospace">' + lead.id_number_hash.substring(0,3) + '******</span></div>';
   if (lead.age) html += '<div class="ri"><span class="rl">年齡</span><span class="rv">' + lead.age + '歲</span></div>';
   html += '<div class="ri"><span class="rl">工作類型</span><span class="rv">' + (lead.work_type||'未填') + '</span></div>';
   html += '<div class="ri"><span class="rl">警示協商</span><span class="rv"><span class="badge b-' + (lead.alert_status==='none'?'grn':'red') + '">' + (lead.alert_status==='none'?'否':lead.alert_status) + '</span></span></div>';
   if (lead.address) html += '<div class="ri"><span class="rl">居住地址</span><span class="rv" style="font-size:13px">' + lead.address + '</span></div>';
+  if (lead.huji_address) html += '<div class="ri"><span class="rl">戶籍地址</span><span class="rv" style="font-size:13px">' + lead.huji_address + '</span></div>';
   html += '<div class="sl">收入財務</div>';
   html += '<div class="ri"><span class="rl">月薪</span><span class="rv">' + (lead.monthly_salary ? '$'+lead.monthly_salary.toLocaleString() : '未填') + '</span></div>';
   html += '<div class="ri"><span class="rl">薪轉</span><span class="rv">' + (lead.has_salary_transfer?'有':'無') + '</span></div>';
+  if (lead.credit_card_limit) html += '<div class="ri"><span class="rl">信用卡額度</span><span class="rv">$' + lead.credit_card_limit.toLocaleString() + '</span></div>';
   html += '<div class="ri"><span class="rl">汽車駕照</span><span class="rv">' + (lead.has_car_license?'有':'無') + '</span></div>';
   html += '<div class="ri"><span class="rl">機車駕照</span><span class="rv">' + (lead.has_bike_license?'有':'無') + '</span></div>';
   html += '<div class="sl">需求</div>';
   html += '<div class="ri"><span class="rl">需求資金</span><span class="rv">' + (lead.required_amount ? '$'+lead.required_amount.toLocaleString() : '未填') + '</span></div>';
   html += '<div class="ri"><span class="rl">資金用途</span><span class="rv">' + (lead.fund_purpose||'未填') + '</span></div>';
+  html += '</div>';
+
+  // 編輯模式（預設隱藏）
+  html += '<div id="lead-edit-' + id + '" style="display:none">';
+  html += '<div class="sl">個人識別</div>';
+  html += '<div class="frow"><div class="flbl">姓名</div><input class="fi" id="ef-name-' + id + '" value="' + (lead.name||'') + '"></div>';
+  html += '<div class="frow" style="margin-top:6px"><div class="flbl">年齡</div><input class="fi" id="ef-age-' + id + '" type="number" value="' + (lead.age||'') + '"></div>';
+  html += '<div class="frow" style="margin-top:6px"><div class="flbl">工作類型</div><select class="fi" id="ef-work-' + id + '"><option value="">選擇</option><option' + (lead.work_type==='受雇職員'?' selected':'') + '>受雇職員</option><option' + (lead.work_type==='自行業主'?' selected':'') + '>自行業主</option><option' + (lead.work_type==='自由業'?' selected':'') + '>自由業</option><option' + (lead.work_type==='其他'?' selected':'') + '>其他</option></select></div>';
+  html += '<div class="frow" style="margin-top:6px"><div class="flbl">警示/協商</div><select class="fi" id="ef-alert-' + id + '"><option value="none"' + (lead.alert_status==='none'?' selected':'') + '>否</option><option value="alert"' + (lead.alert_status==='alert'?' selected':'') + '>警示戶</option><option value="negotiation"' + (lead.alert_status==='negotiation'?' selected':'') + '>協商中</option><option value="rehabilitation"' + (lead.alert_status==='rehabilitation'?' selected':'') + '>更生</option><option value="liquidation"' + (lead.alert_status==='liquidation'?' selected':'') + '>清算</option></select></div>';
+  html += '<div class="frow" style="margin-top:6px"><div class="flbl">居住地址</div><input class="fi" id="ef-addr-' + id + '" value="' + (lead.address||'') + '" placeholder="完整地址"></div>';
+  html += '<div class="frow" style="margin-top:6px"><div class="flbl">戶籍地址</div><input class="fi" id="ef-huji-' + id + '" value="' + (lead.huji_address||'') + '" placeholder="不同戶籍才填"></div>';
+  html += '<div class="sl">收入財務</div>';
+  html += '<div class="frow2"><div class="frow"><div class="flbl">月薪（元）</div><input class="fi" id="ef-salary-' + id + '" type="number" value="' + (lead.monthly_salary||'') + '"></div>';
+  html += '<div class="frow"><div class="flbl">薪轉</div><select class="fi" id="ef-transfer-' + id + '"><option value="true"' + (lead.has_salary_transfer?' selected':'') + '>有</option><option value="false"' + (!lead.has_salary_transfer?' selected':'') + '>無</option></select></div></div>';
+  html += '<div class="frow2" style="margin-top:6px"><div class="frow"><div class="flbl">汽車駕照</div><select class="fi" id="ef-carlic-' + id + '"><option value="true"' + (lead.has_car_license?' selected':'') + '>有</option><option value="false"' + (!lead.has_car_license?' selected':'') + '>無</option></select></div>';
+  html += '<div class="frow"><div class="flbl">機車駕照</div><select class="fi" id="ef-bikeic-' + id + '"><option value="true"' + (lead.has_bike_license?' selected':'') + '>有</option><option value="false"' + (!lead.has_bike_license?' selected':'') + '>無</option></select></div></div>';
+  html += '<div class="sl">需求</div>';
+  html += '<div class="frow2"><div class="frow"><div class="flbl">需求資金（元）</div><input class="fi" id="ef-amount-' + id + '" type="number" value="' + (lead.required_amount||'') + '"></div>';
+  html += '<div class="frow"><div class="flbl">資金用途</div><select class="fi" id="ef-purpose-' + id + '"><option' + (lead.fund_purpose==='週轉'?' selected':'') + '>週轉</option><option' + (lead.fund_purpose==='整合負債'?' selected':'') + '>整合負債</option><option' + (lead.fund_purpose==='購屋'?' selected':'') + '>購屋</option><option' + (lead.fund_purpose==='購車'?' selected':'') + '>購車</option><option' + (lead.fund_purpose==='其他'?' selected':'') + '>其他</option></select></div></div>';
+  html += '<div style="display:flex;gap:8px;margin-top:12px">';
+  html += '<button class="btn-sm" onclick="toggleLeadEdit(\'' + id + '\')">取消</button>';
+  html += '<button class="btn-p" onclick="saveLeadEdit(\'' + id + '\')" style="flex:1">儲存變更</button>';
+  html += '</div></div>';
   html += '</div>';
 
   // 政府資料查閱
@@ -1473,6 +1502,47 @@ function showLeadDetail(id) {
   html += '<div style="font-size:14px;color:var(--t2)">' + new Date(lead.created_at).toLocaleString('zh-TW') + '</div></div>';
 
   el.innerHTML = html;
+}
+
+function toggleLeadEdit(id) {
+  var view = document.getElementById('lead-view-' + id);
+  var edit = document.getElementById('lead-edit-' + id);
+  var btn  = document.getElementById('edit-btn-' + id);
+  if (!view || !edit) return;
+  var isEditing = edit.style.display !== 'none';
+  view.style.display = isEditing ? 'block' : 'none';
+  edit.style.display = isEditing ? 'none'  : 'block';
+  if (btn) btn.textContent = isEditing ? '✏️ 編輯' : '✕ 取消';
+}
+
+async function saveLeadEdit(id) {
+  var gv = function(suffix) {
+    var el = document.getElementById('ef-' + suffix + '-' + id);
+    return el ? el.value : '';
+  };
+  var payload = {
+    name:               gv('name').trim() || null,
+    age:                parseInt(gv('age')) || null,
+    work_type:          gv('work') || null,
+    alert_status:       gv('alert') || 'none',
+    address:            gv('addr') || null,
+    huji_address:       gv('huji') || null,
+    monthly_salary:     parseInt(gv('salary')) || null,
+    has_salary_transfer:gv('transfer') === 'true',
+    has_car_license:    gv('carlic') === 'true',
+    has_bike_license:   gv('bikeic') === 'true',
+    required_amount:    parseInt(gv('amount')) || null,
+    fund_purpose:       gv('purpose') || null,
+  };
+  showLoading('儲存中…');
+  var r = await sb.from('leads').update(payload).eq('id', id);
+  hideLoading();
+  if (r.error) { alert('儲存失敗：' + r.error.message); return; }
+  // 更新本地資料
+  var lead = leads.find(function(l){ return l.id === id; });
+  if (lead) Object.assign(lead, payload);
+  // 重新整理詳情頁
+  showLeadDetail(id);
 }
 
 async function updateStatus(id, status) {
