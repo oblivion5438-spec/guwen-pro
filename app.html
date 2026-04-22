@@ -1497,7 +1497,7 @@ function showLeadDetail(id) {
     html += '<div class="score-prop ' + spCls + '" style="margin-top:8px"><div style="font-size:14px;font-weight:500;color:var(--' + spColor + ')">🏠 不動產評估：' + spText + '（' + (scores.propRatio ? scores.propRatio.toFixed(1) : '0') + '%）</div></div>';
   }
   html += '<div style="margin-top:10px"><div class="flbl" style="margin-bottom:6px">案件進度</div>';
-  html += '<select class="fi" id="status-sel-' + id + '" onchange="updateStatus(\'' + id + '\',this.value)">';
+  html += '<select class="fi" id="status-sel-' + id + '">';
   ['new','invited','submitting','approved','closed','pending_guarantor','rejected','lost'].forEach(function(s) {
     html += '<option value="' + s + '"' + (lead.status===s?' selected':'') + '>' + statusText(s) + '</option>';
   });
@@ -1746,6 +1746,20 @@ function showLeadDetail(id) {
   html += '<div style="font-size:14px;color:var(--t2)">' + new Date(lead.created_at).toLocaleString('zh-TW') + '</div></div>';
 
   el.innerHTML = html;
+
+  // 渲染完後綁定 status select，避免 onchange 字串觸發重繪問題
+  var statusSel = document.getElementById('status-sel-' + id);
+  if (statusSel) {
+    statusSel.addEventListener('change', function() {
+      var newStatus = this.value;
+      // 立即更新結案收入顯示
+      var incDiv = document.getElementById('closed-income-' + id);
+      if (incDiv) incDiv.style.display = newStatus === 'closed' ? 'block' : 'none';
+      // 非同步儲存（不阻塞 UI）
+      updateStatus(id, newStatus);
+    });
+  }
+
   // 渲染完後載入已有的文件記錄
   loadDocuments(id);
 }
