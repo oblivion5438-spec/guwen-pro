@@ -2992,29 +2992,57 @@ function renderTeamFinance(el, isLeader, isAdmin) {
     (isAdmin?'<div class="frow" style="margin-top:10px"><div class="flbl">每件成交均收（元）</div><input class="fi" id="tc-per-deal" type="number" inputmode="numeric" value="'+(teamCompany.revenuePerDeal||20000)+'" onchange="teamCompany.revenuePerDeal=parseInt(this.value)||20000;renderTeam()"></div>':'');
   el.appendChild(perfCard);
 
-  // ── 公司拆分比率設定 ──
-  var companyRate = teamCompany.companyRate !== undefined ? teamCompany.companyRate : 40; // 公司預設抽40%
+  // ── 公司拆分比率設定（多項自訂）──
+  var splitItems = teamCompany.splitItems || [{ name:'公司', rate:40 }];
+  var totalSplitRate = splitItems.reduce(function(s,i){ return s+(parseFloat(i.rate)||0); },0);
+  var empSplitRate = Math.max(0, 100 - totalSplitRate);
+  // 向後相容：更新 companyRate 為所有拆分項加總
+  var companyRate = totalSplitRate;
+
   var splitCard = document.createElement('div'); splitCard.className = 'card';
-  var splitH = '<div class="ct">⚙️ 公司拆分比率設定</div>';
-  splitH += '<div style="font-size:13px;color:var(--t2);margin-bottom:10px">設定公司統一抽成比率，系統自動與員工呈報的分潤比率比對</div>';
-  splitH += '<div style="display:flex;align-items:center;gap:10px;background:var(--inp);border-radius:8px;padding:12px">';
-  splitH += '<span style="font-size:13px;color:var(--t2);flex:1">🏢 公司統一抽成</span>';
-  if (isAdmin) {
-    splitH += '<input type="number" min="0" max="100" value="' + companyRate + '" ';
-    splitH += 'style="width:65px;padding:7px 8px;background:var(--bg2);border:0.5px solid var(--bdr2);border-radius:7px;color:var(--inpt);font-size:16px;font-weight:700;font-family:var(--sans);text-align:center" ';
-    splitH += 'oninput="teamCompany.companyRate=parseInt(this.value)||0" onchange="renderTeam()">';
-  } else {
-    splitH += '<span style="font-size:20px;font-weight:800;color:var(--acc)">' + companyRate + '</span>';
-  }
-  splitH += '<span style="font-size:16px;font-weight:700;color:var(--t1)">%</span>';
-  splitH += '<span style="font-size:13px;color:var(--t2)">員工留 ' + (100-companyRate) + '%</span>';
+  var splitH = '<div class="ct">⚙️ 公司收入拆分設定';
+  if (isAdmin) splitH += ' <button class="btn-sm" onclick="addSplitItem()">+ 新增項目</button>';
   splitH += '</div>';
+  splitH += '<div style="font-size:13px;color:var(--t2);margin-bottom:10px">自訂公司各項抽成，加總後剩餘為員工可分配比率</div>';
+
+  // 新增項目表單
+  splitH += '<div id="add-split-form" style="display:none;background:var(--inp);border-radius:8px;padding:12px;margin-bottom:10px">';
+  splitH += '<div class="frow2"><div class="frow"><div class="flbl">項目名稱</div><input class="fi" id="si-name" placeholder="公積金"></div>';
+  splitH += '<div class="frow"><div class="flbl">比率 %</div><input class="fi" id="si-rate" type="number" min="0" max="100" placeholder="10" inputmode="numeric"></div></div>';
+  splitH += '<div style="display:flex;gap:6px;margin-top:8px"><button class="btn-sm" onclick="document.getElementById(\'add-split-form\').style.display=\'none\'">取消</button>';
+  splitH += '<button class="btn-p" onclick="saveSplitItem()" style="flex:1">新增</button></div></div>';
+
+  // 拆分項目列表
+  splitItems.forEach(function(item, ii) {
+    var itemAmt = 0; // 僅示意，無總收入上下文
+    splitH += '<div style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--inp);border-radius:8px;margin-bottom:6px">';
+    splitH += '<div style="flex:1"><div style="font-size:14px;font-weight:500">🏢 ' + item.name + '</div></div>';
+    if (isAdmin) {
+      splitH += '<input type="number" min="0" max="100" value="' + item.rate + '" ';
+      splitH += 'style="width:58px;padding:6px 8px;background:var(--bg2);border:0.5px solid var(--bdr2);border-radius:7px;color:var(--inpt);font-size:14px;font-weight:600;font-family:var(--sans);text-align:center" ';
+      splitH += 'oninput="teamCompany.splitItems[' + ii + '].rate=parseInt(this.value)||0" onchange="renderTeam()">';
+      splitH += '<span style="font-size:13px;color:var(--t2)">%</span>';
+      splitH += '<button onclick="removeSplitItem(' + ii + ')" style="font-size:12px;padding:2px 8px;border-radius:5px;border:0.5px solid rgba(192,64,48,.3);background:transparent;color:var(--red);cursor:pointer;font-family:var(--sans)">刪</button>';
+    } else {
+      splitH += '<span style="font-size:16px;font-weight:700;color:var(--acc)">' + item.rate + '%</span>';
+    }
+    splitH += '</div>';
+  });
+
+  // 合計顯示
+  var rateOk = Math.round(totalSplitRate) <= 100;
+  splitH += '<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;border-radius:8px;margin-top:4px;background:' + (rateOk?'var(--inp)':'var(--rl)') + ';border:0.5px solid ' + (rateOk?'var(--bdr)':'rgba(192,64,48,.3)') + '">';
+  splitH += '<div><div style="font-size:13px;color:var(--t2)">公司合計抽成</div><div style="font-size:11px;color:var(--t3);margin-top:1px">' + splitItems.map(function(i){return i.name+' '+i.rate+'%';}).join(' + ') + '</div></div>';
+  splitH += '<div style="text-align:right"><div style="font-size:18px;font-weight:800;color:'+(rateOk?'var(--acc)':'var(--red)')+'">' + Math.round(totalSplitRate) + '%</div>';
+  splitH += '<div style="font-size:13px;color:var(--grn)">員工留 ' + Math.round(empSplitRate) + '%</div></div>';
+  splitH += '</div>';
+  if (!rateOk) splitH += '<div style="font-size:13px;color:var(--red);margin-top:6px">⚠️ 公司抽成總計超過100%，請調整</div>';
   splitCard.innerHTML = splitH;
   el.appendChild(splitCard);
 
   // ── 員工案件統計與薪資 ──
   var salCard = document.createElement('div'); salCard.className = 'card';
-  var salH = '<div class="ct">👥 員工案件統計與薪資';
+  var salH = '<div class="ct">👥 員工薪資與案件統計';
   if (isAdmin) salH += ' <button class="btn-sm" onclick="showAddSalary()">+ 新增員工</button>';
   salH += '</div>';
 
@@ -3027,65 +3055,98 @@ function renderTeamFinance(el, isLeader, isAdmin) {
   salH += '<button class="btn-p" onclick="saveTeamSalary()" style="flex:1">新增</button></div></div>';
 
   if (!teamCompany.salaries || teamCompany.salaries.length === 0) {
-    salH += '<div style="text-align:center;padding:12px;color:var(--t2)">尚未新增員工，點「+ 新增員工」開始建立</div>';
+    salH += '<div style="text-align:center;padding:12px;color:var(--t2)">尚未新增員工</div>';
   } else {
-    // 每位員工統計本月結案
     teamCompany.salaries.forEach(function(s, si) {
-      // 找對應的 teamMember
       var tm = teamMembers.find(function(m){ return m.members && m.members.name === s.name; });
       var memberId = tm ? tm.member_id : null;
-
-      // 本月結案
       var memberClosed = memberId
         ? teamLeads.filter(function(l){ return l.member_id===memberId && l.status==='closed' && new Date(l.created_at)>=thisM; })
         : [];
 
-      // 計算員工申報的總收入（從 dealData 讀取）
+      // 薪資加扣計算
+      var adjustments = s.adjustments || [];
+      var totalAdj = adjustments.reduce(function(sum,a){ return sum+(parseInt(a.amount)||0); },0);
+      var base = s.amount || 0;
+      var finalSalary = base + totalAdj;
+
+      // 案件收入比對
       var totalActual = 0;
-      var totalMyShare = 0;
       var warnings = [];
       memberClosed.forEach(function(l) {
         var d = dealData[l.id] || {};
         var actual = d.actualIncome || l.closed_amount || 0;
         totalActual += actual;
-        var myRate = parseFloat(d.myRate !== undefined ? d.myRate : (d.isEmployee ? 0 : 100));
-        totalMyShare += actual ? Math.round(actual * myRate / 100) : 0;
-
-        // 比對：員工申報的公司抽成是否符合設定
         if (d.isEmployee && actual > 0) {
-          var empCompanyRate = parseFloat(d.companyRate || 0);
-          if (Math.abs(empCompanyRate - companyRate) > 1) {
-            warnings.push({
-              name: l.name,
-              reported: empCompanyRate,
-              expected: companyRate,
-              diff: Math.round(actual * Math.abs(empCompanyRate - companyRate) / 100)
-            });
+          var empTotalCoRate = parseFloat(d.companyRate || 0);
+          if (Math.abs(empTotalCoRate - totalSplitRate) > 1) {
+            warnings.push({ name: l.name, reported: empTotalCoRate, expected: Math.round(totalSplitRate), diff: Math.round(actual * Math.abs(empTotalCoRate - totalSplitRate) / 100) });
           }
         }
       });
+      var companyShare = totalActual > 0 ? Math.round(totalActual * totalSplitRate / 100) : 0;
 
-      var companyShare = totalActual > 0 ? Math.round(totalActual * companyRate / 100) : 0;
-      var base = s.amount || 0;
-      var totalPay = base; // 底薪（佣金另計）
-
-      salH += '<div style="border:0.5px solid var(--bdr2);border-radius:10px;padding:12px;margin-bottom:10px">';
+      salH += '<div style="border:0.5px solid '+(warnings.length>0?'rgba(192,64,48,.4)':'var(--bdr2)')+';border-radius:10px;padding:12px;margin-bottom:10px">';
 
       // 員工標題
       salH += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">';
       salH += '<div style="display:flex;align-items:center;gap:8px">';
       salH += '<div style="width:36px;height:36px;border-radius:50%;background:var(--al);color:var(--acc);display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:700">' + (s.name||'?').charAt(0) + '</div>';
       salH += '<div><div style="font-size:15px;font-weight:600">' + s.name + '</div>';
-      salH += '<div style="font-size:12px;color:var(--t2)">底薪 $' + base.toLocaleString() + '/月</div></div></div>';
+      salH += '<div style="font-size:12px;color:var(--t2)">底薪 $' + base.toLocaleString() + ' → 實發 <span style="color:'+(finalSalary>=base?'var(--grn)':'var(--red)')+';font-weight:600">$' + finalSalary.toLocaleString() + '</span></div></div></div>';
       if (isAdmin) salH += '<button onclick="removeTeamSalary(' + si + ')" style="font-size:12px;padding:2px 8px;border-radius:5px;border:0.5px solid rgba(192,64,48,.3);background:transparent;color:var(--red);cursor:pointer;font-family:var(--sans)">刪</button>';
       salH += '</div>';
+
+      // 薪資加扣項目
+      salH += '<div style="background:var(--inp);border-radius:8px;padding:10px;margin-bottom:8px">';
+      salH += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">';
+      salH += '<div style="font-size:13px;font-weight:500;color:var(--t2)">薪資加扣項目</div>';
+      if (isAdmin) salH += '<button onclick="addAdjustment(' + si + ')" style="font-size:12px;padding:2px 8px;border-radius:5px;border:0.5px solid var(--bdr2);background:transparent;color:var(--t1);cursor:pointer;font-family:var(--sans)">+ 新增</button>';
+      salH += '</div>';
+
+      if (adjustments.length === 0) {
+        salH += '<div style="font-size:13px;color:var(--t3)">無加扣項目</div>';
+      } else {
+        adjustments.forEach(function(adj, ai) {
+          var isBonus = (parseInt(adj.amount)||0) > 0;
+          salH += '<div style="display:flex;align-items:center;gap:6px;padding:5px 0;border-bottom:0.5px solid var(--bdr)">';
+          salH += '<span style="font-size:16px">' + (adj.icon||'📋') + '</span>';
+          salH += '<div style="flex:1"><div style="font-size:13px">' + adj.name + '</div></div>';
+          salH += '<span style="font-size:13px;font-weight:600;color:' + (isBonus?'var(--grn)':'var(--red)') + '">' + (isBonus?'+':'') + parseInt(adj.amount).toLocaleString() + '</span>';
+          if (isAdmin) salH += '<button onclick="removeAdjustment(' + si + ',' + ai + ')" style="font-size:11px;padding:1px 6px;border-radius:4px;border:0.5px solid rgba(192,64,48,.3);background:transparent;color:var(--red);cursor:pointer;font-family:var(--sans)">✕</button>';
+          salH += '</div>';
+        });
+        salH += '<div style="display:flex;justify-content:space-between;padding-top:5px;font-size:13px"><span style="color:var(--t2)">加扣小計</span><span style="font-weight:600;color:'+(totalAdj>=0?'var(--grn)':'var(--red)')+'">'+(totalAdj>=0?'+':'')+totalAdj.toLocaleString()+'</span></div>';
+      }
+
+      // 新增加扣表單
+      salH += '<div id="adj-form-' + si + '" style="display:none;margin-top:8px;padding-top:8px;border-top:0.5px solid var(--bdr)">';
+      salH += '<div class="frow2"><div class="frow"><div class="flbl">圖示</div><input class="fi" id="adj-icon-' + si + '" value="📋" maxlength="2" style="max-width:60px"></div>';
+      salH += '<div class="frow"><div class="flbl">項目名稱</div><input class="fi" id="adj-name-' + si + '" placeholder="全勤獎金"></div></div>';
+      salH += '<div class="frow" style="margin-top:6px"><div class="flbl">金額（加分正數、扣分負數）</div><input class="fi" id="adj-amount-' + si + '" type="number" inputmode="numeric" placeholder="+1000 或 -500"></div>';
+      salH += '<div style="display:flex;gap:6px;margin-top:8px"><button class="btn-sm" onclick="document.getElementById(\'adj-form-' + si + '\').style.display=\'none\'">取消</button>';
+      salH += '<button class="btn-p" onclick="saveAdjustment(' + si + ')" style="flex:1">新增</button></div></div>';
+      salH += '</div>'; // end adj section
 
       // 本月案件統計
       salH += '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:8px">';
       salH += '<div style="background:var(--inp);border-radius:7px;padding:8px;text-align:center"><div style="font-size:11px;color:var(--t2);margin-bottom:2px">本月結案</div><div style="font-size:18px;font-weight:700">' + memberClosed.length + ' 件</div></div>';
-      salH += '<div style="background:var(--gl);border-radius:7px;padding:8px;text-align:center"><div style="font-size:11px;color:var(--t2);margin-bottom:2px">申報總收入</div><div style="font-size:15px;font-weight:700;color:var(--grn)">$' + totalActual.toLocaleString() + '</div></div>';
+      salH += '<div style="background:var(--gl);border-radius:7px;padding:8px;text-align:center"><div style="font-size:11px;color:var(--t2);margin-bottom:2px">申報收入</div><div style="font-size:15px;font-weight:700;color:var(--grn)">$' + totalActual.toLocaleString() + '</div></div>';
       salH += '<div style="background:var(--al);border-radius:7px;padding:8px;text-align:center"><div style="font-size:11px;color:var(--t2);margin-bottom:2px">公司應得</div><div style="font-size:15px;font-weight:700;color:var(--acc)">$' + companyShare.toLocaleString() + '</div></div>';
       salH += '</div>';
+
+      // 拆分明細（各項）
+      if (totalActual > 0) {
+        salH += '<div style="background:var(--inp);border-radius:7px;padding:8px;margin-bottom:8px">';
+        salH += '<div style="font-size:12px;color:var(--t2);margin-bottom:5px">收入拆分明細</div>';
+        splitItems.forEach(function(item) {
+          var itemAmt2 = Math.round(totalActual * (parseFloat(item.rate)||0) / 100);
+          salH += '<div style="display:flex;justify-content:space-between;font-size:12px;padding:2px 0"><span style="color:var(--t2)">' + item.name + ' (' + item.rate + '%)</span><span>$' + itemAmt2.toLocaleString() + '</span></div>';
+        });
+        var empAmt = Math.round(totalActual * empSplitRate / 100);
+        salH += '<div style="display:flex;justify-content:space-between;font-size:12px;padding:3px 0;border-top:0.5px solid var(--bdr);margin-top:3px"><span style="color:var(--grn);font-weight:500">員工分得 (' + Math.round(empSplitRate) + '%)</span><span style="color:var(--grn);font-weight:600">$' + empAmt.toLocaleString() + '</span></div>';
+        salH += '</div>';
+      }
 
       // 逐筆案件
       if (memberClosed.length > 0) {
@@ -3098,36 +3159,41 @@ function renderTeamFinance(el, isLeader, isAdmin) {
           var isEmp = d.isEmployee || false;
           var myAmt = actual ? Math.round(actual * myRate2 / 100) : 0;
           var coAmt = actual && isEmp ? Math.round(actual * empCoRate / 100) : 0;
-          var mismatch = isEmp && actual > 0 && Math.abs(empCoRate - companyRate) > 1;
-
+          var mismatch = isEmp && actual > 0 && Math.abs(empCoRate - totalSplitRate) > 1;
           salH += '<div style="display:flex;align-items:center;gap:6px;padding:6px 8px;background:' + (mismatch?'var(--rl)':'var(--inp)') + ';border-radius:6px;margin-bottom:4px;border:0.5px solid ' + (mismatch?'rgba(192,64,48,.3)':'var(--bdr)') + '">';
           salH += '<div style="flex:1"><div style="font-size:13px;font-weight:500">' + (l.name||'—') + '</div>';
-          salH += '<div style="font-size:12px;color:var(--t2)">總收 $' + actual.toLocaleString() + ' · 員工留 ' + myRate2 + '% = $' + myAmt.toLocaleString() + (isEmp?' · 公司 '+empCoRate+'%=$'+coAmt.toLocaleString():'') + '</div></div>';
-          if (mismatch) salH += '<span style="font-size:18px" title="公司比率不符">⚠️</span>';
-          else if (actual) salH += '<span style="font-size:18px">✓</span>';
+          salH += '<div style="font-size:12px;color:var(--t2)">總收 $' + actual.toLocaleString() + ' · 員工留 ' + myRate2 + '% = $' + myAmt.toLocaleString() + (isEmp?' · 公司 ' + empCoRate + '% = $' + coAmt.toLocaleString():'') + '</div></div>';
+          salH += '<span style="font-size:16px">' + (mismatch?'⚠️':'✓') + '</span>';
           salH += '</div>';
         });
       } else {
-        salH += '<div style="font-size:13px;color:var(--t3);padding:6px 0">本月尚無結案</div>';
+        salH += '<div style="font-size:13px;color:var(--t3);padding:4px 0">本月尚無結案</div>';
       }
 
-      // ⚠️ 比率警告
+      // 警告
       if (warnings.length > 0) {
         salH += '<div style="background:var(--rl);border:0.5px solid rgba(192,64,48,.4);border-radius:8px;padding:10px;margin-top:8px">';
-        salH += '<div style="font-size:13px;font-weight:600;color:var(--red);margin-bottom:6px">⚠️ 分潤比率異常（共 ' + warnings.length + ' 筆）</div>';
+        salH += '<div style="font-size:13px;font-weight:600;color:var(--red);margin-bottom:4px">⚠️ 比率異常（' + warnings.length + ' 筆）</div>';
         warnings.forEach(function(w) {
-          salH += '<div style="font-size:13px;color:var(--t1);margin-bottom:3px">「' + w.name + '」申報公司 ' + w.reported + '%，應為 ' + w.expected + '%，差異 $' + w.diff.toLocaleString() + '</div>';
+          salH += '<div style="font-size:12px;color:var(--t1);margin-bottom:2px">「' + w.name + '」申報公司 ' + w.reported + '%，應為 ' + w.expected + '%，差 $' + w.diff.toLocaleString() + '</div>';
         });
         salH += '</div>';
       }
+
+      // 實發薪資小結
+      salH += '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 10px;background:var(--inp);border-radius:7px;margin-top:8px">';
+      salH += '<span style="font-size:13px;color:var(--t2)">本月實發薪資</span>';
+      salH += '<span style="font-size:16px;font-weight:700;color:var(--t1)">$' + finalSalary.toLocaleString() + '</span>';
+      salH += '</div>';
 
       salH += '</div>'; // end employee card
     });
 
     // 薪資合計
+    var totalFinalSalary = (teamCompany.salaries||[]).reduce(function(s,emp){ var adj=(emp.adjustments||[]).reduce(function(a,b){return a+(parseInt(b.amount)||0);},0); return s+(emp.amount||0)+adj; },0);
     salH += '<div style="display:flex;justify-content:space-between;padding-top:10px;border-top:0.5px solid var(--bdr);margin-top:4px">';
-    salH += '<span style="color:var(--t2)">底薪合計</span>';
-    salH += '<span style="font-weight:600;color:var(--red)">$' + totalSalary.toLocaleString() + '/月</span></div>';
+    salH += '<span style="color:var(--t2)">本月實發薪資總計</span>';
+    salH += '<span style="font-weight:700;font-size:16px;color:var(--red)">$' + totalFinalSalary.toLocaleString() + '</span></div>';
   }
   salCard.innerHTML = salH;
   el.appendChild(salCard);
@@ -3207,10 +3273,41 @@ function renderTeamFinance(el, isLeader, isAdmin) {
   el.appendChild(sumCard);
 }
 
-function showAddSalary() {
-  var el = document.getElementById('add-salary-form');
+function addSplitItem() {
+  var el = document.getElementById('add-split-form');
   if (el) el.style.display = el.style.display==='none'?'block':'none';
 }
+function saveSplitItem() {
+  var name = document.getElementById('si-name') ? document.getElementById('si-name').value.trim() : '';
+  var rate = parseInt(document.getElementById('si-rate') ? document.getElementById('si-rate').value : 0) || 0;
+  if (!name) { alert('請填寫項目名稱'); return; }
+  if (!teamCompany.splitItems) teamCompany.splitItems = [];
+  teamCompany.splitItems.push({ name:name, rate:rate });
+  renderTeam();
+}
+function removeSplitItem(idx) {
+  if (teamCompany.splitItems) { teamCompany.splitItems.splice(idx,1); renderTeam(); }
+}
+function addAdjustment(si) {
+  var el = document.getElementById('adj-form-' + si);
+  if (el) el.style.display = el.style.display==='none'?'block':'none';
+}
+function saveAdjustment(si) {
+  var icon   = document.getElementById('adj-icon-'  +si) ? document.getElementById('adj-icon-'  +si).value||'📋' : '📋';
+  var name   = document.getElementById('adj-name-'  +si) ? document.getElementById('adj-name-'  +si).value.trim() : '';
+  var amount = parseInt(document.getElementById('adj-amount-'+si) ? document.getElementById('adj-amount-'+si).value : 0) || 0;
+  if (!name) { alert('請填寫項目名稱'); return; }
+  if (!teamCompany.salaries[si].adjustments) teamCompany.salaries[si].adjustments = [];
+  teamCompany.salaries[si].adjustments.push({ icon:icon, name:name, amount:amount });
+  renderTeam();
+}
+function removeAdjustment(si, ai) {
+  if (teamCompany.salaries[si] && teamCompany.salaries[si].adjustments) {
+    teamCompany.salaries[si].adjustments.splice(ai, 1);
+    renderTeam();
+  }
+}
+
 function saveTeamSalary() {
   var name   = document.getElementById('ts-name')   ? document.getElementById('ts-name').value.trim()         : '';
   var amount = parseInt(document.getElementById('ts-amount') ? document.getElementById('ts-amount').value : 0) || 0;
