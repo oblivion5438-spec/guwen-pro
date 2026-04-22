@@ -45,7 +45,7 @@ input[type=number]{-moz-appearance:textfield}
 .flbl{font-size:16px;color:var(--t1);font-weight:500}
 .fi{width:100%;max-width:100%;padding:12px 14px;background:var(--inp);border:0.5px solid var(--bdr2);border-radius:9px;color:var(--inpt);font-size:16px;font-family:var(--sans);transition:border-color .15s;box-sizing:border-box;display:block}
 input.fi{-webkit-appearance:none}
-select.fi{-webkit-appearance:auto;appearance:auto;display:block}
+select.fi{-webkit-appearance:auto;appearance:auto;display:block;max-width:100%;width:100%}
 .fi:focus{outline:none;border-color:var(--acc)}
 .fg2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .btn-p{width:100%;padding:12px;background:var(--acc);color:#FFF;border:none;border-radius:9px;font-size:16px;font-weight:500;cursor:pointer;font-family:var(--sans);transition:all .2s;margin-top:4px}
@@ -79,8 +79,8 @@ select.fi{-webkit-appearance:auto;appearance:auto;display:block}
 .bn-icon{font-size:20px;line-height:1}
 
 /* ── CONTENT ── */
-.content{padding:14px 16px;flex:1;min-width:0}
-.card{background:var(--card);border:0.5px solid var(--bdr);border-radius:12px;padding:12px 14px;margin-bottom:10px;min-width:0}
+.content{padding:14px 16px;flex:1;min-width:0;overflow:hidden}
+.card{background:var(--card);border:0.5px solid var(--bdr);border-radius:12px;padding:12px 14px;margin-bottom:10px;min-width:0;box-sizing:border-box}
 .ct{font-size:16px;font-weight:600;color:var(--t0);margin-bottom:8px;display:flex;align-items:center;justify-content:space-between;gap:5px;flex-wrap:wrap}
 .ri{display:flex;justify-content:space-between;align-items:flex-start;padding:6px 0;border-bottom:0.5px solid var(--bdr);font-size:16px;gap:6px}
 .ri:last-child{border-bottom:none}
@@ -1500,14 +1500,21 @@ function showLeadDetail(id) {
   }
   html += '</div>';  // 關閉 AI 評估 card
 
-  // 案件進度 — 獨立 card
+  // 案件進度 — 獨立 card，自製下拉不受 overflow 影響
+  var statusList = ['new','invited','submitting','approved','closed','pending_guarantor','rejected','lost'];
   html += '<div class="card">';
   html += '<div class="ct">案件進度</div>';
-  html += '<select class="fi" id="status-sel-' + id + '" style="appearance:auto;-webkit-appearance:auto;cursor:pointer">';
-  ['new','invited','submitting','approved','closed','pending_guarantor','rejected','lost'].forEach(function(s) {
-    html += '<option value="' + s + '"' + (lead.status===s?' selected':'') + '>' + statusText(s) + '</option>';
+  html += '<div style="position:relative" id="status-wrap-' + id + '">';
+  html += '<button onclick="toggleStatusMenu(\'' + id + '\')" style="width:100%;padding:12px 14px;background:var(--inp);border:0.5px solid var(--bdr2);border-radius:9px;color:var(--inpt);font-size:16px;font-family:var(--sans);text-align:left;cursor:pointer;display:flex;justify-content:space-between;align-items:center">';
+  html += '<span id="status-label-' + id + '">' + statusText(lead.status) + '</span>';
+  html += '<span style="font-size:12px;color:var(--t3)">▾</span>';
+  html += '</button>';
+  html += '<div id="status-menu-' + id + '" style="display:none;position:fixed;z-index:9999;background:var(--card);border:0.5px solid var(--bdr2);border-radius:10px;box-shadow:0 4px 20px rgba(0,0,0,.5);overflow:hidden;min-width:180px">';
+  statusList.forEach(function(s) {
+    var active = lead.status === s;
+    html += '<button onclick="selectStatus(\'' + id + '\',\'' + s + '\')" style="width:100%;padding:10px 16px;background:' + (active?'var(--al)':'transparent') + ';border:none;color:' + (active?'var(--acc)':'var(--t1)') + ';font-size:15px;font-family:var(--sans);text-align:left;cursor:pointer;display:block;font-weight:' + (active?'600':'400') + '">' + statusText(s) + '</button>';
   });
-  html += '</select>';
+  html += '</div></div>';
 
   // 結案收入完整填寫區（選結案才顯示）
   var d = dealData[id] || {};
@@ -1753,11 +1760,7 @@ function showLeadDetail(id) {
 
   el.innerHTML = html;
 
-  // 綁定案件進度 select
-  var sel = document.getElementById('status-sel-' + id);
-  if (sel) {
-    sel.onchange = function() { updateStatus(id, this.value); };
-  }
+  // 綁定案件進度 select（已改為自製下拉，不需要）
 
   loadDocuments(id);
 }
@@ -3641,10 +3644,40 @@ function renderTeamSalary(el, isLeader, isAdmin) {
   el.appendChild(sumCard);
 }
 
-function showAddSalary() {
-  var el = document.getElementById('add-salary-form');
-  if (el) el.style.display = el.style.display === 'none' ? 'block' : 'none';
+function toggleStatusMenu(id) {
+  var menu = document.getElementById('status-menu-' + id);
+  var btn  = document.getElementById('status-wrap-' + id);
+  if (!menu) return;
+  if (menu.style.display === 'none') {
+    // 定位 menu 在按鈕下方
+    var rect = btn.querySelector('button').getBoundingClientRect();
+    menu.style.top  = (rect.bottom + 4) + 'px';
+    menu.style.left = rect.left + 'px';
+    menu.style.width = rect.width + 'px';
+    menu.style.display = 'block';
+    // 點其他地方關閉
+    setTimeout(function() {
+      document.addEventListener('click', function handler(e) {
+        if (!menu.contains(e.target) && !btn.contains(e.target)) {
+          menu.style.display = 'none';
+          document.removeEventListener('click', handler);
+        }
+      });
+    }, 50);
+  } else {
+    menu.style.display = 'none';
+  }
 }
+
+function selectStatus(id, status) {
+  var menu  = document.getElementById('status-menu-' + id);
+  var label = document.getElementById('status-label-' + id);
+  if (menu)  menu.style.display = 'none';
+  if (label) label.textContent = statusText(status);
+  updateStatus(id, status);
+}
+
+
 function addSplitItem() {
   var el = document.getElementById('add-split-form');
   if (el) el.style.display = el.style.display==='none'?'block':'none';
