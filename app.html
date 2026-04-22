@@ -519,16 +519,28 @@ var leadDocuments = {}; // { leadId: { asset:[], verdict:[], traffic:[], license
 // ── 載入該客戶已有的文件 ──
 async function loadDocuments(leadId) {
   var res = await sb.from('lead_documents').select('*').eq('lead_id', leadId).order('created_at');
-  if (!res.data) return;
+  if (!res.data || res.data.length === 0) return;
   if (!leadDocuments[leadId]) leadDocuments[leadId] = {};
+  var changed = false;
   res.data.forEach(function(doc) {
     if (!leadDocuments[leadId][doc.type]) leadDocuments[leadId][doc.type] = [];
-    var url = sb.storage.from('lead-documents').getPublicUrl(doc.storage_path).data.publicUrl;
     var existing = leadDocuments[leadId][doc.type].find(function(d){return d.id===doc.id;});
-    if (!existing) leadDocuments[leadId][doc.type].push({ id: doc.id, url: url, filename: doc.storage_path.split('/').pop(), ai_summary: doc.ai_summary, uploaded_at: new Date(doc.created_at).toLocaleDateString('zh-TW') });
+    if (!existing) {
+      var url = sb.storage.from('lead-documents').getPublicUrl(doc.storage_path).data.publicUrl;
+      leadDocuments[leadId][doc.type].push({ id: doc.id, url: url, filename: doc.storage_path.split('/').pop(), ai_summary: doc.ai_summary, uploaded_at: new Date(doc.created_at).toLocaleDateString('zh-TW') });
+      changed = true;
+    }
   });
-  var lead = leads.find(function(l){return l.id===leadId;});
-  if (lead) showLeadDetail(leadId);
+  // 只有有新文件時才更新，且只更新文件區塊（不重繪整頁）
+  if (changed) {
+    var types = ['asset','verdict','traffic','license'];
+    types.forEach(function(type) {
+      var docs = leadDocuments[leadId][type] || [];
+      if (docs.length === 0) return;
+      var countEl = document.querySelector('[data-doc-count="' + leadId + '-' + type + '"]');
+      if (countEl) countEl.textContent = '已儲存 ' + docs.length + ' 筆';
+    });
+  }
 }
 
 // ── 上傳圖片並 AI 讀取 ──
