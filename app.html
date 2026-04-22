@@ -4107,53 +4107,109 @@ function renderScoreRules() {
   var el = document.getElementById('member-content');
   var R = scoreRules;
   var h = '<div style="font-size:18px;font-weight:600;margin-bottom:14px">AI 評分規則設定</div>';
-  h += '<div class="ib-yel" style="margin-bottom:12px">修改後點「儲存規則」，下次評估立即生效。</div>';
+  h += '<div class="ib-yel" style="margin-bottom:12px">修改後點「儲存規則」，下次評估立即生效。負數代表扣分。</div>';
 
-  // 銀行信貸
+  // ── 銀行信貸 ──
   h += '<div class="card"><div class="ct">🏦 銀行信貸規則</div>';
   h += '<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:0.5px solid var(--bdr)">';
   h += '<div style="font-size:15px;font-weight:500">警示/協商/更生/清算 → 封鎖申辦</div>';
   h += '<div class="tgl ' + (R.bankAlertBlock?'on':'') + '" onclick="scoreRules.bankAlertBlock=!scoreRules.bankAlertBlock;renderScoreRules()"></div></div>';
+
+  // 信貸6個月內申辦
+  h += '<div style="padding:10px 0;border-bottom:0.5px solid var(--bdr)">';
+  h += '<div style="font-size:14px;font-weight:500;margin-bottom:8px">信貸6個月內剛申辦</div>';
+  h += '<div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">';
+  h += '<div class="tgl ' + (R.bankNewBlock?'on':'') + '" onclick="scoreRules.bankNewBlock=!scoreRules.bankNewBlock;renderScoreRules()"></div>';
+  h += '<span style="font-size:13px;color:var(--red)">封鎖（無法申辦）</span></div>';
+  if (!R.bankNewBlock) {
+    h += '<div class="frow"><div class="flbl">否則扣分</div><input class="fi" id="sr-bank-new-pen" type="number" value="' + R.bankNewPenalty + '"></div>';
+  }
+  h += '</div>';
+
   h += '<div class="sl">薪轉與信用卡加分</div>';
   h += '<div class="frow2"><div class="frow"><div class="flbl">有薪轉加分</div><input class="fi" id="sr-transfer" type="number" value="' + R.bankTransferBonus + '"></div>';
   h += '<div class="frow"><div class="flbl">信用卡1年以上</div><input class="fi" id="sr-cc1y" type="number" value="' + R.bankCC1y + '"></div></div>';
   h += '<div class="frow2"><div class="frow"><div class="flbl">信用卡6個月以上</div><input class="fi" id="sr-cc6m" type="number" value="' + R.bankCC6m + '"></div>';
   h += '<div class="frow"><div class="flbl">信用卡3個月以上</div><input class="fi" id="sr-cc3m" type="number" value="' + R.bankCC3m + '"></div></div>';
-  h += '<div class="sl">3個月內婉拒次數扣分（越多次扣越重）</div>';
-  h += '<div class="frow2"><div class="frow"><div class="flbl">1次 扣分最少</div><input class="fi" id="sr-brej1" type="number" value="' + R.bankRej1 + '"></div>';
-  h += '<div class="frow"><div class="flbl">2次 扣分中等</div><input class="fi" id="sr-brej2" type="number" value="' + R.bankRej2 + '"></div></div>';
-  h += '<div class="frow2"><div class="frow"><div class="flbl">3次 扣分重</div><input class="fi" id="sr-brej3" type="number" value="' + R.bankRej3 + '"></div>';
+  h += '<div class="sl">3個月內銀行婉拒次數扣分</div>';
+  h += '<div class="frow2"><div class="frow"><div class="flbl">1次</div><input class="fi" id="sr-brej1" type="number" value="' + R.bankRej1 + '"></div>';
+  h += '<div class="frow"><div class="flbl">2次</div><input class="fi" id="sr-brej2" type="number" value="' + R.bankRej2 + '"></div></div>';
+  h += '<div class="frow2"><div class="frow"><div class="flbl">3次</div><input class="fi" id="sr-brej3" type="number" value="' + R.bankRej3 + '"></div>';
   h += '<div class="frow"><div class="flbl">4次以上</div>';
   h += '<div style="display:flex;align-items:center;gap:8px;margin-top:5px"><div class="tgl ' + (R.bankRej4Block?'on':'') + '" onclick="scoreRules.bankRej4Block=!scoreRules.bankRej4Block;renderScoreRules()"></div><span style="font-size:13px;color:var(--red)">封鎖，無法申辦</span></div></div></div>';
   h += '<div class="frow"><div class="flbl">薪資倍數（薪轉×倍 = 最高可貸）</div><input class="fi" id="sr-salary-mult" type="number" value="' + (R.salaryMultiplier||22) + '" step="1"></div>';
   h += '</div>';
 
-  // 融資端
-  h += '<div class="card"><div class="ct">🚗 融資端規則</div>';
+  // ── 汽車貸款 ──
+  h += '<div class="card"><div class="ct">🚗 汽車貸款規則</div>';
+
+  // 未滿20歲
+  h += '<div style="padding:10px 0;border-bottom:0.5px solid var(--bdr)">';
+  h += '<div style="font-size:14px;font-weight:500;margin-bottom:8px">客戶未滿20歲</div>';
+  h += '<div style="display:flex;gap:8px;flex-wrap:wrap">';
+  ['block','false','penalty'].forEach(function(opt) {
+    var labels = {block:'無法申辦（封鎖）', false:'建議補保人', penalty:'自訂扣分'};
+    var cur = R.carUnder20Block === true ? 'block' : R.carUnder20Block === false ? 'false' : 'penalty';
+    var active = cur === opt;
+    var setVal = opt === 'block' ? 'true' : opt === 'false' ? 'false' : '"penalty"';
+    h += '<button onclick="scoreRules.carUnder20Block=' + setVal + ';renderScoreRules()" ';
+    h += 'style="padding:6px 12px;border-radius:20px;font-size:13px;font-family:var(--sans);cursor:pointer;border:0.5px solid ' + (active?'var(--acc)':'var(--bdr2)') + ';background:' + (active?'var(--al)':'transparent') + ';color:' + (active?'var(--acc)':'var(--t2)') + '">';
+    h += labels[opt] + '</button>';
+  });
+  h += '</div>';
+  if (R.carUnder20Block === 'penalty') {
+    h += '<div class="frow" style="margin-top:8px"><div class="flbl">扣分數</div><input class="fi" id="sr-car-u20-pen" type="number" value="' + R.carUnder20Penalty + '"></div>';
+  }
+  h += '</div>';
+
+  // 目前有汽車貸款
+  h += '<div style="padding:10px 0;border-bottom:0.5px solid var(--bdr)">';
+  h += '<div style="font-size:14px;font-weight:500;margin-bottom:8px">目前有汽車貸款 — 貸款時間3個月內</div>';
+  h += '<div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">';
+  h += '<div class="tgl ' + (R.carHasLoanBlock3m?'on':'') + '" onclick="scoreRules.carHasLoanBlock3m=!scoreRules.carHasLoanBlock3m;renderScoreRules()"></div>';
+  h += '<span style="font-size:13px;color:var(--red)">封鎖（無法申辦，需等 <input type="number" id="sr-car-wait" value="' + R.carHasLoanWaitMonths + '" style="width:50px;padding:2px 6px;background:var(--bg2);border:0.5px solid var(--bdr2);border-radius:5px;color:var(--inpt);font-family:var(--sans);text-align:center"> 個月）</span></div>';
+  if (!R.carHasLoanBlock3m) {
+    h += '<div class="frow"><div class="flbl">否則扣分</div><input class="fi" id="sr-car-loan-3m" type="number" value="' + R.carHasLoanLt3m + '"></div>';
+  }
+  h += '<div style="font-size:14px;font-weight:500;margin:8px 0">貸款時間3~6個月</div>';
+  h += '<div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">';
+  h += '<div class="tgl ' + (R.carHasLoanBlock6m?'on':'') + '" onclick="scoreRules.carHasLoanBlock6m=!scoreRules.carHasLoanBlock6m;renderScoreRules()"></div>';
+  h += '<span style="font-size:13px;color:var(--red)">封鎖（無法申辦）</span></div>';
+  if (!R.carHasLoanBlock6m) {
+    h += '<div class="frow"><div class="flbl">否則扣分</div><input class="fi" id="sr-car-loan-6m" type="number" value="' + R.carHasLoanLt6m + '"></div>';
+  }
+  h += '</div>';
+
   h += '<div class="frow2"><div class="frow"><div class="flbl">汽車駕照加分</div><input class="fi" id="sr-carlic" type="number" value="' + R.carLicBonus + '"></div>';
   h += '<div class="frow"><div class="flbl">機車駕照加分</div><input class="fi" id="sr-bikeic" type="number" value="' + R.bikeLicBonus + '"></div></div>';
   h += '<div class="sl">3個月內融資婉拒次數扣分</div>';
   h += '<div class="frow2"><div class="frow"><div class="flbl">1次</div><input class="fi" id="sr-frej1" type="number" value="' + R.finRej1 + '"></div>';
   h += '<div class="frow"><div class="flbl">2次</div><input class="fi" id="sr-frej2" type="number" value="' + R.finRej2 + '"></div></div>';
-  h += '<div class="frow"><div class="flbl">3次以上（扣重分）</div><input class="fi" id="sr-frejOver2" type="number" value="' + R.finRejOver2 + '"></div>';
+  h += '<div class="frow"><div class="flbl">3次以上</div><input class="fi" id="sr-frejOver2" type="number" value="' + R.finRejOver2 + '"></div>';
   h += '</div>';
 
-  // 遲繳
-  h += '<div class="card"><div class="ct">⏰ 遲繳扣分規則</div>';
-  h += '<div style="font-size:13px;color:var(--t2);margin-bottom:8px">套用於所有貸款類型，越久遲繳扣越重</div>';
-  h += '<div class="frow2"><div class="frow"><div class="flbl">遲繳1週內（最少）</div><input class="fi" id="sr-late7" type="number" value="' + R.latePay7 + '"></div>';
-  h += '<div class="frow"><div class="flbl">遲繳2週</div><input class="fi" id="sr-late14" type="number" value="' + R.latePay14 + '"></div></div>';
-  h += '<div class="frow2"><div class="frow"><div class="flbl">遲繳3週</div><input class="fi" id="sr-late21" type="number" value="' + R.latePay21 + '"></div>';
-  h += '<div class="frow"><div class="flbl">遲繳1個月</div><input class="fi" id="sr-late30" type="number" value="' + R.latePay30 + '"></div></div>';
-  h += '<div class="frow"><div class="flbl">超過1個月（呆帳警告）</div><input class="fi" id="sr-lateOver30" type="number" value="' + R.latePayOver30 + '"></div>';
-  h += '<div class="ib-red" style="font-size:13px;margin-top:8px">⚠️ 超過1個月遲繳 → 顯示呆帳警告「可能很難成交」</div>';
+  // ── 遲繳（統一套用所有融資貸款）──
+  h += '<div class="card"><div class="ct">⏰ 遲繳扣分規則（套用所有融資貸款）</div>';
+  h += '<div style="font-size:13px;color:var(--t2);margin-bottom:8px">信貸、車貸、機車貸、手機貸 均套用相同遲繳規則</div>';
+  h += '<div class="frow2"><div class="frow"><div class="flbl">遲繳7天以內</div><input class="fi" id="sr-late-lt7" type="number" value="' + R.latePayLt7 + '"></div>';
+  h += '<div class="frow"><div class="flbl">遲繳7~14天</div><input class="fi" id="sr-late-7-14" type="number" value="' + R.latePay7_14 + '"></div></div>';
+  h += '<div class="frow2"><div class="frow"><div class="flbl">遲繳14~30天</div><input class="fi" id="sr-late-14-30" type="number" value="' + R.latePay14_30 + '"></div>';
+  h += '<div class="frow"><div class="flbl">遲繳1個月以上</div><input class="fi" id="sr-late-over30" type="number" value="' + R.latePayOver30 + '"></div></div>';
+  h += '<div class="ib-red" style="font-size:13px;margin-top:8px">⚠️ 遲繳1個月以上 → 自動顯示「呆帳警告」</div>';
   h += '</div>';
 
-  // 當鋪
-  h += '<div class="card"><div class="ct">🏪 當鋪借貸規則</div>';
+  // ── 當鋪借貸 ──
+  h += '<div class="card"><div class="ct">🏪 當鋪借貸評估規則</div>';
   h += '<div style="font-size:13px;color:var(--t2);margin-bottom:8px">沒借當鋪：不扣分 | 有借有擔保：扣「有借扣分」 | 有借無擔保：兩項都扣</div>';
   h += '<div class="frow2"><div class="frow"><div class="flbl">有借當鋪扣分</div><input class="fi" id="sr-pawn-borrow" type="number" value="' + R.pawnHasBorrow + '"></div>';
   h += '<div class="frow"><div class="flbl">無擔保品額外扣分</div><input class="fi" id="sr-pawn-no-col" type="number" value="' + R.pawnNoCollateral + '"></div></div>';
+  h += '<div class="sl">負債比設定</div>';
+  h += '<div class="frow2"><div class="frow"><div class="flbl">負債比警告門檻（%）</div><input class="fi" id="sr-pawn-debt-warn" type="number" value="' + R.pawnDebtRatioWarn + '"></div>';
+  h += '<div class="frow"><div class="flbl">負債比封鎖門檻（%）</div><input class="fi" id="sr-pawn-debt-block" type="number" value="' + R.pawnDebtRatioBlock + '"></div></div>';
+  h += '<div class="sl">其他加分項目</div>';
+  h += '<div class="frow2"><div class="frow"><div class="flbl">名下有汽機車加分</div><input class="fi" id="sr-pawn-vehicle" type="number" value="' + R.pawnHasVehicle + '"></div>';
+  h += '<div class="frow"><div class="flbl">自有自住加分</div><input class="fi" id="sr-pawn-self" type="number" value="' + R.pawnSelfOwned + '"></div></div>';
+  h += '<div class="frow"><div class="flbl">租屋扣分</div><input class="fi" id="sr-pawn-rent" type="number" value="' + R.pawnRenting + '"></div>';
   h += '</div>';
 
   h += '<div style="display:flex;gap:8px;margin-bottom:20px"><button class="btn-sm" onclick="resetScoreRules()">還原預設</button><button class="btn-p" onclick="saveScoreRules()" style="flex:1">儲存規則</button></div>';
@@ -4165,26 +4221,42 @@ function saveScoreRules() {
   scoreRules.bankTransferBonus = g('sr-transfer');
   scoreRules.bankCC1y = g('sr-cc1y'); scoreRules.bankCC6m = g('sr-cc6m'); scoreRules.bankCC3m = g('sr-cc3m');
   scoreRules.bankRej1 = g('sr-brej1'); scoreRules.bankRej2 = g('sr-brej2'); scoreRules.bankRej3 = g('sr-brej3');
+  if (!scoreRules.bankNewBlock) scoreRules.bankNewPenalty = g('sr-bank-new-pen');
   scoreRules.carLicBonus = g('sr-carlic'); scoreRules.bikeLicBonus = g('sr-bikeic');
   scoreRules.finRej1 = g('sr-frej1'); scoreRules.finRej2 = g('sr-frej2'); scoreRules.finRejOver2 = g('sr-frejOver2');
-  scoreRules.latePay7 = g('sr-late7'); scoreRules.latePay14 = g('sr-late14'); scoreRules.latePay21 = g('sr-late21');
-  scoreRules.latePay30 = g('sr-late30'); scoreRules.latePayOver30 = g('sr-lateOver30');
+  if (scoreRules.carUnder20Block === 'penalty') scoreRules.carUnder20Penalty = g('sr-car-u20-pen');
+  if (!scoreRules.carHasLoanBlock3m) scoreRules.carHasLoanLt3m = g('sr-car-loan-3m');
+  if (!scoreRules.carHasLoanBlock6m) scoreRules.carHasLoanLt6m = g('sr-car-loan-6m');
+  scoreRules.carHasLoanWaitMonths = g('sr-car-wait') || 3;
+  scoreRules.latePayLt7 = g('sr-late-lt7'); scoreRules.latePay7_14 = g('sr-late-7-14');
+  scoreRules.latePay14_30 = g('sr-late-14-30'); scoreRules.latePayOver30 = g('sr-late-over30');
   scoreRules.pawnHasBorrow = g('sr-pawn-borrow'); scoreRules.pawnNoCollateral = g('sr-pawn-no-col');
+  scoreRules.pawnDebtRatioWarn = g('sr-pawn-debt-warn') || 70;
+  scoreRules.pawnDebtRatioBlock = g('sr-pawn-debt-block') || 90;
+  scoreRules.pawnHasVehicle = g('sr-pawn-vehicle'); scoreRules.pawnSelfOwned = g('sr-pawn-self');
+  scoreRules.pawnRenting = g('sr-pawn-rent');
   scoreRules.salaryMultiplier = parseInt(gv('sr-salary-mult')) || 22;
   alert('✓ 評分規則已儲存，下次評估立即生效');
 }
 
 function resetScoreRules() {
   scoreRules = {
-    bankAlertBlock:true, bankTransferBonus:15, bankCC1y:18, bankCC6m:12, bankCC3m:8,
-    bankRej1:-8, bankRej2:-18, bankRej3:-30, bankRej4Block:true,
-    bankRejectLt1m:-10, bankReject1_3m:-5, bankReject3_6m:0,
-    carLicBonus:20, bikeLicBonus:15,
-    finRej1:-10, finRej2:-25, finRejOver2:-40,
-    finRejectLt1m:-10, finReject1_3m:-5, finReject3_6m:0,
-    latePay7:-5, latePay14:-12, latePay21:-20, latePay30:-35, latePayOver30:-50,
-    pawnHasBorrow:-15, pawnNoCollateral:-20,
-    salaryMultiplier:22, scoreGuarantorThreshold:60,
+    bankAlertBlock: true, bankTransferBonus: 15,
+    bankCC1y: 18, bankCC6m: 12, bankCC3m: 8,
+    bankRej1: -8, bankRej2: -18, bankRej3: -30, bankRej4Block: true,
+    bankRejectLt1m: -10, bankReject1_3m: -5, bankReject3_6m: 0,
+    bankNewBlock: false, bankNewPenalty: -20,
+    carLicBonus: 20, bikeLicBonus: 15,
+    finRej1: -10, finRej2: -25, finRejOver2: -40,
+    finRejectLt1m: -10, finReject1_3m: -5, finReject3_6m: 0,
+    carUnder20Block: false, carUnder20Penalty: -25,
+    carHasLoanLt3m: -30, carHasLoanLt6m: -15,
+    carHasLoanBlock3m: false, carHasLoanBlock6m: false, carHasLoanWaitMonths: 3,
+    latePayLt7: -5, latePay7_14: -12, latePay14_30: -25, latePayOver30: -50,
+    pawnHasBorrow: -15, pawnNoCollateral: -20,
+    pawnDebtRatioWarn: 70, pawnDebtRatioBlock: 90,
+    pawnHasVehicle: 10, pawnSelfOwned: 8, pawnRenting: -5,
+    salaryMultiplier: 22, scoreGuarantorThreshold: 60,
   };
   renderScoreRules();
 }
