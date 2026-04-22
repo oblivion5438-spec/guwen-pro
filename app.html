@@ -1722,8 +1722,7 @@ function showLeadDetail(id) {
     id: id, type: 'asset', lead: lead,
     color: 'grn', borderColor: 'rgba(45,138,78,.3)',
     title: '🔍 動產擔保交易公示查詢（經濟部）',
-    hint: '請截圖查詢結果後上傳保存，AI 將自動讀取擔保標的物、債權人等資訊',
-    queryBtn: '查詢 →',
+    queryBtn: '開啟查詢 →',
     queryFn: 'queryAsset(\'' + id + '\')',
     aiPrompt: '這是動產擔保公示查詢的截圖。請提取：1.有無查到記錄（有/無）2.標的物類型（汽車/機車/機器等）3.債權人名稱 4.擔保金額 5.設定日期。以條列方式簡潔呈現，若無記錄請說「查無動產擔保記錄」。'
   });
@@ -1733,8 +1732,7 @@ function showLeadDetail(id) {
     id: id, type: 'verdict', lead: lead,
     color: 'yel', borderColor: 'rgba(184,128,32,.3)',
     title: '⚖️ 司法院裁判書查詢',
-    hint: '請截圖客戶現居地與戶籍地相關結果後上傳。AI 將讀取地區、筆數、判決主題並整理成可點擊清單。',
-    queryBtn: '查詢 →',
+    queryBtn: '開啟查詢 →',
     queryFn: 'queryVerdict(\'' + id + '\',\'' + (lead.name||'').replace(/'/g,"\\'") + '\')',
     aiPrompt: '這是司法院裁判書查詢截圖。請提取每一筆裁判書資訊，格式為JSON陣列：[{"court":"法院名稱","date":"日期YYYY/MM/DD","title":"案由/罪名","type":"刑事/民事"}]。若查無資料回傳[]。只回傳JSON，不要其他文字。'
   });
@@ -1747,8 +1745,7 @@ function showLeadDetail(id) {
     id: id, type: 'traffic', lead: lead,
     color: '', borderColor: 'var(--bdr2)',
     title: '🚗 監理服務網 — 交通違規查詢',
-    hint: '請截圖違規查詢結果後上傳，AI 將自動計算總罰款金額並列出各筆違規',
-    extraBtn: '<button id="' + mvdisId + '" onclick="openAndCopy(\'https://www.mvdis.gov.tw/m3-emv-vil/vil/penaltyQueryPay\',\'' + idnoVal + '\',\'' + mvdisId + '\')" style="padding:5px 12px;background:var(--card);border:0.5px solid var(--bdr2);color:var(--t1);border-radius:6px;cursor:pointer;font-family:var(--sans);font-size:12px">複製身分證開啟 →</button>',
+    extraBtn: '<button id="' + mvdisId + '" onclick="openAndCopy(\'https://www.mvdis.gov.tw/m3-emv-vil/vil/penaltyQueryPay\',\'' + idnoVal + '\',\'' + mvdisId + '\')" style="padding:4px 10px;background:var(--card);border:0.5px solid var(--bdr2);color:var(--t1);border-radius:5px;cursor:pointer;font-family:var(--sans);font-size:12px">複製身分證開啟 →</button>',
     aiPrompt: '這是監理服務網交通違規查詢截圖。請提取所有違規記錄，格式為JSON：{"violations":[{"date":"日期","location":"地點","reason":"違規事由","fine":罰款數字}],"total_fine":總罰款數字}。只回傳JSON，不要其他文字。若查無違規記錄回傳{"violations":[],"total_fine":0}。'
   });
 
@@ -1758,8 +1755,7 @@ function showLeadDetail(id) {
     id: id, type: 'license', lead: lead,
     color: '', borderColor: 'var(--bdr2)',
     title: '🏆 技術士持有證照查詢（勞動部）',
-    hint: '請截圖查詢結果後上傳，AI 將列出持有的技術士證照類別',
-    extraBtn: '<button id="' + skillId + '" onclick="openAndCopy(\'https://eservice.wdasec.gov.tw/www/CC95T\',\'' + (lead.name||'').replace(/'/g,"\\'") + '\',\'' + skillId + '\')" style="padding:5px 12px;background:var(--card);border:0.5px solid var(--bdr2);color:var(--t1);border-radius:6px;cursor:pointer;font-family:var(--sans);font-size:12px">複製姓名開啟 →</button>',
+    extraBtn: '<button id="' + skillId + '" onclick="openAndCopy(\'https://eservice.wdasec.gov.tw/www/CC95T\',\'' + (lead.name||'').replace(/'/g,"\\'") + '\',\'' + skillId + '\')" style="padding:4px 10px;background:var(--card);border:0.5px solid var(--bdr2);color:var(--t1);border-radius:5px;cursor:pointer;font-family:var(--sans);font-size:12px">複製姓名開啟 →</button>',
     aiPrompt: '這是技術士持有證照查詢截圖。請提取所有持有的技術士證照資訊，格式為JSON陣列：[{"name":"證照名稱","level":"甲/乙/丙級","number":"證號","date":"發證日期"}]。只回傳JSON，不要其他文字。若查無資料回傳[]。'
   });
 
@@ -1778,30 +1774,58 @@ function buildDocSection(opts) {
   var id = opts.id, type = opts.type, lead = opts.lead;
   var docs = leadDocuments[id] ? (leadDocuments[id][type] || []) : [];
   var bgStyle = opts.color ? 'background:var(--' + opts.color + 'l);border:0.5px solid ' + opts.borderColor : 'background:var(--inp);border:0.5px solid ' + opts.borderColor;
+  var titleColor = opts.color ? 'var(--'+opts.color+')' : 'var(--t1)';
+
   var h = '<div style="' + bgStyle + ';border-radius:9px;padding:10px 13px;margin-bottom:8px">';
+
+  // 標題 + 查詢按鈕
   h += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">';
-  h += '<div style="font-size:14px;font-weight:500;color:' + (opts.color?'var(--'+opts.color+')':'var(--t1)') + '">' + opts.title + '</div>';
-  h += '<div style="display:flex;gap:5px">';
-  if (opts.queryFn) h += '<button class="btn-sm" onclick="' + opts.queryFn + '" style="font-size:12px;padding:3px 9px">' + (opts.queryBtn||'查詢') + '</button>';
+  h += '<div style="font-size:14px;font-weight:500;color:' + titleColor + '">' + opts.title + '</div>';
+  h += '<div style="display:flex;gap:5px;flex-wrap:wrap">';
+  if (opts.queryFn) h += '<button class="btn-sm" onclick="' + opts.queryFn + '" style="font-size:12px;padding:3px 9px">' + (opts.queryBtn||'開啟查詢 →') + '</button>';
   if (opts.extraBtn) h += opts.extraBtn;
   h += '</div></div>';
-  h += '<div style="font-size:12px;color:var(--t3);margin-bottom:8px">📸 ' + opts.hint + '</div>';
 
-  // 上傳按鈕
-  h += '<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">';
-  h += '<label style="display:inline-flex;align-items:center;gap:5px;padding:5px 12px;background:var(--card);border:0.5px solid var(--bdr2);border-radius:6px;cursor:pointer;font-size:13px;color:var(--t1)">';
-  h += '📷 上傳截圖';
+  // 各類型的原本說明文字
+  if (type === 'asset') {
+    h += '<div style="font-size:13px;color:var(--t2);margin-bottom:6px">點「開啟查詢」→ 自動複製姓名「<strong style="color:var(--t0)">' + (lead.name||'') + '</strong>」並開啟網頁，進入後貼上查詢</div>';
+    h += '<div style="font-size:12px;color:var(--t3);margin-bottom:8px">不需登入即可查詢，輸入姓名或身分證字號</div>';
+  } else if (type === 'verdict') {
+    h += '<div style="font-size:13px;color:var(--t2);margin-bottom:6px">點「開啟查詢」→ 自動搜尋「<strong style="color:var(--t0)">' + (lead.name||'') + '</strong>」相關裁判書</div>';
+    h += '<div style="font-size:12px;color:var(--t3);margin-bottom:8px">📸 請截圖客戶<strong>現居地與戶籍地</strong>相關結果後上傳，AI 將讀取法院、筆數、判決主題並整理成可點擊清單</div>';
+  } else if (type === 'traffic') {
+    h += '<div style="font-size:13px;color:var(--t2);margin-bottom:6px">點「開啟查詢」→ 自動複製身分證字號，進入後貼上查詢（需身分證字號）</div>';
+    h += '<div style="font-size:12px;color:var(--t3);margin-bottom:8px">📸 截圖查詢結果後上傳，AI 將自動計算<strong>總罰款金額</strong>並列出各筆違規</div>';
+  } else if (type === 'license') {
+    h += '<div style="font-size:13px;color:var(--t2);margin-bottom:6px">點「開啟查詢」→ 自動複製姓名，進入後貼上並輸入身分證字號查詢</div>';
+    h += '<div style="font-size:12px;color:var(--t3);margin-bottom:8px">📸 截圖查詢結果後上傳，AI 將列出所有持有技術士證照</div>';
+  }
+
+  // 原本查詢展開區（動產擔保保留 queryAsset 展開說明）
+  if (type === 'asset') {
+    h += '<div id="asset-result-' + id + '"></div>';
+  } else if (type === 'verdict') {
+    h += '<div id="verdict-result-' + id + '"></div>';
+  }
+
+  // 分隔線
+  h += '<div style="border-top:0.5px dashed rgba(255,255,255,.1);margin:8px 0"></div>';
+
+  // 上傳區
+  h += '<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:4px">';
+  h += '<label style="display:inline-flex;align-items:center;gap:5px;padding:5px 12px;background:var(--card);border:0.5px solid var(--bdr2);border-radius:6px;cursor:pointer;font-size:13px;color:var(--t1);white-space:nowrap">';
+  h += '📷 上傳截圖 / 儲存圖檔';
   h += '<input type="file" accept="image/*,application/pdf" style="display:none" onchange="uploadDoc(event,\'' + id + '\',\'' + type + '\',\'' + opts.aiPrompt.replace(/'/g,"\\'").replace(/\n/g,' ') + '\')">';
   h += '</label>';
-  if (docs.length > 0) h += '<span style="font-size:12px;color:var(--t3)">已上傳 ' + docs.length + ' 筆</span>';
+  if (docs.length > 0) h += '<span style="font-size:12px;color:var(--t3)">已儲存 ' + docs.length + ' 筆</span>';
   h += '</div>';
 
-  // 已上傳的文件和 AI 分析結果
+  // 已上傳文件
   docs.forEach(function(doc, di) {
     h += renderDocResult(id, type, doc, di);
   });
 
-  h += '<div id="doc-loading-' + id + '-' + type + '" style="display:none;font-size:13px;color:var(--t2);margin-top:8px">⏳ AI 讀取中...</div>';
+  h += '<div id="doc-loading-' + id + '-' + type + '" style="display:none;font-size:13px;color:var(--t2);margin-top:8px;padding:8px 0">⏳ AI 讀取圖片中，請稍候...</div>';
   h += '</div>';
   return h;
 }
@@ -2896,7 +2920,8 @@ function renderTeamOverview(el, isLeader, isAdmin) {
   var varExp       = teamExpenses.filter(function(e){return e.type!=='fixed';});
   var totalFixed   = fixedExp.reduce(function(s,e){return s+e.amount;},0);
   var totalVar     = varExp.reduce(function(s,e){return s+e.amount;},0);
-  var totalExp     = totalSalary + totalFixed + totalVar;
+  var totalOpsExp  = totalFixed + totalVar; // 公司營運支出（不含薪水）
+  var totalExp     = totalSalary + totalFixed + totalVar; // 全部支出（含薪水）
 
   // 公司實際可得收入（只算公司抽成部份）
   var thisCoRev = Math.round(thisRev * companyRate / 100);
@@ -2904,8 +2929,9 @@ function renderTeamOverview(el, isLeader, isAdmin) {
   var lqCoRev   = Math.round(lqRev  * companyRate / 100);
   var lyCoRev   = Math.round(lyRev  * companyRate / 100);
 
-  var thisNet  = thisCoRev - totalExp;
-  var lmNet    = lmCoRev  - totalExp; // 支出假設同月固定
+  // 淨利 = 公司抽成收入 - 固定開銷 - 非固定開銷（不扣薪水）
+  var thisNet  = thisCoRev - totalOpsExp;
+  var lmNet    = lmCoRev  - totalOpsExp;
 
   function pct(n,p) {
     if (!p) return n>0?'<span style="color:var(--grn)">↑ 新增</span>':'<span style="color:var(--t3)">—</span>';
@@ -2920,23 +2946,23 @@ function renderTeamOverview(el, isLeader, isAdmin) {
     '<div class="stat-card"><div class="stat-l">本月成交</div><div class="stat-v" style="color:var(--grn)">' + thisClosed.length + '</div><div class="stat-s">vs 前月 '+lmClosed.length+' 件 '+pct(thisClosed.length,lmClosed.length)+'</div></div>' +
     '<div class="stat-card"><div class="stat-l">估算總收入</div><div class="stat-v" style="color:var(--grn);font-size:20px">'+fmt(thisRev)+'</div><div class="stat-s">'+pct(thisRev,lmRev)+' vs 前月</div></div>' +
     '<div class="stat-card"><div class="stat-l">公司抽成 ('+companyRate+'%)</div><div class="stat-v" style="color:var(--acc);font-size:20px">'+fmt(thisCoRev)+'</div><div class="stat-s">'+pct(thisCoRev,lmCoRev)+' vs 前月</div></div>' +
-    '<div class="stat-card"><div class="stat-l">本月淨利</div><div class="stat-v" style="color:'+(thisNet>=0?'var(--grn)':'var(--red)')+';font-size:20px">'+fmt(thisNet)+'</div><div class="stat-s">扣除所有支出</div></div>';
+    '<div class="stat-card"><div class="stat-l">公司淨利</div><div class="stat-v" style="color:'+(thisNet>=0?'var(--grn)':'var(--red)')+';font-size:20px">'+fmt(thisNet)+'</div><div class="stat-s">抽成 - 營運開銷</div></div>';
   el.appendChild(s4);
 
   // ── ② 月/季/年比較表 ──
   var cmpCard = document.createElement('div'); cmpCard.className = 'card';
-  var cmpH = '<div class="ct">📊 營收與淨利歷史比較</div>';
+  var cmpH = '<div class="ct">📊 營收與淨利歷史比較</div><div style="font-size:12px;color:var(--t3);margin-bottom:8px">*淨利不含薪資，薪資另計</div>';
   cmpH += '<table style="width:100%;border-collapse:collapse;font-size:13px">';
   cmpH += '<tr style="border-bottom:0.5px solid var(--bdr);color:var(--t2)">';
-  ['期間','成交','總收入','公司抽成','淨利','vs本月'].forEach(function(h2){
+  ['期間','成交','總收入','公司抽成','淨利*','vs本月'].forEach(function(h2){
     cmpH += '<th style="text-align:'+(h2==='期間'?'left':'right')+';padding:6px 4px;font-weight:400">'+h2+'</th>';
   });
   cmpH += '</tr>';
   [
     {label:'本月',   deals:thisClosed.length, rev:thisRev,  coRev:thisCoRev,  net:thisNet,  cmp:null,     hl:true},
     {label:'前月',   deals:lmClosed.length,   rev:lmRev,    coRev:lmCoRev,    net:lmNet,    cmp:lmRev,    hl:false},
-    {label:'前季均', deals:Math.round(lqClosed.length/3*10)/10, rev:Math.round(lqRev/3), coRev:Math.round(lqCoRev/3), net:Math.round(lqCoRev/3)-totalExp, cmp:lqRev/3, hl:false},
-    {label:'去年同月',deals:lyClosed.length,  rev:lyRev,    coRev:lyCoRev,    net:lyCoRev-totalExp, cmp:lyRev, hl:false},
+    {label:'前季均', deals:Math.round(lqClosed.length/3*10)/10, rev:Math.round(lqRev/3), coRev:Math.round(lqCoRev/3), net:Math.round(lqCoRev/3)-totalOpsExp, cmp:lqRev/3, hl:false},
+    {label:'去年同月',deals:lyClosed.length,  rev:lyRev,    coRev:lyCoRev,    net:lyCoRev-totalOpsExp, cmp:lyRev, hl:false},
   ].forEach(function(r) {
     cmpH += '<tr style="border-bottom:0.5px solid var(--bdr);'+(r.hl?'background:var(--al)':'')+'">';
     cmpH += '<td style="padding:8px 4px;'+(r.hl?'font-weight:600;color:var(--acc)':'')+'">'+r.label+'</td>';
@@ -2952,20 +2978,39 @@ function renderTeamOverview(el, isLeader, isAdmin) {
   el.appendChild(cmpCard);
 
   // ── ③ 支出分析 ──
+  // 公司淨利說明卡
+  var netCard = document.createElement('div'); netCard.className = 'card';
+  netCard.innerHTML =
+    '<div class="ct">💰 公司收益計算</div>' +
+    '<div style="font-size:12px;color:var(--t3);margin-bottom:10px">淨利 = 公司抽成收入 − 固定開銷 − 非固定開銷（薪資另計）</div>' +
+    '<div class="ri"><span class="rl">估算總收入</span><span class="rv" style="color:var(--grn);font-weight:600">'+fmt(thisRev)+'</span></div>' +
+    '<div class="ri"><span class="rl">公司抽成 ('+companyRate+'%)</span><span class="rv" style="color:var(--acc);font-weight:600">'+fmt(thisCoRev)+'</span></div>' +
+    '<div class="ri" style="padding-left:12px"><span class="rl" style="color:var(--t2);font-size:13px">- 固定開銷</span><span class="rv" style="color:var(--red)">'+fmt(totalFixed)+'</span></div>' +
+    '<div class="ri" style="padding-left:12px"><span class="rl" style="color:var(--t2);font-size:13px">- 非固定開銷</span><span class="rv" style="color:var(--red)">'+fmt(totalVar)+'</span></div>' +
+    '<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-top:0.5px solid var(--bdr);margin-top:6px">' +
+      '<span style="font-size:15px;font-weight:600">公司淨利</span>' +
+      '<span style="font-size:22px;font-weight:800;color:'+(thisNet>=0?'var(--grn)':'var(--red)')+'">'+fmt(thisNet)+'</span>' +
+    '</div>' +
+    '<div style="background:var(--inp);border-radius:8px;padding:10px 12px;margin-top:4px">' +
+      '<div style="font-size:13px;font-weight:500;color:var(--t2);margin-bottom:6px">👥 員工薪資（另計）</div>' +
+      '<div class="ri"><span class="rl" style="font-size:13px">底薪合計</span><span class="rv" style="color:var(--red)">'+fmt(totalSalary)+'</span></div>' +
+      '<div style="font-size:12px;color:var(--t3);margin-top:4px">薪資為員工成本，不計入公司淨利</div>' +
+    '</div>';
+  el.appendChild(netCard);
+
+  // 支出結構（固定+非固定）
   var expCard = document.createElement('div'); expCard.className = 'card';
-  var expH = '<div class="ct">💸 本月支出結構</div>';
-  expH += '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:10px">';
-  expH += '<div style="background:var(--rl);border-radius:8px;padding:10px;text-align:center"><div style="font-size:11px;color:var(--t2);margin-bottom:3px">薪資</div><div style="font-size:16px;font-weight:700;color:var(--red)">'+fmt(totalSalary)+'</div></div>';
-  expH += '<div style="background:var(--rl);border-radius:8px;padding:10px;text-align:center"><div style="font-size:11px;color:var(--t2);margin-bottom:3px">固定開銷</div><div style="font-size:16px;font-weight:700;color:var(--red)">'+fmt(totalFixed)+'</div></div>';
-  expH += '<div style="background:var(--rl);border-radius:8px;padding:10px;text-align:center"><div style="font-size:11px;color:var(--t2);margin-bottom:3px">非固定</div><div style="font-size:16px;font-weight:700;color:var(--red)">'+fmt(totalVar)+'</div></div>';
+  var expH = '<div class="ct">💸 公司營運開銷明細</div>';
+  expH += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px">';
+  expH += '<div style="background:var(--rl);border-radius:8px;padding:10px;text-align:center"><div style="font-size:11px;color:var(--t2);margin-bottom:3px">固定開銷</div><div style="font-size:18px;font-weight:700;color:var(--red)">'+fmt(totalFixed)+'</div></div>';
+  expH += '<div style="background:var(--rl);border-radius:8px;padding:10px;text-align:center"><div style="font-size:11px;color:var(--t2);margin-bottom:3px">非固定開銷</div><div style="font-size:18px;font-weight:700;color:var(--red)">'+fmt(totalVar)+'</div></div>';
   expH += '</div>';
-  // 橫條支出比例
-  [{label:'薪資',amt:totalSalary,color:'#C04030'},{label:'固定開銷',amt:totalFixed,color:'#B88020'},{label:'非固定',amt:totalVar,color:'#C8511A'}].forEach(function(e) {
-    var p2 = totalExp>0?Math.round(e.amt/totalExp*100):0;
+  [{label:'固定開銷',amt:totalFixed,color:'#B88020'},{label:'非固定開銷',amt:totalVar,color:'#C8511A'}].forEach(function(e) {
+    var p2 = totalOpsExp>0?Math.round(e.amt/totalOpsExp*100):0;
     expH += '<div style="margin-bottom:6px"><div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:2px"><span style="color:var(--t2)">'+e.label+'</span><span>'+fmt(e.amt)+' ('+p2+'%)</span></div>';
     expH += '<div style="background:rgba(255,255,255,.08);border-radius:4px;height:6px"><div style="height:100%;border-radius:4px;background:'+e.color+';width:'+p2+'%"></div></div></div>';
   });
-  expH += '<div style="display:flex;justify-content:space-between;padding-top:8px;border-top:0.5px solid var(--bdr);margin-top:4px"><span style="font-weight:600">總支出</span><span style="font-weight:700;color:var(--red)">'+fmt(totalExp)+'</span></div>';
+  expH += '<div style="display:flex;justify-content:space-between;padding-top:8px;border-top:0.5px solid var(--bdr);margin-top:4px"><span style="font-weight:600">營運開銷合計</span><span style="font-weight:700;color:var(--red)">'+fmt(totalOpsExp)+'</span></div>';
   expCard.innerHTML = expH;
   el.appendChild(expCard);
 
@@ -3231,22 +3276,27 @@ function renderTeamFinance(el, isLeader, isAdmin) {
   // 開銷分類
   var fixedExp  = teamExpenses.filter(function(e){return e.type==='fixed';});
   var varExp    = teamExpenses.filter(function(e){return e.type!=='fixed';});
-  var totalFixed  = fixedExp.reduce(function(s,e){return s+e.amount;},0);
-  var totalVar    = varExp.reduce(function(s,e){return s+e.amount;},0);
-  var totalSalary = (teamCompany.salaries||[]).reduce(function(s,e){return s+e.amount;},0);
-  var totalExp  = totalFixed + totalVar + totalSalary;
-  var estRevenue  = thisClosed * (teamCompany.revenuePerDeal||20000);
-  var netProfit   = estRevenue - totalExp;
+  var totalFixed   = fixedExp.reduce(function(s,e){return s+e.amount;},0);
+  var totalVar     = varExp.reduce(function(s,e){return s+e.amount;},0);
+  var totalSalary  = (teamCompany.salaries||[]).reduce(function(s,e){return s+e.amount;},0);
+  var totalOpsExp2 = totalFixed + totalVar; // 營運開銷（不含薪水）
+  var totalExp     = totalFixed + totalVar + totalSalary; // 含薪水總支出
+  var splitItems2  = teamCompany.splitItems || [{ name:'公司', rate:40 }];
+  var companyRate2 = splitItems2.reduce(function(s,i){return s+(parseFloat(i.rate)||0);},0);
+  var estRevenue   = thisClosed * (teamCompany.revenuePerDeal||20000);
+  var estCoRev     = Math.round(estRevenue * companyRate2 / 100);
+  var netProfit    = estCoRev - totalOpsExp2; // 淨利不含薪水
 
   // ── 本月業績總覽 ──
   var perfCard = document.createElement('div'); perfCard.className = 'card';
   perfCard.innerHTML =
     '<div class="ct">📈 本月業績總覽</div>' +
+    '<div style="font-size:12px;color:var(--t3);margin-bottom:8px">淨利 = 公司抽成收入 − 固定開銷 − 非固定開銷（薪資另計）</div>' +
     '<div style="display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:10px">' +
       '<div style="background:var(--al);border-radius:8px;padding:10px;text-align:center"><div style="font-size:12px;color:var(--t2);margin-bottom:4px">本月成交</div><div style="font-size:22px;font-weight:800;color:var(--acc)">' + thisClosed + '</div><div style="font-size:11px;color:var(--t3)">件 ' + arrow(thisClosed,lastClosed) + ' vs前月</div></div>' +
-      '<div style="background:var(--gl);border-radius:8px;padding:10px;text-align:center"><div style="font-size:12px;color:var(--t2);margin-bottom:4px">估算營收</div><div style="font-size:22px;font-weight:800;color:var(--grn)">$' + (estRevenue/10000).toFixed(1) + 'W</div><div style="font-size:11px;color:var(--t3)">每件均 $' + (teamCompany.revenuePerDeal||20000).toLocaleString() + '</div></div>' +
-      '<div style="background:var(--rl);border-radius:8px;padding:10px;text-align:center"><div style="font-size:12px;color:var(--t2);margin-bottom:4px">總支出</div><div style="font-size:22px;font-weight:800;color:var(--red)">$' + (totalExp/10000).toFixed(1) + 'W</div><div style="font-size:11px;color:var(--t3)">薪+固定+雜項</div></div>' +
-      '<div style="background:' + (netProfit>=0?'var(--gl)':'var(--rl)') + ';border-radius:8px;padding:10px;text-align:center"><div style="font-size:12px;color:var(--t2);margin-bottom:4px">估算淨利</div><div style="font-size:22px;font-weight:800;color:' + (netProfit>=0?'var(--grn)':'var(--red)') + '">$' + (netProfit/10000).toFixed(1) + 'W</div><div style="font-size:11px;color:var(--t3)">營收 - 支出</div></div>' +
+      '<div style="background:var(--gl);border-radius:8px;padding:10px;text-align:center"><div style="font-size:12px;color:var(--t2);margin-bottom:4px">公司抽成收入</div><div style="font-size:20px;font-weight:800;color:var(--grn)">$' + (estCoRev/10000).toFixed(1) + 'W</div><div style="font-size:11px;color:var(--t3)">佔收入 '+companyRate2+'%</div></div>' +
+      '<div style="background:var(--rl);border-radius:8px;padding:10px;text-align:center"><div style="font-size:12px;color:var(--t2);margin-bottom:4px">營運開銷</div><div style="font-size:20px;font-weight:800;color:var(--red)">$' + (totalOpsExp2/10000).toFixed(1) + 'W</div><div style="font-size:11px;color:var(--t3)">固定+非固定</div></div>' +
+      '<div style="background:' + (netProfit>=0?'var(--gl)':'var(--rl)') + ';border-radius:8px;padding:10px;text-align:center"><div style="font-size:12px;color:var(--t2);margin-bottom:4px">公司淨利</div><div style="font-size:20px;font-weight:800;color:' + (netProfit>=0?'var(--grn)':'var(--red)') + '">$' + (netProfit/10000).toFixed(1) + 'W</div><div style="font-size:11px;color:var(--t3)">薪資另計 $'+(totalSalary/10000).toFixed(1)+'W</div></div>' +
     '</div>' +
     '<div class="ri"><span class="rl">前月成交</span><span class="rv">' + lastClosed + ' 件</span></div>' +
     '<div class="ri"><span class="rl">前三個月均</span><span class="rv">' + Math.round(closedIn(lastQ,thisM)/3*10)/10 + ' 件/月</span></div>' +
@@ -3520,17 +3570,14 @@ function renderTeamFinance(el, isLeader, isAdmin) {
   // ── 總計摘要 ──
   var sumCard = document.createElement('div'); sumCard.className = 'card';
   sumCard.innerHTML =
-    '<div class="ct">💼 本月支出總計</div>' +
-    '<div class="ri"><span class="rl">薪資</span><span class="rv" style="color:var(--red)">-$' + totalSalary.toLocaleString() + '</span></div>' +
+    '<div class="ct">💼 本月費用摘要</div>' +
+    '<div style="font-size:12px;color:var(--t3);margin-bottom:8px">淨利 = 公司抽成 − 固定開銷 − 非固定開銷</div>' +
     '<div class="ri"><span class="rl">固定開銷</span><span class="rv" style="color:var(--red)">-$' + totalFixed.toLocaleString() + '</span></div>' +
     '<div class="ri"><span class="rl">非固定開銷</span><span class="rv" style="color:var(--red)">-$' + totalVar.toLocaleString() + '</span></div>' +
-    '<div style="display:flex;justify-content:space-between;padding-top:10px;border-top:0.5px solid var(--bdr);margin-top:4px">' +
-      '<span style="font-size:16px;font-weight:600">總支出</span>' +
-      '<span style="font-size:20px;font-weight:800;color:var(--red)">$' + totalExp.toLocaleString() + '</span>' +
-    '</div>' +
-    '<div style="display:flex;justify-content:space-between;padding-top:8px;margin-top:4px">' +
-      '<span style="font-size:16px;font-weight:600">估算淨利</span>' +
-      '<span style="font-size:20px;font-weight:800;color:' + (netProfit>=0?'var(--grn)':'var(--red)') + '">$' + netProfit.toLocaleString() + '</span>' +
+    '<div class="ri" style="border-top:0.5px solid var(--bdr);padding-top:8px;margin-top:4px"><span class="rl" style="font-weight:600">公司淨利</span><span class="rv" style="font-size:18px;font-weight:700;color:' + (netProfit>=0?'var(--grn)':'var(--red)') + '">$' + netProfit.toLocaleString() + '</span></div>' +
+    '<div style="background:var(--inp);border-radius:8px;padding:10px 12px;margin-top:10px">' +
+      '<div style="font-size:13px;color:var(--t2);margin-bottom:4px">👥 員工薪資（另計，不含於淨利）</div>' +
+      '<div class="ri"><span class="rl">底薪合計</span><span class="rv" style="color:var(--red)">-$' + totalSalary.toLocaleString() + '/月</span></div>' +
     '</div>';
   el.appendChild(sumCard);
 }
