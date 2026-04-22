@@ -537,10 +537,30 @@ function gv(id) { var el = document.getElementById(id); return el ? el.value : '
 function gi(id) { var el = document.getElementById(id); return el ? (parseInt(el.value) || 0) : 0; }
 
 function statusText(s) {
-  return s==='closed'?'成交':s==='active'?'近件中':s==='invited'?'邀約':s==='pending_guarantor'?'補保人':'新名單';
+  var map = {
+    'new':'新名單',
+    'invited':'邀約',
+    'submitting':'送件中',
+    'approved':'核准',
+    'closed':'結案',
+    'pending_guarantor':'待補保人',
+    'rejected':'無法承作',
+    'lost':'失聯'
+  };
+  return map[s] || '新名單';
 }
 function statusBadge(s) {
-  return s==='closed'?'b-grn':s==='active'?'b-acc':'b-gray';
+  var map = {
+    'new':'b-gray',
+    'invited':'b-acc',
+    'submitting':'b-blu',
+    'approved':'b-yel',
+    'closed':'b-grn',
+    'pending_guarantor':'b-yel',
+    'rejected':'b-red',
+    'lost':'b-gray'
+  };
+  return map[s] || 'b-gray';
 }
 
 // ══════════════════════════════
@@ -920,7 +940,7 @@ async function renderDash() {
   var thisLeads = leads.filter(function(l){return new Date(l.created_at)>=tms;});
   var total   = thisLeads.length;
   var closed  = thisLeads.filter(function(l){return l.status==='closed';}).length;
-  var pending = thisLeads.filter(function(l){return ['new','active','invited'].indexOf(l.status)>=0;}).length;
+  var pending = thisLeads.filter(function(l){return ['new','invited','submitting','approved','pending_guarantor'].indexOf(l.status)>=0;}).length;
   var propL   = thisLeads.filter(function(l){return l.has_property;}).length;
   var lmL=cntIn(lms,lme), lmC=clIn(lms,lme);
   var lqL=cntIn(lqs,lme), lqC=clIn(lqs,lme);
@@ -1396,7 +1416,7 @@ function showLeadDetail(id) {
   }
   html += '<div style="margin-top:10px"><div class="flbl" style="margin-bottom:6px">案件進度</div>';
   html += '<select class="fi" onchange="updateStatus(\'' + id + '\',this.value)">';
-  ['new','active','invited','pending_guarantor','closed','rejected'].forEach(function(s) {
+  ['new','invited','submitting','approved','closed','pending_guarantor','rejected','lost'].forEach(function(s) {
     html += '<option value="' + s + '"' + (lead.status===s?' selected':'') + '>' + statusText(s) + '</option>';
   });
   html += '</select></div></div>';
@@ -1799,7 +1819,7 @@ function renderFinance() {
     var convRate = thisLeads.length>0 ? Math.round(thisClosed.length/thisLeads.length*100) : 0;
     var propLeads = thisLeads.filter(function(l){return l.has_property;});
     var alertLeads = thisLeads.filter(function(l){return l.alert_status&&l.alert_status!=='none';});
-    var pendingLeads = thisLeads.filter(function(l){return ['new','active','invited'].indexOf(l.status)>=0;});
+    var pendingLeads = thisLeads.filter(function(l){return ['new','invited','submitting','approved','pending_guarantor'].indexOf(l.status)>=0;});
     [
       ['新增名單', thisLeads.length + ' 件', '本月新客戶'],
       ['成交件數', thisClosed.length + ' 件', '轉換率 ' + convRate + '%'],
@@ -2377,7 +2397,7 @@ function renderTeamMembers(el, isLeader, isAdmin) {
       '<div class="ct">邀請新成員</div>' +
       '<div class="frow"><div class="flbl">會員 Email</div><input class="fi" id="invite-email" type="email" placeholder="對方的登入 Email"></div>' +
       '<button class="btn-p" style="width:100%;margin-top:10px" onclick="inviteMember()">發送邀請</button>' +
-      '<div style="font-size:13px;color:var(--t2);margin-top:8px">對方接受後正式加入團隊，一人只能加入一個團隊</div>';
+      '<div style="font-size:13px;color:var(--t2);margin-top:8px">對方需持有<strong style="color:var(--t0)">專業版</strong>才能加入，一人只能加入一個團隊</div>';
     el.appendChild(invCard);
   }
 }
@@ -2396,13 +2416,19 @@ async function removeMember(tmId, name) {
 async function inviteMember() {
   var email = document.getElementById('invite-email') ? document.getElementById('invite-email').value.trim() : '';
   if (!email) { alert('請填寫 Email'); return; }
-  // 查找該 email 的 member
-  var res = await sb.from('members').select('id,name').eq('email', email).single();
+  // 查找該 email 的 member（包含 plan 欄位）
+  var res = await sb.from('members').select('id,name,plan').eq('email', email).single();
   if (!res.data) { alert('找不到此 Email 的會員，請確認對方已註冊'); return; }
   if (res.data.id === currentUser.id) { alert('不能邀請自己'); return; }
+  // 確認對方持有專業版或團隊版
+  var memberPlan = res.data.plan || 'free';
+  if (memberPlan !== 'pro' && memberPlan !== 'team') {
+    alert('「' + res.data.name + '」目前方案為' + (memberPlan==='trial'?'試用中':'基本版') + '，需先升級至專業版（$799/月）才能加入團隊。');
+    return;
+  }
   // 確認對方沒有在其他團隊
   var existing = await sb.from('team_members').select('id').eq('member_id', res.data.id).eq('status', 'active');
-  if (existing.data && existing.data.length > 0) { alert('該成員已在其他團隊，無法邀請'); return; }
+  if (existing.data && existing.data.length > 0) { alert('「' + res.data.name + '」已在其他團隊，無法邀請'); return; }
   // 發送邀請
   await sb.from('team_members').insert({ team_id: teamData.id, member_id: res.data.id, role: 'member', status: 'pending' });
   alert('✓ 已傳送邀請給 ' + res.data.name);
@@ -2906,7 +2932,7 @@ function renderSettings() {
     html += '<div style="border:1.5px solid var(--acc);border-radius:12px;padding:16px;position:relative">';
     html += '<div style="position:absolute;top:-10px;left:50%;transform:translateX(-50%);background:var(--acc);color:#FFF;font-size:12px;font-weight:600;padding:2px 12px;border-radius:20px">推薦</div>';
     html += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">';
-    html += '<div><div style="font-size:17px;font-weight:700">團隊版</div><div style="font-size:13px;color:var(--t2);margin-top:2px">多人協作團隊方案</div></div>';
+    html += '<div><div style="font-size:17px;font-weight:700">團隊版</div><div style="font-size:13px;color:var(--grn);margin-top:2px">🏢 團長付費，團員免費加入</div></div>';
     html += '<div style="text-align:right"><div style="font-size:26px;font-weight:800;color:var(--acc)" id="team-price">$999</div><div style="font-size:13px;color:var(--t3)" id="team-period">/月</div></div>';
     html += '</div>';
     html += '<div style="font-size:14px;color:var(--t2);line-height:1.9;margin-bottom:12px">';
@@ -2974,24 +3000,56 @@ function showUpgradeInfo(planType) {
   info.dataset.plan = planType;
   var isYear = currentBilling === 'yearly';
   var isTeam = planType === 'team';
-  var price = isTeam ? (isYear?'$9,990':'$999') : (isYear?'$7,990':'$799');
-  var period = isYear ? '年' : '月';
-  var planName = isTeam ? '團隊版' : '專業版';
   var m = currentMember || {};
+  var currentPlan = m.plan || 'trial';
+  var isPro = currentPlan === 'pro';
+
+  // 計算實際應付金額
+  var fullPrice = isTeam ? (isYear ? 9990 : 999) : (isYear ? 7990 : 799);
+  var alreadyPaid = 0;
+  var isDiff = false;
+
+  // 已付專業版升團隊版→只收差額
+  if (isTeam && isPro) {
+    alreadyPaid = isYear ? 7990 : 799;
+    isDiff = true;
+  }
+  var payAmount = fullPrice - alreadyPaid;
+  var planName = isTeam ? '團隊版' : '專業版';
+  var period = isYear ? '年' : '月';
+
+  var priceHtml = isDiff
+    ? '<div class="ri"><span class="rl">原方案已付</span><span class="rv" style="color:var(--t2)">專業版 -$' + alreadyPaid.toLocaleString() + '</span></div>' +
+      '<div class="ri"><span class="rl">補繳差額</span><span class="rv" style="font-size:18px;font-weight:700;color:var(--acc)">$' + payAmount.toLocaleString() + ' /' + period + '</span></div>'
+    : '<div class="ri"><span class="rl">金額</span><span class="rv" style="font-size:18px;font-weight:700;color:var(--acc)">$' + payAmount.toLocaleString() + ' /' + period + '</span></div>';
+
+  var teamNote = isTeam
+    ? '<div style="background:var(--gl);border:0.5px solid rgba(45,138,78,.3);border-radius:8px;padding:10px 12px;margin-bottom:12px;font-size:14px;color:var(--t2);line-height:1.7">' +
+      '🏢 <strong style="color:var(--grn)">團長</strong>需持有團隊版，<strong style="color:var(--grn)">團員</strong>持有專業版即可加入，不需另外升級。' +
+      '</div>'
+    : '';
+
+  var diffNote = isDiff
+    ? '<div style="background:var(--yl);border:0.5px solid rgba(184,128,32,.3);border-radius:8px;padding:8px 12px;margin-bottom:12px;font-size:14px;color:var(--yel)">' +
+      '✓ 您已持有專業版，升級只需補繳差額 $' + payAmount.toLocaleString() + '，不重複收費。' +
+      '</div>'
+    : '';
 
   info.style.display = 'block';
   info.innerHTML =
     '<div class="card" style="border-color:var(--acc)">' +
     '<div class="ct">📋 付款資訊</div>' +
+    teamNote +
+    diffNote +
     '<div style="background:var(--al);border-radius:8px;padding:12px 14px;margin-bottom:12px">' +
     '<div class="ri"><span class="rl">方案</span><span class="rv" style="color:var(--acc);font-weight:600">' + planName + ' · ' + (isYear?'年繳':'月繳') + '</span></div>' +
-    '<div class="ri"><span class="rl">金額</span><span class="rv" style="font-size:18px;font-weight:700;color:var(--acc)">' + price + ' /' + period + '</span></div>' +
+    priceHtml +
     '<div class="ri"><span class="rl">帳號</span><span class="rv" style="font-size:13px">' + (m.email||'—') + '</span></div>' +
     '</div>' +
-    '<div style="font-size:14px;color:var(--t2);line-height:1.8;margin-bottom:12px">' +
+    '<div style="font-size:14px;color:var(--t2);line-height:1.9;margin-bottom:12px">' +
     '① 完成付款後，請傳送以下資訊給管理員：<br>' +
-    '&nbsp;&nbsp;· 您的 Email：<strong style="color:var(--t0)">' + (m.email||'—') + '</strong><br>' +
-    '&nbsp;&nbsp;· 選擇方案：<strong style="color:var(--t0)">' + planName + ' ' + (isYear?'年繳':'月繳') + '</strong><br>' +
+    '&nbsp;&nbsp;· Email：<strong style="color:var(--t0)">' + (m.email||'—') + '</strong><br>' +
+    '&nbsp;&nbsp;· 方案：<strong style="color:var(--t0)">' + planName + ' ' + (isYear?'年繳':'月繳') + (isDiff?' （補差額）':'') + '</strong><br>' +
     '&nbsp;&nbsp;· 付款截圖<br>' +
     '② 管理員確認後於 1 個工作天內開通' +
     '</div>' +
