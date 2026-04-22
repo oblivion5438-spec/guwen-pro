@@ -2392,11 +2392,12 @@ function removeExtra(idx) { extraExpenses.splice(idx,1); renderFinance(); }
 // ══════════════════════════════
 // 團隊管理
 // ══════════════════════════════
-var teamData = null;      // 目前的團隊資料
-var teamMembers = [];     // 團隊成員列表
-var teamLeads = [];       // 所有成員的客戶（團長用）
-var teamTab = 'overview'; // overview | members | leads | finance
-var teamExpenses = [];    // 團隊開支
+var teamData = null;
+var teamMembers = [];
+var teamLeads = [];
+var teamTab = 'overview';
+var teamExpenses = [];
+var teamCompany = { revenuePerDeal: 20000, salaries: [] };
 
 async function renderTeam() {
   var el = document.getElementById('member-content');
@@ -2780,124 +2781,233 @@ function filterTeamLeads(memberId) {
   if (!list) return;
   var filtered = memberId === 'all' ? teamLeads : teamLeads.filter(function(l){return l.member_id===memberId;});
   if (filtered.length === 0) { list.innerHTML = '<div style="text-align:center;padding:16px;color:var(--t2)">沒有客戶資料</div>'; return; }
-  var h = '';
-  filtered.slice(0,30).forEach(function(l) {
+
+  // 把 teamLeads 合併進 leads，讓 showLeadDetail 找得到
+  filtered.forEach(function(tl) {
+    if (!leads.find(function(l){return l.id===tl.id;})) leads.push(tl);
+  });
+
+  list.innerHTML = '';
+  filtered.slice(0,50).forEach(function(l) {
     var sc = calcScores(l);
     var addrShort = '';
     if (l.address) { var m=l.address.match(/^(.{2,3}[市縣])(.{2,4}[區鄉鎮])/); if(m) addrShort=m[1]+m[2]; }
-    // 找顧問姓名
     var advisor = teamMembers.find(function(tm){return tm.member_id===l.member_id;});
     var advisorName = advisor&&advisor.members ? advisor.members.name : '—';
-    h += '<div class="lead-item" style="border-left:3px solid var(--acc)">';
-    h += '<div style="width:36px;height:36px;border-radius:50%;background:var(--al);color:var(--acc);display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:600;flex-shrink:0">' + (l.name||'?').charAt(0) + '</div>';
-    h += '<div class="lead-info">';
-    h += '<div style="display:flex;align-items:center;gap:6px"><span class="lead-name">' + (l.name||'—') + '</span>';
-    if (addrShort) h += '<span style="font-size:12px;color:var(--t2)">' + addrShort + '</span>';
-    h += '</div>';
-    h += '<div style="font-size:13px;color:var(--t2);margin-top:1px">顧問：' + advisorName + ' · 信貸 <span style="color:var(--grn)">' + sc.bank + '%</span></div>';
-    h += '</div>';
-    h += '<span class="badge ' + (l.status==='closed'?'b-grn':'b-gray') + '">' + (l.status==='closed'?'成交':'進行中') + '</span>';
-    h += '</div>';
+    var badgeClass = statusBadge(l.status);
+    var badgeText  = statusText(l.status);
+
+    var item = document.createElement('div');
+    item.className = 'lead-item';
+    item.style.borderLeft = '3px solid var(--acc)';
+    item.style.cursor = 'pointer';
+    item.innerHTML =
+      '<div style="width:36px;height:36px;border-radius:50%;background:var(--al);color:var(--acc);display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:600;flex-shrink:0">' + (l.name||'?').charAt(0) + '</div>' +
+      '<div class="lead-info">' +
+        '<div style="display:flex;align-items:center;gap:6px"><span class="lead-name">' + (l.name||'—') + '</span>' +
+        (addrShort?'<span style="font-size:12px;color:var(--t2)">'+addrShort+'</span>':'') + '</div>' +
+        '<div style="font-size:13px;color:var(--t2);margin-top:1px">顧問：' + advisorName + ' · 信貸 <span style="color:var(--grn)">' + sc.bank + '%</span></div>' +
+      '</div>' +
+      '<span class="badge ' + badgeClass + '">' + badgeText + '</span>';
+    item.addEventListener('click', function() { showLeadDetail(l.id); });
+    list.appendChild(item);
   });
-  if (filtered.length > 30) h += '<div style="text-align:center;padding:10px;font-size:13px;color:var(--t2)">顯示前30筆，共' + filtered.length + '筆</div>';
-  list.innerHTML = h;
+  if (filtered.length > 50) {
+    var more = document.createElement('div');
+    more.style.cssText = 'text-align:center;padding:10px;font-size:13px;color:var(--t2)';
+    more.textContent = '顯示前50筆，共' + filtered.length + '筆';
+    list.appendChild(more);
+  }
 }
 
 function renderTeamFinance(el, isLeader, isAdmin) {
   var now = new Date();
-  var thisM = new Date(now.getFullYear(), now.getMonth(), 1);
-  var lastM = new Date(now.getFullYear(), now.getMonth()-1, 1);
+  var thisM  = new Date(now.getFullYear(), now.getMonth(), 1);
+  var lastM  = new Date(now.getFullYear(), now.getMonth()-1, 1);
   var lastME = thisM;
-  var lastQ = new Date(now.getFullYear(), now.getMonth()-3, 1);
-  var lastY = new Date(now.getFullYear()-1, now.getMonth(), 1);
+  var lastQ  = new Date(now.getFullYear(), now.getMonth()-3, 1);
+  var lastY  = new Date(now.getFullYear()-1, now.getMonth(), 1);
   var lastYE = new Date(now.getFullYear(), now.getMonth(), 1);
 
-  function closedIn(start, end) {
-    return teamLeads.filter(function(l){return l.status==='closed'&&new Date(l.created_at)>=start&&new Date(l.created_at)<end;}).length;
-  }
-
-  var thisClosed = teamLeads.filter(function(l){return l.status==='closed'&&new Date(l.created_at)>=thisM;}).length;
-  var lastClosed = closedIn(lastM, lastME);
-  var totalExp = teamExpenses.reduce(function(s,e){return s+e.amount;},0);
-
+  function closedIn(s,e) { return teamLeads.filter(function(l){return l.status==='closed'&&new Date(l.created_at)>=s&&new Date(l.created_at)<e;}).length; }
   function arrow(n,p) {
     if(p===0) return n>0?'<span style="color:var(--grn)">↑新增</span>':'—';
     var pct=Math.round((n-p)/p*100);
-    return '<span style="color:'+(pct>0?'var(--grn)':'var(--red)')+'\">'+(pct>0?'↑':'↓')+Math.abs(pct)+'%</span>';
+    return '<span style="color:'+(pct>=0?'var(--grn)':'var(--red)')+'\">'+(pct>=0?'↑':'↓')+Math.abs(pct)+'%</span>';
   }
 
-  // 成交比較
+  var thisClosed = closedIn(thisM, new Date());
+  var lastClosed = closedIn(lastM, lastME);
+
+  // 開銷分類
+  var fixedExp  = teamExpenses.filter(function(e){return e.type==='fixed';});
+  var varExp    = teamExpenses.filter(function(e){return e.type!=='fixed';});
+  var totalFixed  = fixedExp.reduce(function(s,e){return s+e.amount;},0);
+  var totalVar    = varExp.reduce(function(s,e){return s+e.amount;},0);
+  var totalSalary = (teamCompany.salaries||[]).reduce(function(s,e){return s+e.amount;},0);
+  var totalExp  = totalFixed + totalVar + totalSalary;
+  var estRevenue  = thisClosed * (teamCompany.revenuePerDeal||20000);
+  var netProfit   = estRevenue - totalExp;
+
+  // ── 本月業績總覽 ──
   var perfCard = document.createElement('div'); perfCard.className = 'card';
-  perfCard.innerHTML = '<div class="ct">📈 成交業績比較</div>' +
-    '<div class="ri"><span class="rl">本月成交</span><span class="rv" style="color:var(--grn);font-size:18px;font-weight:700">' + thisClosed + ' 件</span></div>' +
-    '<div class="ri"><span class="rl">vs 前月</span><span class="rv">' + lastClosed + ' 件 ' + arrow(thisClosed,lastClosed) + '</span></div>' +
-    '<div class="ri"><span class="rl">vs 前三個月均</span><span class="rv">' + closedIn(lastQ,thisM) + ' 件 ' + arrow(thisClosed,closedIn(lastQ,thisM)) + '</span></div>' +
-    '<div class="ri"><span class="rl">vs 去年同月</span><span class="rv">' + closedIn(lastY,lastYE) + ' 件 ' + arrow(thisClosed,closedIn(lastY,lastYE)) + '</span></div>';
+  perfCard.innerHTML =
+    '<div class="ct">📈 本月業績總覽</div>' +
+    '<div style="display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:10px">' +
+      '<div style="background:var(--al);border-radius:8px;padding:10px;text-align:center"><div style="font-size:12px;color:var(--t2);margin-bottom:4px">本月成交</div><div style="font-size:22px;font-weight:800;color:var(--acc)">' + thisClosed + '</div><div style="font-size:11px;color:var(--t3)">件 ' + arrow(thisClosed,lastClosed) + ' vs前月</div></div>' +
+      '<div style="background:var(--gl);border-radius:8px;padding:10px;text-align:center"><div style="font-size:12px;color:var(--t2);margin-bottom:4px">估算營收</div><div style="font-size:22px;font-weight:800;color:var(--grn)">$' + (estRevenue/10000).toFixed(1) + 'W</div><div style="font-size:11px;color:var(--t3)">每件均 $' + (teamCompany.revenuePerDeal||20000).toLocaleString() + '</div></div>' +
+      '<div style="background:var(--rl);border-radius:8px;padding:10px;text-align:center"><div style="font-size:12px;color:var(--t2);margin-bottom:4px">總支出</div><div style="font-size:22px;font-weight:800;color:var(--red)">$' + (totalExp/10000).toFixed(1) + 'W</div><div style="font-size:11px;color:var(--t3)">薪+固定+雜項</div></div>' +
+      '<div style="background:' + (netProfit>=0?'var(--gl)':'var(--rl)') + ';border-radius:8px;padding:10px;text-align:center"><div style="font-size:12px;color:var(--t2);margin-bottom:4px">估算淨利</div><div style="font-size:22px;font-weight:800;color:' + (netProfit>=0?'var(--grn)':'var(--red)') + '">$' + (netProfit/10000).toFixed(1) + 'W</div><div style="font-size:11px;color:var(--t3)">營收 - 支出</div></div>' +
+    '</div>' +
+    '<div class="ri"><span class="rl">前月成交</span><span class="rv">' + lastClosed + ' 件</span></div>' +
+    '<div class="ri"><span class="rl">前三個月均</span><span class="rv">' + Math.round(closedIn(lastQ,thisM)/3*10)/10 + ' 件/月</span></div>' +
+    '<div class="ri"><span class="rl">去年同月</span><span class="rv">' + closedIn(lastY,lastYE) + ' 件</span></div>' +
+    (isAdmin?'<div class="frow" style="margin-top:10px"><div class="flbl">每件成交均收（元）</div><input class="fi" id="tc-per-deal" type="number" inputmode="numeric" value="'+(teamCompany.revenuePerDeal||20000)+'" onchange="teamCompany.revenuePerDeal=parseInt(this.value)||20000;renderTeam()"></div>':'');
   el.appendChild(perfCard);
 
-  // 公司開支
-  var expCard = document.createElement('div'); expCard.className = 'card';
-  var expH = '<div class="ct">💸 公司開支';
-  if (isAdmin) expH += ' <button class="btn-sm" onclick="showAddTeamExpense()">+ 新增</button>';
-  expH += '</div>';
+  // ── 薪水計算 ──
+  var salCard = document.createElement('div'); salCard.className = 'card';
+  var salH = '<div class="ct">👥 員工薪資';
+  if (isAdmin) salH += ' <button class="btn-sm" onclick="showAddSalary()">+ 新增</button>';
+  salH += '</div>';
+  salH += '<div id="add-salary-form" style="display:none;background:var(--inp);border-radius:8px;padding:12px;margin-bottom:10px">';
+  salH += '<div class="frow2"><div class="frow"><div class="flbl">姓名/職位</div><input class="fi" id="ts-name" placeholder="業務顧問"></div>';
+  salH += '<div class="frow"><div class="flbl">月薪（元）</div><input class="fi" id="ts-amount" type="number" inputmode="numeric" placeholder="35000"></div></div>';
+  salH += '<div style="display:flex;gap:6px;margin-top:8px"><button class="btn-sm" onclick="document.getElementById(\'add-salary-form\').style.display=\'none\'">取消</button>';
+  salH += '<button class="btn-p" onclick="saveTeamSalary()" style="flex:1">新增</button></div></div>';
 
-  if (teamExpenses.length === 0) {
-    expH += '<div style="text-align:center;padding:14px;color:var(--t2)">尚未記錄任何開支</div>';
+  if (!teamCompany.salaries || teamCompany.salaries.length === 0) {
+    salH += '<div style="text-align:center;padding:12px;color:var(--t2)">尚未新增薪資項目</div>';
   } else {
-    teamExpenses.forEach(function(e,i) {
-      expH += '<div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:0.5px solid var(--bdr)">';
-      expH += '<span style="font-size:18px">' + (e.icon||'💳') + '</span>';
-      expH += '<div style="flex:1"><div style="font-size:15px;font-weight:500">' + e.name + '</div>';
-      expH += '<div style="font-size:13px;color:var(--t2)">' + (e.date||'') + '</div></div>';
-      expH += '<div style="font-size:15px;font-weight:600;color:var(--red)">-$' + e.amount.toLocaleString() + '</div>';
-      if (isAdmin) expH += '<button onclick="removeTeamExpense(' + i + ')" style="font-size:13px;padding:2px 8px;border-radius:5px;border:0.5px solid rgba(192,64,48,.3);background:transparent;color:var(--red);cursor:pointer;margin-left:4px;font-family:var(--sans)">刪</button>';
-      expH += '</div>';
+    teamCompany.salaries.forEach(function(s,i) {
+      salH += '<div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:0.5px solid var(--bdr)">';
+      salH += '<span style="font-size:20px">👤</span><div style="flex:1"><div style="font-weight:500">' + s.name + '</div></div>';
+      salH += '<span style="font-weight:600;color:var(--red)">$' + s.amount.toLocaleString() + '</span>';
+      if (isAdmin) salH += '<button onclick="removeTeamSalary(' + i + ')" style="font-size:12px;padding:2px 8px;border-radius:5px;border:0.5px solid rgba(192,64,48,.3);background:transparent;color:var(--red);cursor:pointer;font-family:var(--sans)">刪</button>';
+      salH += '</div>';
     });
-    expH += '<div style="display:flex;justify-content:space-between;padding-top:10px;border-top:0.5px solid var(--bdr);margin-top:4px"><span style="color:var(--t2)">本月合計</span><span style="font-weight:600;color:var(--red)">-$' + totalExp.toLocaleString() + '</span></div>';
+    salH += '<div style="display:flex;justify-content:space-between;padding-top:8px;border-top:0.5px solid var(--bdr);margin-top:4px"><span style="color:var(--t2)">薪資合計</span><span style="font-weight:600;color:var(--red)">$' + totalSalary.toLocaleString() + '/月</span></div>';
   }
-  expCard.innerHTML = expH;
-  el.appendChild(expCard);
+  salCard.innerHTML = salH;
+  el.appendChild(salCard);
 
-  // 新增開支表單（隱藏）
-  var addExpDiv = document.createElement('div'); addExpDiv.id = 'add-team-expense'; addExpDiv.style.display = 'none';
-  addExpDiv.className = 'card';
-  addExpDiv.innerHTML = '<div class="ct">新增開支項目</div>' +
-    '<div class="frow2"><div class="frow"><div class="flbl">圖示</div><input class="fi" id="te-icon" placeholder="💳" maxlength="2" value="💳"></div>' +
-    '<div class="frow"><div class="flbl">名稱</div><input class="fi" id="te-name" placeholder="辦公室租金"></div></div>' +
-    '<div class="frow2" style="margin-top:8px"><div class="frow"><div class="flbl">金額（元）</div><input class="fi" id="te-amount" type="number" placeholder="0" inputmode="numeric"></div>' +
-    '<div class="frow"><div class="flbl">日期</div><input class="fi" id="te-date" type="date"></div></div>' +
-    '<div style="display:flex;gap:6px;margin-top:8px">' +
-    '<button class="btn-sm" onclick="document.getElementById(\'add-team-expense\').style.display=\'none\'">取消</button>' +
-    '<button class="btn-p" onclick="saveTeamExpense()" style="flex:1">新增</button></div>';
-  el.appendChild(addExpDiv);
+  // ── 固定開銷 ──
+  var fixCard = document.createElement('div'); fixCard.className = 'card';
+  var fixH = '<div class="ct">🏢 公司固定開銷';
+  if (isAdmin) fixH += ' <button class="btn-sm" onclick="showAddTeamExpense(\'fixed\')">+ 新增</button>';
+  fixH += '</div>';
+  fixH += '<div id="add-fixed-expense-form" style="display:none;background:var(--inp);border-radius:8px;padding:12px;margin-bottom:10px">';
+  fixH += '<div class="frow2"><div class="frow"><div class="flbl">圖示</div><input class="fi" id="tfe-icon" value="🏢" maxlength="2"></div>';
+  fixH += '<div class="frow"><div class="flbl">名稱</div><input class="fi" id="tfe-name" placeholder="辦公室租金"></div></div>';
+  fixH += '<div class="frow" style="margin-top:6px"><div class="flbl">金額（元）</div><input class="fi" id="tfe-amount" type="number" inputmode="numeric" placeholder="0"></div>';
+  fixH += '<div style="display:flex;gap:6px;margin-top:8px"><button class="btn-sm" onclick="document.getElementById(\'add-fixed-expense-form\').style.display=\'none\'">取消</button>';
+  fixH += '<button class="btn-p" onclick="saveTeamExpense(\'fixed\')" style="flex:1">新增</button></div></div>';
+
+  if (fixedExp.length === 0) {
+    fixH += '<div style="text-align:center;padding:12px;color:var(--t2)">尚未新增固定開銷</div>';
+  } else {
+    fixedExp.forEach(function(e,i) {
+      fixH += '<div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:0.5px solid var(--bdr)">';
+      fixH += '<span style="font-size:18px">' + (e.icon||'🏢') + '</span><div style="flex:1"><div style="font-weight:500">' + e.name + '</div></div>';
+      fixH += '<span style="font-weight:600;color:var(--red)">$' + e.amount.toLocaleString() + '</span>';
+      if (isAdmin) fixH += '<button onclick="removeTeamExpenseByType(\'fixed\',' + i + ')" style="font-size:12px;padding:2px 8px;border-radius:5px;border:0.5px solid rgba(192,64,48,.3);background:transparent;color:var(--red);cursor:pointer;font-family:var(--sans)">刪</button>';
+      fixH += '</div>';
+    });
+    fixH += '<div style="display:flex;justify-content:space-between;padding-top:8px;border-top:0.5px solid var(--bdr);margin-top:4px"><span style="color:var(--t2)">固定開銷合計</span><span style="font-weight:600;color:var(--red)">$' + totalFixed.toLocaleString() + '/月</span></div>';
+  }
+  fixCard.innerHTML = fixH;
+  el.appendChild(fixCard);
+
+  // ── 非固定開銷 ──
+  var varCard = document.createElement('div'); varCard.className = 'card';
+  var varH = '<div class="ct">📌 非固定開銷';
+  if (isAdmin) varH += ' <button class="btn-sm" onclick="showAddTeamExpense(\'var\')">+ 新增</button>';
+  varH += '</div>';
+  varH += '<div style="font-size:13px;color:var(--t3);margin-bottom:8px">廣告費、業務招待、雜項支出等</div>';
+  varH += '<div id="add-var-expense-form" style="display:none;background:var(--inp);border-radius:8px;padding:12px;margin-bottom:10px">';
+  varH += '<div class="frow2"><div class="frow"><div class="flbl">圖示</div><input class="fi" id="tve-icon" value="📌" maxlength="2"></div>';
+  varH += '<div class="frow"><div class="flbl">名稱</div><input class="fi" id="tve-name" placeholder="廣告費"></div></div>';
+  varH += '<div class="frow2" style="margin-top:6px"><div class="frow"><div class="flbl">金額（元）</div><input class="fi" id="tve-amount" type="number" inputmode="numeric" placeholder="0"></div>';
+  varH += '<div class="frow"><div class="flbl">日期</div><input class="fi" id="tve-date" type="date"></div></div>';
+  varH += '<div style="display:flex;gap:6px;margin-top:8px"><button class="btn-sm" onclick="document.getElementById(\'add-var-expense-form\').style.display=\'none\'">取消</button>';
+  varH += '<button class="btn-p" onclick="saveTeamExpense(\'var\')" style="flex:1">新增</button></div></div>';
+
+  if (varExp.length === 0) {
+    varH += '<div style="text-align:center;padding:12px;color:var(--t2)">尚未新增非固定開銷</div>';
+  } else {
+    varExp.forEach(function(e,i) {
+      varH += '<div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:0.5px solid var(--bdr)">';
+      varH += '<span style="font-size:18px">' + (e.icon||'📌') + '</span>';
+      varH += '<div style="flex:1"><div style="font-weight:500">' + e.name + '</div><div style="font-size:12px;color:var(--t3)">' + (e.date||'') + '</div></div>';
+      varH += '<span style="font-weight:600;color:var(--red)">$' + e.amount.toLocaleString() + '</span>';
+      if (isAdmin) varH += '<button onclick="removeTeamExpenseByType(\'var\',' + i + ')" style="font-size:12px;padding:2px 8px;border-radius:5px;border:0.5px solid rgba(192,64,48,.3);background:transparent;color:var(--red);cursor:pointer;font-family:var(--sans)">刪</button>';
+      varH += '</div>';
+    });
+    varH += '<div style="display:flex;justify-content:space-between;padding-top:8px;border-top:0.5px solid var(--bdr);margin-top:4px"><span style="color:var(--t2)">非固定合計</span><span style="font-weight:600;color:var(--red)">$' + totalVar.toLocaleString() + '</span></div>';
+  }
+  varCard.innerHTML = varH;
+  el.appendChild(varCard);
+
+  // ── 總計摘要 ──
+  var sumCard = document.createElement('div'); sumCard.className = 'card';
+  sumCard.innerHTML =
+    '<div class="ct">💼 本月支出總計</div>' +
+    '<div class="ri"><span class="rl">薪資</span><span class="rv" style="color:var(--red)">-$' + totalSalary.toLocaleString() + '</span></div>' +
+    '<div class="ri"><span class="rl">固定開銷</span><span class="rv" style="color:var(--red)">-$' + totalFixed.toLocaleString() + '</span></div>' +
+    '<div class="ri"><span class="rl">非固定開銷</span><span class="rv" style="color:var(--red)">-$' + totalVar.toLocaleString() + '</span></div>' +
+    '<div style="display:flex;justify-content:space-between;padding-top:10px;border-top:0.5px solid var(--bdr);margin-top:4px">' +
+      '<span style="font-size:16px;font-weight:600">總支出</span>' +
+      '<span style="font-size:20px;font-weight:800;color:var(--red)">$' + totalExp.toLocaleString() + '</span>' +
+    '</div>' +
+    '<div style="display:flex;justify-content:space-between;padding-top:8px;margin-top:4px">' +
+      '<span style="font-size:16px;font-weight:600">估算淨利</span>' +
+      '<span style="font-size:20px;font-weight:800;color:' + (netProfit>=0?'var(--grn)':'var(--red)') + '">$' + netProfit.toLocaleString() + '</span>' +
+    '</div>';
+  el.appendChild(sumCard);
 }
 
-function showAddTeamExpense() {
-  var el = document.getElementById('add-team-expense');
-  if (el) { el.style.display='block'; var d=document.getElementById('te-date'); if(d) d.value=new Date().toISOString().split('T')[0]; }
+function showAddSalary() {
+  var el = document.getElementById('add-salary-form');
+  if (el) el.style.display = el.style.display==='none'?'block':'none';
 }
-function saveTeamExpense() {
-  var icon=document.getElementById('te-icon')?document.getElementById('te-icon').value:'💳';
-  var name=document.getElementById('te-name')?document.getElementById('te-name').value.trim():'';
-  var amount=parseInt(document.getElementById('te-amount')?document.getElementById('te-amount').value:0)||0;
-  var date=document.getElementById('te-date')?document.getElementById('te-date').value:'';
-  if(!name||!amount){alert('請填寫名稱和金額');return;}
-  teamExpenses.push({icon:icon,name:name,amount:amount,date:date});
-  var el=document.getElementById('add-team-expense'); if(el) el.style.display='none';
-  teamTab='finance';
-  var mainEl=document.getElementById('member-content');
-  // 重新渲染
-  var isLeader=teamMembers.find(function(tm){return tm.member_id===currentUser.id&&tm.role==='leader';});
-  var isAdmin=teamMembers.find(function(tm){return tm.member_id===currentUser.id&&(tm.role==='leader'||tm.role==='admin');});
-  renderTeamMain(mainEl, !!isLeader, !!isAdmin, isLeader?'leader':isAdmin?'admin':'member');
+function saveTeamSalary() {
+  var name   = document.getElementById('ts-name')   ? document.getElementById('ts-name').value.trim()         : '';
+  var amount = parseInt(document.getElementById('ts-amount') ? document.getElementById('ts-amount').value : 0) || 0;
+  if (!name||!amount) { alert('請填寫姓名和金額'); return; }
+  if (!teamCompany.salaries) teamCompany.salaries = [];
+  teamCompany.salaries.push({ name:name, amount:amount });
+  document.getElementById('add-salary-form').style.display = 'none';
+  renderTeam();
 }
-function removeTeamExpense(idx) {
-  teamExpenses.splice(idx,1);
-  var mainEl=document.getElementById('member-content');
-  var isLeader=teamMembers.find(function(tm){return tm.member_id===currentUser.id&&tm.role==='leader';});
-  var isAdmin=teamMembers.find(function(tm){return tm.member_id===currentUser.id&&(tm.role==='leader'||tm.role==='admin');});
-  renderTeamMain(mainEl, !!isLeader, !!isAdmin, isLeader?'leader':isAdmin?'admin':'member');
+function removeTeamSalary(idx) {
+  if (teamCompany.salaries) { teamCompany.salaries.splice(idx,1); renderTeam(); }
 }
+function showAddTeamExpense(type) {
+  var id = type==='fixed' ? 'add-fixed-expense-form' : type==='var' ? 'add-var-expense-form' : 'add-team-expense';
+  var el = document.getElementById(id);
+  if (el) {
+    el.style.display = el.style.display==='none'?'block':'none';
+    var d = el.querySelector('input[type=date]');
+    if (d) d.value = new Date().toISOString().split('T')[0];
+  }
+}
+function saveTeamExpense(type) {
+  var prefix = type==='fixed'?'tfe':type==='var'?'tve':'te';
+  var icon   = document.getElementById(prefix+'-icon')   ? document.getElementById(prefix+'-icon').value   || '💳' : '💳';
+  var name   = document.getElementById(prefix+'-name')   ? document.getElementById(prefix+'-name').value.trim()   : '';
+  var amount = parseInt(document.getElementById(prefix+'-amount') ? document.getElementById(prefix+'-amount').value : 0) || 0;
+  var date   = document.getElementById(prefix+'-date')   ? document.getElementById(prefix+'-date').value   : '';
+  if (!name||!amount) { alert('請填寫名稱和金額'); return; }
+  teamExpenses.push({ icon:icon, name:name, amount:amount, date:date, type: type||'var' });
+  renderTeam();
+}
+function removeTeamExpenseByType(type, idx) {
+  var filtered = teamExpenses.filter(function(e){ return e.type===(type==='fixed'?'fixed':'var')||(!e.type&&type==='var'); });
+  var target = filtered[idx];
+  if (target) { var i=teamExpenses.indexOf(target); if(i>-1) teamExpenses.splice(i,1); }
+  renderTeam();
+}
+function removeTeamExpense(idx) { teamExpenses.splice(idx,1); renderTeam(); }
 
 function showTeamSettings() {
   var name = prompt('團隊名稱：', teamData ? teamData.name : '');
