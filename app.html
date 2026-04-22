@@ -492,16 +492,17 @@ async function uploadDoc(event, leadId, type, aiPrompt) {
   var file = event.target.files[0];
   if (!file) return;
   var loadEl = document.getElementById('doc-loading-' + leadId + '-' + type);
-  if (loadEl) loadEl.style.display = 'block';
+  if (loadEl) { loadEl.style.display = 'block'; loadEl.textContent = '⏳ 上傳圖片中...'; }
   try {
     // 上傳 Storage
     var ext = file.name.split('.').pop() || 'jpg';
     var path = currentUser.id + '/' + leadId + '/' + type + '_' + Date.now() + '.' + ext;
     var upRes = await sb.storage.from('lead-documents').upload(path, file, { upsert: false });
-    if (upRes.error) throw upRes.error;
+    if (upRes.error) throw new Error('Storage 上傳失敗：' + upRes.error.message);
     var publicUrl = sb.storage.from('lead-documents').getPublicUrl(path).data.publicUrl;
 
-    // AI 讀圖（透過 Vercel API 代理）
+    // AI 讀圖
+    if (loadEl) loadEl.textContent = '🤖 AI 讀取圖片中，請稍候（約10-20秒）...';
     var base64 = await fileToBase64(file);
     var mediaType = file.type || 'image/jpeg';
     var aiRes = await fetch('/api/analyze-image', {
@@ -514,23 +515,34 @@ async function uploadDoc(event, leadId, type, aiPrompt) {
         ]}]
       })
     });
+
+    if (!aiRes.ok) {
+      var errText = await aiRes.text();
+      throw new Error('AI API 錯誤 (' + aiRes.status + ')：' + errText.slice(0,200));
+    }
+
     var aiData = await aiRes.json();
+    if (aiData.error) throw new Error('AI 回傳錯誤：' + aiData.error.message);
     var summary = aiData.content && aiData.content[0] ? aiData.content[0].text : '';
+    if (!summary) throw new Error('AI 未回傳內容，請確認 API Key 是否正確');
+
     // 清理 JSON
     var cleanSummary = summary;
     try { var m = summary.match(/\[[\s\S]*\]|\{[\s\S]*\}/); if (m) cleanSummary = m[0]; } catch(e){}
 
     // 存 DB
+    if (loadEl) loadEl.textContent = '💾 儲存中...';
     await sb.from('lead_documents').insert({ lead_id: leadId, member_id: currentUser.id, type: type, storage_path: path, ai_summary: cleanSummary });
 
     // 更新本地
     if (!leadDocuments[leadId]) leadDocuments[leadId] = {};
     if (!leadDocuments[leadId][type]) leadDocuments[leadId][type] = [];
     leadDocuments[leadId][type].push({ url: publicUrl, filename: file.name, ai_summary: cleanSummary, uploaded_at: new Date().toLocaleDateString('zh-TW') });
+    if (loadEl) loadEl.style.display = 'none';
     showLeadDetail(leadId);
   } catch(err) {
-    if (loadEl) loadEl.style.display = 'none';
-    alert('上傳失敗：' + (err.message||String(err)));
+    if (loadEl) { loadEl.style.display = 'none'; }
+    alert('錯誤：' + (err.message||String(err)));
   }
 }
 
