@@ -1141,7 +1141,9 @@ function renderAddLead() {
   html += '<div class="frow"><div class="flbl">身分證字號</div><input class="fi" id="n-idno" placeholder="A123456789" maxlength="10" style="letter-spacing:2px;font-family:monospace" oninput="validateIDField(this)"></div>';
   html += '<div id="n-idno-err" style="font-size:13px;color:var(--red);display:none;margin-top:-10px;margin-bottom:8px">格式錯誤（英文+數字共10碼）</div>';
   html += '<div class="frow2"><div class="frow"><div class="flbl">年齡</div><input class="fi" id="n-age" type="number" placeholder="38" inputmode="numeric"></div>';
-  html += '<div class="frow"><div class="flbl">工作類型</div><select class="fi" id="n-work"><option value="">選擇</option><option>受雇職員</option><option>自行業主</option><option>自由業</option><option>其他</option></select></div></div>';
+  html += '<div class="frow2"><div class="frow"><div class="flbl">公司名稱</div><input class="fi" id="n-company" placeholder="XX 股份有限公司"></div>' +
+  '<div class="frow"><div class="flbl">職位</div><input class="fi" id="n-position" placeholder="業務專員"></div></div>' +
+  '<div class="frow" style="margin-top:0"><div class="flbl">公司電話 <span style="font-size:12px;color:var(--t3)">（備註用，不會主動致電）</span></div><input class="fi" id="n-biztel" type="tel" placeholder="02-12345678"></div>';
   html += '<div class="frow"><div class="flbl">警示/協商/更生/清算</div><select class="fi" id="n-alert"><option value="none">否</option><option value="alert">警示戶</option><option value="negotiation">協商中</option><option value="rehabilitation">更生</option><option value="liquidation">清算</option></select></div>';
   html += '<div class="frow"><div class="flbl">居住地址</div><input class="fi" id="n-addr" placeholder="完整地址"></div>';
   html += '<div class="frow"><div class="flbl">戶籍地址</div><input class="fi" id="n-huji" placeholder="不同戶籍才填"></div>';
@@ -1335,7 +1337,7 @@ async function saveLead() {
 
   var payload = {
     member_id: currentUser.id, name: name,
-    age: parseInt(gv('n-age')) || null, work_type: gv('n-work'),
+    age: parseInt(gv('n-age')) || null, work_type: [gv('n-company'),gv('n-position')].filter(Boolean).join(' · ') || null,
     alert_status: gv('n-alert'), address: gv('n-addr'), huji_address: gv('n-huji'),
     required_amount: parseInt(gv('n-amount')) || null, fund_purpose: gv('n-purpose'),
     monthly_salary: parseInt(gv('n-salary')) || null,
@@ -1433,7 +1435,7 @@ function showLeadDetail(id) {
   html += '<div class="ri"><span class="rl">姓名</span><span class="rv">' + (lead.name||'—') + '</span></div>';
   if (lead.id_number_hash) html += '<div class="ri"><span class="rl">身分證</span><span class="rv" style="font-family:monospace">' + lead.id_number_hash.substring(0,3) + '******</span></div>';
   if (lead.age) html += '<div class="ri"><span class="rl">年齡</span><span class="rv">' + lead.age + '歲</span></div>';
-  html += '<div class="ri"><span class="rl">工作類型</span><span class="rv">' + (lead.work_type||'未填') + '</span></div>';
+  html += '<div class="ri"><span class="rl">工作資訊</span><span class="rv">' + (lead.work_type||'未填') + '</span></div>';
   html += '<div class="ri"><span class="rl">警示協商</span><span class="rv"><span class="badge b-' + (lead.alert_status==='none'?'grn':'red') + '">' + (lead.alert_status==='none'?'否':lead.alert_status) + '</span></span></div>';
   if (lead.address) html += '<div class="ri"><span class="rl">居住地址</span><span class="rv" style="font-size:13px">' + lead.address + '</span></div>';
   if (lead.huji_address) html += '<div class="ri"><span class="rl">戶籍地址</span><span class="rv" style="font-size:13px">' + lead.huji_address + '</span></div>';
@@ -1455,7 +1457,13 @@ function showLeadDetail(id) {
   html += '<div class="frow" style="margin-top:6px"><div class="flbl">身分證字號</div><input class="fi" id="ef-idno-' + id + '" placeholder="A123456789" maxlength="10" style="letter-spacing:2px;font-family:monospace" value="' + (lead.id_number_hash||'') + '" oninput="validateIDField(this)"></div>';
   html += '<div id="ef-idno-err-' + id + '" style="font-size:12px;color:var(--red);display:none;margin-bottom:4px">格式錯誤（英文+9位數字，共10碼）</div>';
   html += '<div class="frow" style="margin-top:6px"><div class="flbl">年齡</div><input class="fi" id="ef-age-' + id + '" type="number" value="' + (lead.age||'') + '"></div>';
-  html += '<div class="frow" style="margin-top:6px"><div class="flbl">工作類型</div><select class="fi" id="ef-work-' + id + '"><option value="">選擇</option><option' + (lead.work_type==='受雇職員'?' selected':'') + '>受雇職員</option><option' + (lead.work_type==='自行業主'?' selected':'') + '>自行業主</option><option' + (lead.work_type==='自由業'?' selected':'') + '>自由業</option><option' + (lead.work_type==='其他'?' selected':'') + '>其他</option></select></div>';
+    // 解析既有 work_type（格式：公司 · 職位）
+  var wtParts = (lead.work_type||'').split(' · ');
+  var existCompany = wtParts[0] || '';
+  var existPosition = wtParts[1] || '';
+  html += '<div class="frow2" style="margin-top:6px"><div class="frow"><div class="flbl">公司名稱</div><input class="fi" id="ef-company-' + id + '" value="' + existCompany.replace(/"/g,'&quot;') + '" placeholder="XX 股份有限公司"></div>' +
+    '<div class="frow"><div class="flbl">職位</div><input class="fi" id="ef-position-' + id + '" value="' + existPosition.replace(/"/g,'&quot;') + '" placeholder="業務專員"></div></div>';
+  html += '<div class="frow" style="margin-top:6px"><div class="flbl">公司電話 <span style="font-size:12px;color:var(--t3)">（不會主動致電）</span></div><input class="fi" id="ef-biztel-' + id + '" type="tel" value="' + (lead.company_phone||'') + '" placeholder="02-12345678"></div>';
   html += '<div class="frow" style="margin-top:6px"><div class="flbl">警示/協商</div><select class="fi" id="ef-alert-' + id + '"><option value="none"' + (lead.alert_status==='none'?' selected':'') + '>否</option><option value="alert"' + (lead.alert_status==='alert'?' selected':'') + '>警示戶</option><option value="negotiation"' + (lead.alert_status==='negotiation'?' selected':'') + '>協商中</option><option value="rehabilitation"' + (lead.alert_status==='rehabilitation'?' selected':'') + '>更生</option><option value="liquidation"' + (lead.alert_status==='liquidation'?' selected':'') + '>清算</option></select></div>';
   html += '<div class="frow" style="margin-top:6px"><div class="flbl">居住地址</div><input class="fi" id="ef-addr-' + id + '" value="' + (lead.address||'') + '" placeholder="完整地址"></div>';
   html += '<div class="frow" style="margin-top:6px"><div class="flbl">戶籍地址</div><input class="fi" id="ef-huji-' + id + '" value="' + (lead.huji_address||'') + '" placeholder="不同戶籍才填"></div>';
@@ -1567,7 +1575,7 @@ async function saveLeadEdit(id) {
     name:               gv('name').trim() || null,
     id_number_hash:     idno || null,
     age:                parseInt(gv('age')) || null,
-    work_type:          gv('work') || null,
+    work_type: [gv('company'), gv('position')].filter(Boolean).join(' · ') || null,
     alert_status:       gv('alert') || 'none',
     address:            gv('addr') || null,
     huji_address:       gv('huji') || null,
@@ -3327,7 +3335,7 @@ function renderClientStep(step) {
 
 // 儲存目前所有 input/select 的值
 function saveClientFormData() {
-  var fields = ['c-name','c-idno','c-age','c-work','c-alert','c-addr','c-huji','c-amount','c-purpose',
+  var fields = ['c-name','c-idno','c-age','c-company','c-position','c-biztel','c-alert','c-addr','c-huji','c-amount','c-purpose',
     'c-salary','c-transfer','c-cc','c-cc-limit','c-cc-count','c-car-lic','c-bike-lic',
     'c-labor-type','c-labor-this-years','c-labor-years',
     'c-property','c-collateral','c-bank-rej','c-fin-rej',
@@ -3345,7 +3353,7 @@ function saveClientFormData() {
 
 // 還原指定步驟的欄位值
 function restoreClientFormData(step) {
-  var fields2 = ['c-name','c-idno','c-age','c-work','c-alert','c-addr','c-huji','c-amount','c-purpose'];
+  var fields2 = ['c-name','c-idno','c-age','c-company','c-position','c-biztel','c-alert','c-addr','c-huji','c-amount','c-purpose'];
   var fields3 = ['c-salary','c-transfer','c-cc','c-cc-limit','c-cc-count','c-car-lic','c-bike-lic',
     'c-labor-type','c-labor-this-years','c-labor-years',
     'c-property','c-collateral','c-bank-rej','c-fin-rej',
@@ -3613,7 +3621,9 @@ function clientStep2() {
     '<div class="frow" style="margin-top:8px"><div class="flbl">身分證字號</div><input class="fi" id="c-idno" placeholder="A123456789" maxlength="10" style="letter-spacing:2px;font-family:monospace"></div>' +
     '<div class="frow2" style="margin-top:8px">' +
       '<div class="frow"><div class="flbl">年齡 <span class="req">*</span></div><input class="fi" id="c-age" type="number" placeholder="38" inputmode="numeric"></div>' +
-      '<div class="frow"><div class="flbl">工作類型</div><select class="fi" id="c-work"><option>受雇職員</option><option>自行業主</option><option>自由業</option><option>其他</option></select></div>' +
+      '<div class="frow2"><div class="frow"><div class="flbl">公司名稱</div><input class="fi" id="c-company" placeholder="XX 股份有限公司"></div>' +
+      '<div class="frow"><div class="flbl">職位</div><input class="fi" id="c-position" placeholder="業務專員"></div></div>' +
+      '<div class="frow" style="margin-top:0"><div class="flbl">公司電話 <span style="font-size:12px;color:rgba(255,255,255,.4)">（備註用，評估不來電打擾）</span></div><input class="fi" id="c-biztel" type="tel" placeholder="02-12345678"></div>' +
     '</div>' +
     '<div class="frow" style="margin-top:8px"><div class="flbl">警示/協商/更生/清算</div><select class="fi" id="c-alert"><option value="none">否</option><option value="alert">警示戶</option><option value="negotiation">協商中</option><option value="rehabilitation">更生</option><option value="liquidation">清算</option></select></div>' +
     '<div class="frow" style="margin-top:8px"><div class="flbl">居住完整地址 <span class="req">*</span></div><input class="fi" id="c-addr" placeholder="縣市+區+路街+號"></div>' +
@@ -4199,7 +4209,7 @@ async function submitClientForm() {
     member_id: clientMember.id,
     name: g('c-name') || '（未命名）',
     age: parseInt(g('c-age')) || null,
-    work_type: g('c-work'),
+    work_type: [gf('c-company'), gf('c-position')].filter(Boolean).join(' · ') || null,
     alert_status: g('c-alert') || 'none',
     address: g('c-addr'),
     huji_address: g('c-huji'),
