@@ -464,6 +464,17 @@ let scoreRules = {
   // 機車貸款
   bikeLicBonus: 15,
 
+  // 機車貸款
+  bikeUnder18Block: false,
+  bikeUnder18Penalty: -25,
+  bikeHasLoanBlock: false,
+  bikeHasLoanPenalty: -20,
+
+  // 手機商品貸
+  phoneMinSalary: 22000,
+  phoneHasLoanBlock: false,
+  phoneHasLoanPenalty: -20,
+
   // 融資遲繳（套用到所有融資貸款）
   latePayLt7: -5,            // 7天以內
   latePay7_14: -12,          // 7~14天
@@ -1342,7 +1353,7 @@ function renderAddLead() {
   html += '<div class="frow"><div class="flbl">有無抵押品</div><select class="fi" id="n-collateral"><option value="false">無</option><option value="true">有實物抵押</option></select></div></div>';
 
   // 居住狀況
-  html += '<div class="frow2"><div class="frow"><div class="flbl">居住狀況</div><select class="fi" id="n-housing"><option value="none">未填</option><option value="self">自有/自住</option><option value="rent">租屋</option><option value="family">家人住所</option><option value="other">其他</option></select></div>';
+  html += '<div class="frow2"><div class="frow"><div class="flbl">居住狀況</div><select class="fi" id="n-housing"><option value="none">未填</option><option value="self_own">本人名下（自有）</option><option value="self_live">自住（非本人名下）</option><option value="family">親屬/家人房子</option><option value="rent">租屋</option><option value="other">其他</option></select></div>';
   html += '<div class="frow"><div class="flbl">負債比（%）</div><input class="fi" id="n-debt-ratio" type="number" min="0" max="100" placeholder="0" inputmode="numeric"></div></div>';
   html += '</div>';
 
@@ -1789,6 +1800,10 @@ function showLeadDetail(id) {
   html += '<div class="ri"><span class="rl">工作資訊</span><span class="rv">' + (lead.work_type||'未填') + '</span></div>';
   html += '<div class="ri"><span class="rl">警示協商</span><span class="rv"><span class="badge b-' + (lead.alert_status==='none'?'grn':'red') + '">' + (lead.alert_status==='none'?'否':lead.alert_status) + '</span></span></div>';
   if (lead.address) html += '<div class="ri"><span class="rl">居住地址</span><span class="rv" style="font-size:13px">' + lead.address + '</span></div>';
+  if (lead.housing_status && lead.housing_status !== 'none') {
+    var housingLabels = {self_own:'本人名下（自有）', self_live:'自住（非本人名下）', family:'親屬/家人房子', rent:'租屋', other:'其他'};
+    html += '<div class="ri"><span class="rl">居住狀況</span><span class="rv">' + (housingLabels[lead.housing_status]||lead.housing_status) + '</span></div>';
+  }
   if (lead.huji_address) html += '<div class="ri"><span class="rl">戶籍地址</span><span class="rv" style="font-size:13px">' + lead.huji_address + '</span></div>';
   html += '<div class="sl">收入財務</div>';
   html += '<div class="ri"><span class="rl">月薪</span><span class="rv">' + (lead.monthly_salary ? '$'+lead.monthly_salary.toLocaleString() : '未填') + '</span></div>';
@@ -1818,6 +1833,11 @@ function showLeadDetail(id) {
   html += '<div class="frow" style="margin-top:6px"><div class="flbl">警示/協商</div><select class="fi" id="ef-alert-' + id + '"><option value="none"' + (lead.alert_status==='none'?' selected':'') + '>否</option><option value="alert"' + (lead.alert_status==='alert'?' selected':'') + '>警示戶</option><option value="negotiation"' + (lead.alert_status==='negotiation'?' selected':'') + '>協商中</option><option value="rehabilitation"' + (lead.alert_status==='rehabilitation'?' selected':'') + '>更生</option><option value="liquidation"' + (lead.alert_status==='liquidation'?' selected':'') + '>清算</option></select></div>';
   html += '<div class="frow" style="margin-top:6px"><div class="flbl">居住地址</div><input class="fi" id="ef-addr-' + id + '" value="' + (lead.address||'') + '" placeholder="完整地址"></div>';
   html += '<div class="frow" style="margin-top:6px"><div class="flbl">戶籍地址</div><input class="fi" id="ef-huji-' + id + '" value="' + (lead.huji_address||'') + '" placeholder="不同戶籍才填"></div>';
+  html += '<div class="frow" style="margin-top:6px"><div class="flbl">居住狀況</div><select class="fi" id="ef-housing-' + id + '">';
+  [['none','未填'],['self_own','本人名下（自有）'],['self_live','自住（非本人名下）'],['family','親屬/家人房子'],['rent','租屋'],['other','其他']].forEach(function(o){
+    html += '<option value="' + o[0] + '"' + (lead.housing_status===o[0]?' selected':'') + '>' + o[1] + '</option>';
+  });
+  html += '</select></div>';
   html += '<div class="sl">收入財務</div>';
   html += '<div class="frow2"><div class="frow"><div class="flbl">月薪（元）</div><input class="fi" id="ef-salary-' + id + '" type="number" value="' + (lead.monthly_salary||'') + '"></div>';
   html += '<div class="frow"><div class="flbl">薪轉</div><select class="fi" id="ef-transfer-' + id + '"><option value="true"' + (lead.has_salary_transfer?' selected':'') + '>有</option><option value="false"' + (!lead.has_salary_transfer?' selected':'') + '>無</option></select></div></div>';
@@ -2095,6 +2115,7 @@ async function saveLeadEdit(id) {
     alert_status:       gv('alert') || 'none',
     address:            gv('addr') || null,
     huji_address:       gv('huji') || null,
+    housing_status:     gv('housing') || 'none',
     monthly_salary:     parseInt(gv('salary')) || null,
     has_salary_transfer:gv('transfer') === 'true',
     has_car_license:    gv('carlic') === 'true',
@@ -4147,14 +4168,16 @@ function renderScoreRules() {
   h += '<div style="padding:10px 0;border-bottom:0.5px solid var(--bdr)">';
   h += '<div style="font-size:14px;font-weight:500;margin-bottom:8px">客戶未滿20歲</div>';
   h += '<div style="display:flex;gap:8px;flex-wrap:wrap">';
-  ['block','false','penalty'].forEach(function(opt) {
-    var labels = {block:'無法申辦（封鎖）', false:'建議補保人', penalty:'自訂扣分'};
-    var cur = R.carUnder20Block === true ? 'block' : R.carUnder20Block === false ? 'false' : 'penalty';
-    var active = cur === opt;
-    var setVal = opt === 'block' ? 'true' : opt === 'false' ? 'false' : '"penalty"';
-    h += '<button onclick="scoreRules.carUnder20Block=' + setVal + ';renderScoreRules()" ';
+  [
+    {opt:'block', label:'無法申辦（封鎖）'},
+    {opt:'suggest', label:'建議補保人'},
+    {opt:'penalty', label:'自訂扣分'}
+  ].forEach(function(item) {
+    var cur = R.carUnder20Block === true ? 'block' : R.carUnder20Block === 'penalty' ? 'penalty' : 'suggest';
+    var active = cur === item.opt;
+    h += '<button onclick="setCarUnder20(\'' + item.opt + '\')" ';
     h += 'style="padding:6px 12px;border-radius:20px;font-size:13px;font-family:var(--sans);cursor:pointer;border:0.5px solid ' + (active?'var(--acc)':'var(--bdr2)') + ';background:' + (active?'var(--al)':'transparent') + ';color:' + (active?'var(--acc)':'var(--t2)') + '">';
-    h += labels[opt] + '</button>';
+    h += item.label + '</button>';
   });
   h += '</div>';
   if (R.carUnder20Block === 'penalty') {
@@ -4188,6 +4211,57 @@ function renderScoreRules() {
   h += '<div class="frow"><div class="flbl">3次以上</div><input class="fi" id="sr-frejOver2" type="number" value="' + R.finRejOver2 + '"></div>';
   h += '</div>';
 
+  // ── 機車貸款規則 ──
+  h += '<div class="card"><div class="ct">🛵 機車貸款規則</div>';
+  h += '<div style="padding:10px 0;border-bottom:0.5px solid var(--bdr)">';
+  h += '<div style="font-size:14px;font-weight:500;margin-bottom:8px">客戶未滿18歲</div>';
+  h += '<div style="display:flex;gap:8px;flex-wrap:wrap">';
+  [
+    {opt:'block', label:'無法申辦（封鎖）'},
+    {opt:'suggest', label:'建議補保人'},
+    {opt:'penalty', label:'自訂扣分'}
+  ].forEach(function(item) {
+    var cur = R.bikeUnder18Block === true ? 'block' : R.bikeUnder18Block === 'penalty' ? 'penalty' : 'suggest';
+    var active = cur === item.opt;
+    h += '<button onclick="setBikeUnder18(\'' + item.opt + '\')" ';
+    h += 'style="padding:6px 12px;border-radius:20px;font-size:13px;font-family:var(--sans);cursor:pointer;border:0.5px solid ' + (active?'var(--acc)':'var(--bdr2)') + ';background:' + (active?'var(--al)':'transparent') + ';color:' + (active?'var(--acc)':'var(--t2)') + '">';
+    h += item.label + '</button>';
+  });
+  h += '</div>';
+  if (R.bikeUnder18Block === 'penalty') {
+    h += '<div class="frow" style="margin-top:8px"><div class="flbl">扣分數</div><input class="fi" id="sr-bike-u18-pen" type="number" value="' + (R.bikeUnder18Penalty||-25) + '"></div>';
+  }
+  h += '</div>';
+  h += '<div style="padding:10px 0;border-bottom:0.5px solid var(--bdr)">';
+  h += '<div style="font-size:14px;font-weight:500;margin-bottom:8px">目前有機車貸款</div>';
+  h += '<div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">';
+  h += '<div class="tgl ' + (R.bikeHasLoanBlock?'on':'') + '" onclick="scoreRules.bikeHasLoanBlock=!scoreRules.bikeHasLoanBlock;renderScoreRules()"></div>';
+  h += '<span style="font-size:13px;color:var(--red)">封鎖（無法申辦）</span></div>';
+  if (!R.bikeHasLoanBlock) {
+    h += '<div class="frow"><div class="flbl">否則扣分</div><input class="fi" id="sr-bike-loan-pen" type="number" value="' + (R.bikeHasLoanPenalty||-20) + '"></div>';
+  }
+  h += '</div>';
+  h += '<div class="frow2"><div class="frow"><div class="flbl">機車駕照加分</div><input class="fi" id="sr-bikeic2" type="number" value="' + R.bikeLicBonus + '"></div>';
+  h += '<div class="frow"><div class="flbl">融資婉拒1次</div><input class="fi" id="sr-bike-frej1" type="number" value="' + R.finRej1 + '"></div></div>';
+  h += '</div>';
+
+  // ── 手機商品貸規則 ──
+  h += '<div class="card"><div class="ct">📱 手機商品貸規則</div>';
+  h += '<div style="padding:10px 0;border-bottom:0.5px solid var(--bdr)">';
+  h += '<div style="font-size:14px;font-weight:500;margin-bottom:8px">最低月薪門檻（低於此薪資不予評估）</div>';
+  h += '<div class="frow"><div class="flbl">最低月薪（元）</div><input class="fi" id="sr-phone-min-salary" type="number" value="' + (R.phoneMinSalary||22000) + '"></div>';
+  h += '</div>';
+  h += '<div style="padding:10px 0">';
+  h += '<div style="font-size:14px;font-weight:500;margin-bottom:8px">目前有手機商品貸</div>';
+  h += '<div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">';
+  h += '<div class="tgl ' + (R.phoneHasLoanBlock?'on':'') + '" onclick="scoreRules.phoneHasLoanBlock=!scoreRules.phoneHasLoanBlock;renderScoreRules()"></div>';
+  h += '<span style="font-size:13px;color:var(--red)">封鎖（無法申辦）</span></div>';
+  if (!R.phoneHasLoanBlock) {
+    h += '<div class="frow"><div class="flbl">否則扣分</div><input class="fi" id="sr-phone-loan-pen" type="number" value="' + (R.phoneHasLoanPenalty||-20) + '"></div>';
+  }
+  h += '</div>';
+  h += '</div>';
+
   // ── 遲繳（統一套用所有融資貸款）──
   h += '<div class="card"><div class="ct">⏰ 遲繳扣分規則（套用所有融資貸款）</div>';
   h += '<div style="font-size:13px;color:var(--t2);margin-bottom:8px">信貸、車貸、機車貸、手機貸 均套用相同遲繳規則</div>';
@@ -4216,6 +4290,14 @@ function renderScoreRules() {
   el.innerHTML = h;
 }
 
+function setCarUnder20(opt) {
+  scoreRules.carUnder20Block = opt === 'block' ? true : opt === 'penalty' ? 'penalty' : false;
+  renderScoreRules();
+}
+function setBikeUnder18(opt) {
+  scoreRules.bikeUnder18Block = opt === 'block' ? true : opt === 'penalty' ? 'penalty' : false;
+  renderScoreRules();
+}
 function saveScoreRules() {
   var g = function(id) { return parseInt(gv(id)) || 0; };
   scoreRules.bankTransferBonus = g('sr-transfer');
