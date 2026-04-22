@@ -2272,30 +2272,69 @@ function renderFinance() {
 
   // ──────────────────────────────────
   } else { // remind
-    content += '<div class="card"><div class="ct">🔔 本月繳款提醒</div>';
-    if(fixedExpenses.length === 0) {
-      content += '<div style="text-align:center;padding:16px;color:var(--t2)">尚未新增固定費用</div>';
+
+    // 固定費用提醒
+    content += '<div class="card">';
+    content += '<div class="ct">🔔 繳款提醒 <button class="btn-sm" onclick="showAddRemind()">+ 新增提醒</button></div>';
+
+    // 新增提醒表單（預設隱藏）
+    content += '<div id="add-remind-form" style="display:none;background:var(--inp);border-radius:10px;padding:14px;margin-bottom:12px">';
+    content += '<div style="font-size:14px;font-weight:600;margin-bottom:10px">新增繳款提醒</div>';
+    content += '<div class="frow2"><div class="frow"><div class="flbl">圖示</div><input class="fi" id="rm-icon" value="💳" maxlength="2"></div>';
+    content += '<div class="frow"><div class="flbl">提醒名稱</div><input class="fi" id="rm-name" placeholder="信用卡帳單"></div></div>';
+    content += '<div class="frow2" style="margin-top:6px"><div class="frow"><div class="flbl">金額（元）</div><input class="fi" id="rm-amount" type="number" inputmode="numeric" placeholder="0"></div>';
+    content += '<div class="frow"><div class="flbl">每月幾號繳</div><input class="fi" id="rm-day" type="number" inputmode="numeric" placeholder="15" min="1" max="31"></div></div>';
+    content += '<div class="frow" style="margin-top:6px"><div class="flbl">提前幾天提醒</div>';
+    content += '<select class="fi" id="rm-remind">';
+    content += '<option value="1">1天前</option><option value="3" selected>3天前</option><option value="5">5天前</option><option value="7">7天前</option><option value="14">14天前</option>';
+    content += '</select></div>';
+    content += '<div style="display:flex;gap:6px;margin-top:10px">';
+    content += '<button class="btn-sm" onclick="document.getElementById(\'add-remind-form\').style.display=\'none\'">取消</button>';
+    content += '<button class="btn-p" onclick="saveRemind()" style="flex:1">新增</button>';
+    content += '</div></div>';
+
+    // 提醒列表
+    var allReminders = fixedExpenses.slice().sort(function(a,b) {
+      var da = new Date(now.getFullYear(), now.getMonth(), a.due_day);
+      var db = new Date(now.getFullYear(), now.getMonth(), b.due_day);
+      if(da < now) da = new Date(now.getFullYear(), now.getMonth()+1, a.due_day);
+      if(db < now) db = new Date(now.getFullYear(), now.getMonth()+1, b.due_day);
+      return da - db;
+    });
+
+    if (allReminders.length === 0) {
+      content += '<div style="text-align:center;padding:20px;color:var(--t2)">尚無繳款提醒，點「+ 新增提醒」開始建立</div>';
     } else {
-      var sorted = fixedExpenses.slice().sort(function(a,b) {
-        var da=new Date(now.getFullYear(),now.getMonth(),a.due_day);
-        var db=new Date(now.getFullYear(),now.getMonth(),b.due_day);
-        return da-db;
-      });
-      sorted.forEach(function(e) {
+      allReminders.forEach(function(e) {
         var due = new Date(now.getFullYear(), now.getMonth(), e.due_day);
-        if(due < now) due = new Date(now.getFullYear(), now.getMonth()+1, e.due_day);
-        var diff = Math.ceil((due-now)/(1000*60*60*24));
-        var color = diff<=3?'red':diff<=7?'yel':'grn';
-        var label = diff<0?'已過期':diff===0?'今天到期':diff===1?'明天到期':'剩 '+diff+' 天';
-        content += '<div style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--'+color+'-l);border:0.5px solid rgba('+(color==='red'?'192,64,48':color==='yel'?'184,128,32':'45,138,78')+', .25);border-radius:9px;margin-bottom:8px">';
-        content += '<span style="font-size:22px">'+e.icon+'</span>';
-        content += '<div style="flex:1"><div style="font-size:15px;font-weight:600">'+e.name+'</div>';
-        content += '<div style="font-size:13px;color:var(--t2)">每月 '+e.due_day+' 日 · '+label+'</div></div>';
-        content += '<span style="font-size:16px;font-weight:700;color:var(--'+color+')">$'+e.amount.toLocaleString()+'</span>';
+        if (due < now) due = new Date(now.getFullYear(), now.getMonth()+1, e.due_day);
+        var diff = Math.ceil((due - now) / (1000*60*60*24));
+        var remindDays = e.remind_days || 3;
+        var isActive = diff <= remindDays; // 在提醒範圍內
+        var color = diff <= 3 ? 'red' : diff <= 7 ? 'yel' : 'grn';
+        var label = diff < 0 ? '已過期' : diff === 0 ? '今天到期' : diff === 1 ? '明天到期' : '剩 ' + diff + ' 天';
+        var remindLabel = '提前 ' + remindDays + ' 天提醒';
+
+        content += '<div style="display:flex;align-items:center;gap:10px;padding:10px 12px;';
+        content += 'background:' + (isActive ? 'var(--'+color+'-l)' : 'var(--inp)') + ';';
+        content += 'border:0.5px solid rgba(' + (color==='red'?'192,64,48':color==='yel'?'184,128,32':'45,138,78') + ',' + (isActive?'.3':'.1') + ');';
+        content += 'border-radius:9px;margin-bottom:8px">';
+        content += '<span style="font-size:22px">' + e.icon + '</span>';
+        content += '<div style="flex:1">';
+        content += '<div style="font-size:15px;font-weight:600">' + e.name + '</div>';
+        content += '<div style="font-size:13px;color:var(--t2);margin-top:2px">每月 ' + e.due_day + ' 日 · ' + label;
+        content += ' · <span style="color:var(--t3)">' + remindLabel + '</span></div>';
+        content += '</div>';
+        content += '<div style="text-align:right">';
+        content += '<div style="font-size:15px;font-weight:700;color:var(--' + (isActive?color:'t2') + ')">$' + e.amount.toLocaleString() + '</div>';
+        content += '</div>';
+        content += '<button onclick="removeExpense(' + e.id + ')" style="font-size:12px;padding:2px 8px;border-radius:5px;border:0.5px solid rgba(192,64,48,.3);background:transparent;color:var(--red);cursor:pointer;font-family:var(--sans)">刪</button>';
         content += '</div>';
       });
       content += '<div style="display:flex;justify-content:space-between;padding:10px 0;border-top:0.5px solid var(--bdr);margin-top:4px">';
-      content += '<span style="color:var(--t2)">本月合計</span><span style="font-weight:600;font-size:16px;color:var(--red)">$'+totalFixed.toLocaleString()+'</span></div>';
+      content += '<span style="color:var(--t2)">本月合計</span>';
+      content += '<span style="font-weight:600;font-size:16px;color:var(--red)">$' + totalFixed.toLocaleString() + '</span>';
+      content += '</div>';
     }
     content += '</div>';
   }
@@ -2314,6 +2353,22 @@ function renderFinance() {
 }
 
 var finSettings = { revenuePerDeal: 20000 };
+
+function showAddRemind() {
+  var el = document.getElementById('add-remind-form');
+  if (el) el.style.display = el.style.display === 'none' ? 'block' : 'none';
+}
+function saveRemind() {
+  var icon    = document.getElementById('rm-icon')   ? document.getElementById('rm-icon').value   || '💳' : '💳';
+  var name    = document.getElementById('rm-name')   ? document.getElementById('rm-name').value.trim()   : '';
+  var amount  = parseInt(document.getElementById('rm-amount') ? document.getElementById('rm-amount').value : 0) || 0;
+  var due_day = parseInt(document.getElementById('rm-day')    ? document.getElementById('rm-day').value    : 1) || 1;
+  var remind  = parseInt(document.getElementById('rm-remind') ? document.getElementById('rm-remind').value : 3) || 3;
+  if (!name)    { alert('請填寫提醒名稱'); return; }
+  if (!due_day) { alert('請填寫繳款日期'); return; }
+  fixedExpenses.push({ id: Date.now(), icon:icon, name:name, amount:amount||0, due_day:due_day, remind_days:remind });
+  renderFinance();
+}
 
 function showAddExtra() {
   var el = document.getElementById('add-extra-form');
