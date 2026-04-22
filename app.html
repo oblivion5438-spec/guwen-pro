@@ -830,7 +830,7 @@ function buildLeadItem(l, showDate) {
       "<div class=\"lead-sub\">信貸 <span style=\"color:var(--"+bCol+")\">" + s.bank + "%</span> · 機車 <span style=\"color:var(--"+biCol+")\">" + s.bike + "%</span>" + propHtml + "</div>" +
     "</div>" +
     "<div class=\"lead-right\">" +
-      "<span class=\"badge " + statusBadge(l.status) + "\">" + statusText(l.status) + "</span>" +
+      "<span class=\"badge " + statusBadge(l.status) + "\" data-lead-badge=\""+l.id+"\">" + statusText(l.status) + "</span>" +
       dateHtml +
     "</div>" +
     "<button onclick=\"deleteLead('"+l.id+"','"+((l.name||"").replace(/'/g,""))+"');event.stopPropagation()\" " +
@@ -1959,25 +1959,28 @@ async function updateStatus(id, status) {
   var lead = leads.find(function(l) { return l.id === id; });
   if (lead) lead.status = status;
 
-  // 結案收入欄顯示/隱藏（先確認 DOM 還在）
+  // 結案收入欄顯示/隱藏（安全操作 DOM）
   var incomeDiv = document.getElementById('closed-income-' + id);
   if (incomeDiv) incomeDiv.style.display = status === 'closed' ? 'block' : 'none';
 
-  // 自動同步行事曆：今天建立一筆行程記錄
+  // 更新縮圖列表上的 badge（不重繪整頁）
+  var badgeEls = document.querySelectorAll('[data-lead-badge="'+id+'"]');
+  badgeEls.forEach(function(b){
+    b.className = 'badge ' + statusBadge(status);
+    b.textContent = statusText(status);
+  });
+
+  // 自動同步行事曆
   if (currentUser && lead) {
     var today = new Date().toISOString().split('T')[0];
     var statusLabel = statusText(status);
     var schedTitle = (lead.name||'客戶') + ' · ' + statusLabel;
-
-    // 先刪除該客戶今天的自動行程（避免重複）
     await sb.from('schedules')
       .delete()
       .eq('member_id', currentUser.id)
       .eq('lead_id', id)
       .eq('schedule_date', today)
       .eq('type', 'auto_status');
-
-    // 新增今天的進度記錄
     await sb.from('schedules').insert({
       member_id: currentUser.id,
       lead_id: id,
