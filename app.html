@@ -701,20 +701,38 @@ function buildLeadItem(l, showDate) {
   var s = calcScores(l);
   var bCol = s.bank>=70?'grn':s.bank>=60?'yel':'red';
   var biCol = s.bike>=70?'grn':s.bike>=60?'yel':'red';
-  var html = '<div class="lead-item" onclick="showLeadDetail(\'' + l.id + '\')">';
-  html += '<div class="lead-av" style="background:var(--al);color:var(--acc)">' + (l.name||'?').charAt(0) + '</div>';
-  html += '<div class="lead-info"><div class="lead-name">' + (l.name||'—') + '</div>';
-  html += '<div class="lead-sub">信貸 <span style="color:var(--' + bCol + ')">' + s.bank + '%</span>';
-  html += ' · 機車 <span style="color:var(--' + biCol + ')">' + s.bike + '%</span>';
-  if (s.propRatio !== null) {
-    var pCol = s.propStatus==='ok'?'grn':s.propStatus==='warn'?'yel':'red';
-    html += ' · 不動 <span style="color:var(--' + pCol + ')">' + s.propRatio.toFixed(0) + '%</span>';
-  }
-  html += '</div></div>';
-  html += '<div class="lead-right"><span class="badge ' + statusBadge(l.status) + '">' + statusText(l.status) + '</span>';
-  if (showDate && l.created_at) html += '<span style="font-size:12px;color:var(--t3)">' + new Date(l.created_at).toLocaleDateString('zh-TW') + '</span>';
-  html += '</div></div>';
-  return html;
+  var addrShort = '';
+  if (l.address) { var ma = l.address.match(/^(.{2,3}[市縣])(.{2,4}[區鄉鎮])/); if(ma) addrShort = ma[1]+ma[2]; }
+  var pCol = s.propRatio!==null ? (s.propStatus==="ok"?"grn":s.propStatus==="warn"?"yel":"red") : "";
+  var propHtml = s.propRatio!==null ? " · 不動 <span style=\"color:var(--"+pCol+")\">" + s.propRatio.toFixed(0) + "%</span>" : "";
+  var nameHtml = (l.name||"—") + (addrShort ? " <span style=\"font-size:12px;color:var(--t2);font-weight:400\">" + addrShort + "</span>" : "");
+  var dateHtml = (showDate && l.created_at) ? "<span style=\"font-size:12px;color:var(--t3)\">" + new Date(l.created_at).toLocaleDateString("zh-TW") + "</span>" : "";
+  // 用純 HTML string，但刪除按鈕用 data-id 之後事件委派
+  return "<div class=\"lead-item\" style=\"display:flex;align-items:center;gap:10px\">" +
+    "<div class=\"lead-av\" style=\"background:var(--al);color:var(--acc);cursor:pointer\" onclick=\"showLeadDetail('"+l.id+"')\">" + (l.name||"?").charAt(0) + "</div>" +
+    "<div class=\"lead-info\" style=\"cursor:pointer;flex:1;min-width:0\" onclick=\"showLeadDetail('"+l.id+"')\">" +
+      "<div class=\"lead-name\">" + nameHtml + "</div>" +
+      "<div class=\"lead-sub\">信貸 <span style=\"color:var(--"+bCol+")\">" + s.bank + "%</span> · 機車 <span style=\"color:var(--"+biCol+")\">" + s.bike + "%</span>" + propHtml + "</div>" +
+    "</div>" +
+    "<div class=\"lead-right\">" +
+      "<span class=\"badge " + statusBadge(l.status) + "\">" + statusText(l.status) + "</span>" +
+      dateHtml +
+    "</div>" +
+    "<button onclick=\"deleteLead('"+l.id+"','"+((l.name||"").replace(/'/g,""))+"');event.stopPropagation()\" " +
+      "style=\"width:30px;height:30px;border-radius:7px;border:0.5px solid rgba(192,64,48,.3);background:transparent;color:var(--red);cursor:pointer;font-size:14px;flex-shrink:0;margin-left:2px\" " +
+      "title=\"刪除\">&#128465;</button>" +
+    "</div>";
+}
+
+async function deleteLead(id, name) {
+  if (!confirm('確定要刪除客戶「' + (name||'此客戶') + '」的所有資料？此操作無法復原。')) return;
+  showLoading('刪除中…');
+  await sb.from('lead_loans').delete().eq('lead_id', id);
+  var r = await sb.from('leads').delete().eq('id', id).eq('member_id', currentUser.id);
+  hideLoading();
+  if (r.error) { alert('刪除失敗：' + r.error.message); return; }
+  leads = leads.filter(function(l){ return l.id !== id; });
+  renderLeads();
 }
 
 // ══════════════════════════════
@@ -1213,32 +1231,57 @@ function calcMaxLoanDisplay() {
 }
 
 var LOAN_CFG = {
-  credit: { ltype:'credit', itype:'bank', ph:'例：玉山銀行', hasPenalty:false, hasPawnRate:false },
-  car:    { ltype:'car_new', itype:'finance', ph:'例：和潤企業', hasPenalty:true, hasPawnRate:false },
-  bike:   { ltype:'bike', itype:'finance', ph:'例：裕融企業', hasPenalty:true, hasPawnRate:false },
-  phone:  { ltype:'phone', itype:'finance', ph:'例：中租零顧', hasPenalty:true, hasPawnRate:false },
-  pawn:   { ltype:'pawn', itype:'civil', ph:'', hasPenalty:false, hasPawnRate:true },
+  credit: { ltype:'credit', itype:'bank',    ph:'例：玉山銀行、台新銀行', hasPenalty:false, isPawn:false },
+  car:    { ltype:'car_new', itype:'finance', ph:'例：和潤企業、裕融企業', hasPenalty:true,  isPawn:false },
+  bike:   { ltype:'bike',    itype:'finance', ph:'例：裕融企業、台灣金聯', hasPenalty:true,  isPawn:false },
+  phone:  { ltype:'phone',   itype:'finance', ph:'例：中租零顧、樂天金融', hasPenalty:true,  isPawn:false },
+  pawn:   { ltype:'pawn',    itype:'civil',   ph:'民間/當鋪名稱',           hasPenalty:false, isPawn:true  },
 };
 
 function addLoanRow(listId, type) {
-  var cfg = LOAN_CFG[type];
+  var cfg = LOAN_CFG[type]; if (!cfg) return;
   var idx = ++loanCounters[type];
-  var id = type + '_' + idx;
-  var list = document.getElementById(listId);
+  var id  = type + '_' + idx;
+  var list = document.getElementById(listId); if (!list) return;
+
   var div = document.createElement('div');
   div.id = 'row_' + id;
   div.style.cssText = 'background:var(--inp);border-radius:8px;padding:10px 12px;margin-bottom:8px;border:0.5px solid var(--bdr)';
-  var h = '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">';
-  h += '<span style="font-size:14px;font-weight:500;color:var(--t1)">第 ' + idx + ' 筆</span>';
-  h += '<button onclick="document.getElementById(\'row_' + id + '\').remove()" style="font-size:13px;padding:2px 8px;border-radius:5px;border:0.5px solid rgba(192,64,48,.3);background:transparent;color:var(--red);cursor:pointer;font-family:var(--sans)">刪除</button></div>';
-  h += '<div class="frow2"><div class="frow"><div class="flbl">貸款金額（元）</div><input class="fi" id="' + id + '_amt" type="number" placeholder="0" inputmode="numeric"></div>';
-  h += '<div class="frow"><div class="flbl">月繳（元）</div><input class="fi" id="' + id + '_pay" type="number" placeholder="0" inputmode="numeric"></div></div>';
-  h += '<div class="frow2">';
-  if (cfg.hasPenalty) h += '<div class="frow"><div class="flbl">違約金（元）</div><input class="fi" id="' + id + '_penalty" type="number" placeholder="0" inputmode="numeric"></div>';
-  if (cfg.hasPawnRate) h += '<div class="frow"><div class="flbl">月利率（%）</div><input class="fi" id="' + id + '_rate" type="number" placeholder="5" step="0.1"></div>';
-  h += '<div class="frow"><div class="flbl">繳款狀況</div><select class="fi" id="' + id + '_status"><option value="normal">正常</option><option value="overdue">遲繳</option></select></div></div>';
-  h += '<div class="frow"><div class="flbl">機構名稱</div><input class="fi" id="' + id + '_inst" placeholder="' + cfg.ph + '"></div>';
-  div.innerHTML = h;
+
+  // 標題列
+  var hdr = document.createElement('div'); hdr.style.cssText = 'display:flex;align-items:center;justify-content:space-between;margin-bottom:8px';
+  var lbl = document.createElement('span'); lbl.style.cssText = 'font-size:14px;font-weight:500;color:var(--t1)'; lbl.textContent = '第 ' + idx + ' 筆';
+  var del = document.createElement('button');
+  del.style.cssText = 'font-size:13px;padding:2px 8px;border-radius:5px;border:0.5px solid rgba(192,64,48,.3);background:transparent;color:var(--red);cursor:pointer;font-family:var(--sans)';
+  del.textContent = '刪除';
+  del.onclick = (function(rid){ return function(){ var e=document.getElementById(rid); if(e)e.remove(); }; })('row_'+id);
+  hdr.appendChild(lbl); hdr.appendChild(del); div.appendChild(hdr);
+
+  // 貸款單位名稱
+  var r0 = document.createElement('div'); r0.className = 'frow'; r0.style.marginBottom = '6px';
+  r0.innerHTML = '<div class="flbl">貸款單位名稱</div><input class="fi" id="' + id + '_inst" placeholder="' + cfg.ph + '">';
+  div.appendChild(r0);
+
+  // 金額（萬）+ 月繳（萬）
+  var r1 = document.createElement('div'); r1.className = 'frow2';
+  var amtLabel = cfg.isPawn ? '借款金額（萬）' : '貸款金額（萬）';
+  r1.innerHTML =
+    '<div class="frow"><div class="flbl">' + amtLabel + '</div><input class="fi" id="' + id + '_amt" type="number" placeholder="0" inputmode="numeric" step="0.1"></div>' +
+    '<div class="frow"><div class="flbl">月繳（萬）</div><input class="fi" id="' + id + '_pay" type="number" placeholder="0" inputmode="numeric" step="0.01"></div>';
+  div.appendChild(r1);
+
+  // 已繳期數 + 違約金（萬）
+  var r2 = document.createElement('div'); r2.className = 'frow2'; r2.style.marginTop = '6px';
+  var r2h = '<div class="frow"><div class="flbl">已繳期數（期）</div><input class="fi" id="' + id + '_paid" type="number" placeholder="0" inputmode="numeric"></div>';
+  if (cfg.hasPenalty) r2h += '<div class="frow"><div class="flbl">違約金（萬）</div><input class="fi" id="' + id + '_penalty" type="number" placeholder="0" inputmode="numeric" step="0.1"></div>';
+  r2.innerHTML = r2h;
+  div.appendChild(r2);
+
+  // 繳款狀況（跟客戶端一樣詳細）
+  var r3 = document.createElement('div'); r3.className = 'frow'; r3.style.marginTop = '6px';
+  r3.innerHTML = '<div class="flbl">繳款狀況</div><select class="fi" id="' + id + '_status"><option value="normal">正常</option><option value="1w">遲繳1週內</option><option value="2w">遲繳2週</option><option value="3w">遲繳3週</option><option value="1m+">遲繳超過1個月</option></select>';
+  div.appendChild(r3);
+
   list.appendChild(div);
 }
 
