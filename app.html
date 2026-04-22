@@ -1410,10 +1410,26 @@ function showLeadDetail(id) {
   html += '<div class="card"><div class="ct">政府資料查閱 <span style="font-size:12px;color:var(--t2);font-weight:400">點連結自動帶入客戶姓名</span></div>';
 
   // MyData
-  html += '<div style="background:var(--bl);border:0.5px solid rgba(42,106,184,.3);border-radius:9px;padding:10px 13px;margin-bottom:8px">';
-  html += '<div style="font-size:14px;font-weight:500;color:var(--blu);margin-bottom:4px">📋 MyData 政府資料（所得／勞保／健保）</div>';
-  html += '<div style="font-size:13px;color:var(--t2);margin-bottom:8px">請指導客戶至 mydata.nat.gov.tw 自行下載後上傳給您</div>';
-  html += '<a href="https://mydata.nat.gov.tw" target="_blank" style="display:inline-block;font-size:13px;padding:6px 14px;background:var(--blu);color:#FFF;border-radius:6px;text-decoration:none">前往 MyData 平台 →</a></div>';
+  html += '<div style="background:var(--bl);border:0.5px solid rgba(42,106,184,.3);border-radius:9px;padding:12px 14px;margin-bottom:8px">';
+  html += '<div style="font-size:14px;font-weight:600;color:var(--blu);margin-bottom:4px">📋 MyData 政府資料調閱</div>';
+  html += '<div style="font-size:13px;color:var(--t2);margin-bottom:10px">請傳送以下連結給客戶，讓客戶登入後下載 PDF 傳給您。需行動自然人憑證或健保卡號登入。</div>';
+  var mydataItems = [
+    {icon:'💰', label:'個人所得資料',   url:'https://mydata.nat.gov.tw/personal/detail/API.syWqjr4flJ'},
+    {icon:'🏢', label:'勞保投保資料',   url:'https://mydata.nat.gov.tw/personal/detail/API.UZQkKbsOpz'},
+    {icon:'🏥', label:'健保投保資料',   url:'https://mydata.nat.gov.tw/personal/detail/API.zH584wn59r'},
+    {icon:'🏠', label:'財產資料',       url:'https://mydata.nat.gov.tw/personal/detail/API.Mo23SDWhsn'},
+    {icon:'📄', label:'戶籍謄本',       url:'https://mydata.nat.gov.tw/personal/detail/API.idPhotoRev'},
+  ];
+  mydataItems.forEach(function(item) {
+    html += '<div style="display:flex;align-items:center;justify-content:space-between;padding:7px 0;border-bottom:0.5px solid rgba(42,106,184,.15)">';
+    html += '<div style="display:flex;align-items:center;gap:8px"><span style="font-size:16px">' + item.icon + '</span><span style="font-size:14px;color:var(--t1)">' + item.label + '</span></div>';
+    html += '<div style="display:flex;gap:6px">';
+    html += '<a href="' + item.url + '" target="_blank" style="font-size:12px;padding:4px 10px;background:var(--blu);color:#FFF;border-radius:5px;text-decoration:none">開啟 →</a>';
+    html += '<button onclick="navigator.clipboard.writeText(\'' + item.url + '\').then(function(){alert(\'已複製連結，請傳給客戶\')})" style="font-size:12px;padding:4px 10px;background:transparent;border:0.5px solid rgba(42,106,184,.5);color:var(--blu);border-radius:5px;cursor:pointer;font-family:var(--sans)">複製連結</button>';
+    html += '</div></div>';
+  });
+  html += '<div style="font-size:12px;color:var(--t3);margin-top:8px">💡 可複製連結傳給客戶，客戶點開後登入即可下載對應文件</div>';
+  html += '</div>';
 
   // 動產擔保
   html += '<div style="background:var(--gl);border:0.5px solid rgba(45,138,78,.3);border-radius:9px;padding:10px 13px;margin-bottom:8px">';
@@ -1437,8 +1453,8 @@ function showLeadDetail(id) {
   html += '<div style="font-size:14px;font-weight:500;color:var(--t1);margin-bottom:4px">🚗 監理服務網 — 交通違規 / 強制險查詢</div>';
   html += '<div style="font-size:13px;color:var(--t2);margin-bottom:8px">帶入客戶姓名查詢交通違規及強制險記錄（需客戶身分證末四碼協助查詢）</div>';
   html += '<div style="display:flex;gap:8px;flex-wrap:wrap">';
-  html += '<a href="https://www.mvdis.gov.tw/m3-emv-mvdis/w10/query?query_type=person&name=' + encodeURIComponent(lead.name||'') + '" target="_blank" onclick="logAccess(\'' + id + '\',\'mvdis\')" style="display:inline-block;font-size:13px;padding:6px 14px;background:var(--card);border:0.5px solid var(--bdr2);color:var(--t1);border-radius:6px;text-decoration:none">交通違規查詢（帶入姓名）→</a>';
-  html += '<a href="https://www.mvdis.gov.tw/m3-emv-mvdis/" target="_blank" style="display:inline-block;font-size:13px;padding:6px 14px;background:var(--card);border:0.5px solid var(--bdr2);color:var(--t1);border-radius:6px;text-decoration:none">監理服務網首頁</a>';
+  html += '<a href="https://www.mvdis.gov.tw/m3-emv-vil/vil/penaltyQueryPay" target="_blank" onclick="logAccess(\'' + id + '\',\'mvdis\')" style="display:inline-block;font-size:13px;padding:6px 14px;background:var(--card);border:0.5px solid var(--bdr2);color:var(--t1);border-radius:6px;text-decoration:none">交通違規查詢（進入後輸入身分證）→</a>';
+  html += '<a href="https://www.mvdis.gov.tw" target="_blank" style="display:inline-block;font-size:13px;padding:6px 14px;background:var(--card);border:0.5px solid var(--bdr2);color:var(--t1);border-radius:6px;text-decoration:none">監理服務網</a>';
   html += '</div></div>';
 
   // 技能檢定查詢（勞動部）
@@ -1446,8 +1462,8 @@ function showLeadDetail(id) {
   html += '<div style="font-size:14px;font-weight:500;color:var(--t1);margin-bottom:4px">🏆 技能檢定證照查詢（勞動部）</div>';
   html += '<div style="font-size:13px;color:var(--t2);margin-bottom:8px">查詢客戶持有的技術士證照，帶入姓名快速查詢</div>';
   html += '<div style="display:flex;gap:8px;flex-wrap:wrap">';
-  html += '<a href="https://skill.tcte.edu.tw/query/search_cert.php?type=person&name=' + encodeURIComponent(lead.name||'') + '" target="_blank" onclick="logAccess(\'' + id + '\',\'skill\')" style="display:inline-block;font-size:13px;padding:6px 14px;background:var(--card);border:0.5px solid var(--bdr2);color:var(--t1);border-radius:6px;text-decoration:none">技術士證照查詢（帶入姓名）→</a>';
-  html += '<a href="https://skill.tcte.edu.tw" target="_blank" style="display:inline-block;font-size:13px;padding:6px 14px;background:var(--card);border:0.5px solid var(--bdr2);color:var(--t1);border-radius:6px;text-decoration:none">技能檢定中心官網</a>';
+  html += '<a href="https://eservice.wdasec.gov.tw/WWW/CC92Q" target="_blank" onclick="logAccess(\'' + id + '\',\'skill\')" style="display:inline-block;font-size:13px;padding:6px 14px;background:var(--card);border:0.5px solid var(--bdr2);color:var(--t1);border-radius:6px;text-decoration:none">技術士證照查詢（進入後輸入姓名）→</a>';
+  html += '<a href="https://www.wdasec.gov.tw/" target="_blank" style="display:inline-block;font-size:13px;padding:6px 14px;background:var(--card);border:0.5px solid var(--bdr2);color:var(--t1);border-radius:6px;text-decoration:none">技能檢定中心官網</a>';
   html += '</div></div>';
 
   html += '<div style="font-size:12px;color:var(--t3);margin-top:4px">以上查詢依個資法第19條第1項第5款（客戶已同意），查詢公開登記資料。</div>';
@@ -1482,7 +1498,7 @@ async function queryAsset(leadId) {
   el.innerHTML = '<span style="color:var(--yel)">查詢中…</span>';
   await new Promise(function(r) { setTimeout(r, 1000); });
   el.innerHTML = '<div style="margin-bottom:5px;color:var(--t1)">查詢完成</div>';
-  el.innerHTML += '<a href="https://onlineadmin.doj.gov.tw/AOAPS/A2/A2.aspx" target="_blank" style="font-size:13px;color:var(--blu);text-decoration:underline">前往法務部動產擔保查詢系統 →</a>';
+  el.innerHTML += '<a href="https://ppstrq.nat.gov.tw/pps/identity/Identity/init.do" target="_blank" style="font-size:13px;color:var(--blu);text-decoration:underline">前往動產擔保公示查詢系統 →</a>';
   await sb.from('data_access_logs').insert({ lead_id: leadId, member_id: currentUser.id, access_type: 'asset_query' });
 }
 
@@ -1492,7 +1508,7 @@ async function queryVerdict(leadId, name) {
   el.innerHTML = '<span style="color:var(--yel)">查詢中…</span>';
   await new Promise(function(r) { setTimeout(r, 1000); });
   el.innerHTML = '<div style="margin-bottom:5px;color:var(--t1)">請輸入「' + name + '」至下方系統查詢</div>';
-  el.innerHTML += '<a href="https://judgment.judicial.gov.tw/FJUD/default.aspx" target="_blank" style="font-size:13px;color:var(--blu);text-decoration:underline">前往司法院法學資料檢索系統 →</a>';
+  el.innerHTML += '<a href="https://lawsearch.judicial.gov.tw/default.aspx" target="_blank" style="font-size:13px;color:var(--blu);text-decoration:underline">前往司法院裁判書查詢系統 →</a>';
   await sb.from('data_access_logs').insert({ lead_id: leadId, member_id: currentUser.id, access_type: 'verdict_query' });
 }
 
@@ -3324,7 +3340,7 @@ function clientStep4() {
     h += '<div class="ib-yel">您未同意 MyData 授權，可跳過此步驟直接送出</div>';
   } else {
     h += '<div class="ib-blu" style="font-size:14px">上傳為選填，但可提升評估準確度。如未上傳，以您填寫的資料評估。</div>';
-    h += '<div style="margin:8px 0;font-size:14px;color:var(--t2);line-height:1.8">1. 前往 <a href="https://mydata.nat.gov.tw" target="_blank" style="color:var(--blu)">mydata.nat.gov.tw</a><br>2. 行動自然人憑證或健保卡號登入<br>3. 下載 PDF 後在下方上傳</div>';
+    h += '<div style="margin:8px 0;font-size:14px;color:var(--t2);line-height:1.8">1. 前往 <a href="https://mydata.nat.gov.tw/personal/detail/API.syWqjr4flJ" target="_blank" style="color:var(--blu)">MyData 個人所得查詢</a><br>2. 行動自然人憑證或健保卡號登入<br>3. 下載 PDF 後在下方上傳</div>';
   }
   card.innerHTML = h;
   if (mdAgreed) {
@@ -3739,7 +3755,7 @@ async function queryVerdict(leadId, name) {
 
   el.innerHTML = "<div style='text-align:center;padding:12px;color:var(--t2)'><div class='spinner' style='margin:0 auto 8px'></div>搜尋判決書中…</div>";
 
-  var searchUrl = "https://judgment.judicial.gov.tw/FJUD/qryresult.aspx?kw=" + encodeURIComponent(name) + "&judtype=JUDBOOK&page=1";
+  var searchUrl = "https://lawsearch.judicial.gov.tw/default.aspx#searchBar/?kw=" + encodeURIComponent(name) + "&judtype=JUDBOOK";
   try {
     var proxyUrl = "https://api.allorigins.win/get?url=" + encodeURIComponent(searchUrl);
     var res = await fetch(proxyUrl, { signal: AbortSignal.timeout(12000) });
@@ -3755,21 +3771,58 @@ async function queryVerdict(leadId, name) {
 }
 
 function parseVerdicts(rawHtml, name, addrCity, hujiCity) {
-  var results = { total: 0, local: [], others: [] };
+  var results = { total: 0, local: [], others: [], byCity: {} };
   var parser = new DOMParser();
   var doc = parser.parseFromString(rawHtml, "text/html");
   var seen = {};
+
+  // 台灣各地方法院對應縣市
+  var courtCityMap = {
+    '臺北':'台北市', '台北':'台北市',
+    '新北':'新北市',
+    '桃園':'桃園市',
+    '新竹':'新竹市',
+    '苗栗':'苗栗縣',
+    '臺中':'台中市', '台中':'台中市',
+    '彰化':'彰化縣',
+    '南投':'南投縣',
+    '雲林':'雲林縣',
+    '嘉義':'嘉義市',
+    '臺南':'台南市', '台南':'台南市',
+    '高雄':'高雄市',
+    '屏東':'屏東縣',
+    '宜蘭':'宜蘭縣',
+    '花蓮':'花蓮縣',
+    '臺東':'台東縣', '台東':'台東縣',
+    '澎湖':'澎湖縣',
+    '金門':'金門縣',
+    '連江':'連江縣',
+  };
+
   doc.querySelectorAll("a").forEach(function(a) {
     var title = a.textContent.trim();
     var href = a.href || a.getAttribute("href") || "";
     if (title.length < 6 || seen[title]) return;
-    if (href && (href.includes("judicial") || href.includes("jud"))) {
+    if (href && (href.includes("judicial") || href.includes("jud") || href.includes("lawsearch"))) {
       seen[title] = true;
-      var isLocal = (addrCity && (title.includes(addrCity.slice(0,2)) || href.includes(addrCity.slice(0,2)))) ||
-                    (hujiCity && (title.includes(hujiCity.slice(0,2)) || href.includes(hujiCity.slice(0,2))));
-      var item = { title: title, href: href };
+
+      // 判斷屬於哪個縣市法院
+      var detectedCity = '';
+      Object.keys(courtCityMap).forEach(function(key) {
+        if (title.includes(key)) detectedCity = courtCityMap[key];
+      });
+      if (!detectedCity) detectedCity = '其他';
+
+      var isLocal = (addrCity && (title.includes(addrCity.slice(0,2)) || addrCity.includes(detectedCity.slice(0,2)))) ||
+                   (hujiCity && (title.includes(hujiCity.slice(0,2)) || hujiCity.includes(detectedCity.slice(0,2))));
+
+      var item = { title: title, href: href, city: detectedCity };
       if (isLocal) results.local.push(item);
       else results.others.push(item);
+
+      // 依縣市分組
+      if (!results.byCity[detectedCity]) results.byCity[detectedCity] = [];
+      results.byCity[detectedCity].push(item);
     }
   });
   results.total = results.local.length + results.others.length;
@@ -3777,37 +3830,55 @@ function parseVerdicts(rawHtml, name, addrCity, hujiCity) {
 }
 
 function showVerdictResults(el, results, name, addrCity, hujiCity, searchUrl) {
-  var locStr = [addrCity, hujiCity].filter(Boolean).join("、") || "未知地址";
+  var locStr = [addrCity, hujiCity].filter(Boolean).join("、") || "";
   var h = "";
+
   if (results.total === 0) {
     h = "<div class='ib-grn' style='font-size:14px'>✓ 未查到「" + name + "」相關裁判書紀錄</div>";
   } else {
-    h = "<div style='display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px'>";
+    // 統計列
+    h += "<div style='display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px'>";
     h += "<span class='badge b-yel'>共 " + results.total + " 筆</span>";
-    if (results.local.length > 0) h += "<span class='badge b-red'>所在地區 " + results.local.length + " 筆</span>";
+    if (results.local.length > 0) h += "<span class='badge b-red'>⚠️ " + (locStr||'居住地') + " " + results.local.length + " 筆</span>";
+    Object.keys(results.byCity).forEach(function(city) {
+      if (city !== '其他') h += "<span class='badge b-gray'>" + city + " " + results.byCity[city].length + "筆</span>";
+    });
     h += "</div>";
+
+    // 居住地/戶籍地相關（紅色警示）
     if (results.local.length > 0) {
-      h += "<div style='background:var(--rl);border:0.5px solid rgba(192,64,48,.2);border-radius:8px;padding:10px 12px;margin-bottom:8px'>";
-      h += "<div style='font-size:14px;font-weight:500;color:var(--red);margin-bottom:8px'>⚠️ " + locStr + " 地區相關（" + results.local.length + " 筆）</div>";
+      h += "<div style='background:var(--rl);border:0.5px solid rgba(192,64,48,.3);border-radius:10px;padding:12px;margin-bottom:10px'>";
+      h += "<div style='font-size:14px;font-weight:600;color:var(--red);margin-bottom:8px'>⚠️ " + (locStr||'居住地區') + " 相關判決書（" + results.local.length + " 筆）</div>";
       results.local.forEach(function(item) {
-        h += "<div style='padding:6px 0;border-bottom:0.5px solid rgba(192,64,48,.15)'>";
-        h += "<div style='font-size:14px;color:var(--t0)'>" + item.title + "</div>";
+        h += "<div style='padding:8px 0;border-bottom:0.5px solid rgba(192,64,48,.15)'>";
+        h += "<div style='font-size:14px;color:var(--t0);margin-bottom:3px'>" + item.title + "</div>";
         h += "<a href='" + item.href + "' target='_blank' style='font-size:12px;color:var(--blu)'>查看判決書全文 →</a></div>";
       });
       h += "</div>";
     }
-    if (results.others.length > 0) {
-      h += "<div style='font-size:14px;font-weight:500;color:var(--t2);margin-bottom:4px'>其他地區（" + results.others.length + " 筆）</div>";
-      results.others.slice(0, 5).forEach(function(item) {
-        h += "<div style='padding:5px 0;border-bottom:0.5px solid var(--bdr)'>";
+
+    // 依縣市分組顯示其他結果
+    Object.keys(results.byCity).forEach(function(city) {
+      var items = results.byCity[city];
+      var isLocal = results.local.some(function(l){return l.city===city;});
+      if (isLocal) return; // 已在上方顯示
+      h += "<div style='margin-bottom:8px'>";
+      h += "<div style='font-size:13px;font-weight:600;color:var(--t2);margin-bottom:4px;padding:4px 0;border-bottom:0.5px solid var(--bdr)'>";
+      h += "📍 " + city + "（" + items.length + " 筆）</div>";
+      items.slice(0, 3).forEach(function(item) {
+        h += "<div style='padding:5px 0;border-bottom:0.5px solid rgba(255,255,255,.05)'>";
         h += "<div style='font-size:13px;color:var(--t1)'>" + item.title + "</div>";
         h += "<a href='" + item.href + "' target='_blank' style='font-size:12px;color:var(--blu)'>查看 →</a></div>";
       });
-      if (results.others.length > 5) h += "<div style='font-size:12px;color:var(--t3);margin-top:4px'>另有 " + (results.others.length - 5) + " 筆，請至司法院查看</div>";
-    }
+      if (items.length > 3) h += "<div style='font-size:12px;color:var(--t3);padding:3px 0'>另有 " + (items.length-3) + " 筆…</div>";
+      h += "</div>";
+    });
   }
-  h += "<a href='" + searchUrl + "' target='_blank' style='display:inline-block;margin-top:8px;font-size:13px;color:var(--blu)'>在司法院查看完整結果 →</a>";
-  h += "<div style='font-size:12px;color:var(--t3);margin-top:4px'>依個資法第19條第1項第5款（客戶已同意），查詢公開裁判書。不影響評估分數。</div>";
+
+  h += "<div style='margin-top:8px;padding-top:8px;border-top:0.5px solid var(--bdr)'>";
+  h += "<a href='" + searchUrl + "' target='_blank' style='display:inline-block;font-size:13px;padding:7px 14px;background:var(--yel);color:#FFF;border-radius:7px;text-decoration:none'>司法院完整查詢（帶入姓名）→</a>";
+  h += "<div style='font-size:12px;color:var(--t3);margin-top:6px'>依個資法第19條第1項第5款，查詢公開裁判書。不影響評估分數。</div>";
+  h += "</div>";
   el.innerHTML = h;
 }
 
