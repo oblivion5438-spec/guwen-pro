@@ -2603,81 +2603,208 @@ function renderTeamMain(el, isLeader, isAdmin, myRole) {
 
 function renderTeamOverview(el, isLeader, isAdmin) {
   var now = new Date();
-  var thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-  var lastMonthStart = new Date(now.getFullYear(), now.getMonth()-1, 1);
-  var lastMonthEnd   = thisMonthStart;
-  var lastQStart     = new Date(now.getFullYear(), now.getMonth()-3, 1);
-  var lastYStart     = new Date(now.getFullYear()-1, now.getMonth(), 1);
-  var lastYEnd       = new Date(now.getFullYear(), now.getMonth(), 1);
+  var tms  = new Date(now.getFullYear(), now.getMonth(), 1);
+  var lms  = new Date(now.getFullYear(), now.getMonth()-1, 1);
+  var lme  = tms;
+  var lqs  = new Date(now.getFullYear(), now.getMonth()-3, 1);
+  var lqe  = tms;
+  var lys  = new Date(now.getFullYear()-1, now.getMonth(), 1);
+  var lye  = new Date(now.getFullYear(), now.getMonth(), 1);
+  // 上上月（用於前月 vs 前前月比較）
+  var llms = new Date(now.getFullYear(), now.getMonth()-2, 1);
+  var llme = lms;
 
-  function countIn(arr, start, end) {
-    return arr.filter(function(l){var d=new Date(l.created_at);return d>=start&&d<end;}).length;
+  function closedIn(s,e) { return teamLeads.filter(function(l){return l.status==='closed'&&new Date(l.created_at)>=s&&new Date(l.created_at)<e;}); }
+  function countIn(s,e)  { return teamLeads.filter(function(l){return new Date(l.created_at)>=s&&new Date(l.created_at)<e;}); }
+
+  var thisClosed = closedIn(tms, new Date());
+  var lmClosed   = closedIn(lms, lme);
+  var lqClosed   = closedIn(lqs, lqe);
+  var lyClosed   = closedIn(lys, lye);
+  var llmClosed  = closedIn(llms, llme);
+
+  var thisLeads  = countIn(tms, new Date());
+  var lmLeads    = countIn(lms, lme);
+
+  // 收入估算（用 dealData 實際收入 or 均值）
+  var perDeal = teamCompany.revenuePerDeal || 20000;
+  function sumRevenue(arr) {
+    return arr.reduce(function(s,l){ var d=dealData[l.id]||{}; return s+(d.actualIncome||l.closed_amount||perDeal); },0);
   }
-  function closedIn(arr, start, end) {
-    return arr.filter(function(l){return l.status==='closed'&&new Date(l.created_at)>=start&&new Date(l.created_at)<end;}).length;
+  var thisRev  = sumRevenue(thisClosed);
+  var lmRev    = sumRevenue(lmClosed);
+  var lqRev    = sumRevenue(lqClosed);
+  var lyRev    = sumRevenue(lyClosed);
+  var llmRev   = sumRevenue(llmClosed);
+
+  // 支出
+  var companyRate = teamCompany.companyRate !== undefined ? teamCompany.companyRate : 40;
+  var totalSalary  = (teamCompany.salaries||[]).reduce(function(s,e){return s+e.amount;},0);
+  var fixedExp     = teamExpenses.filter(function(e){return e.type==='fixed';});
+  var varExp       = teamExpenses.filter(function(e){return e.type!=='fixed';});
+  var totalFixed   = fixedExp.reduce(function(s,e){return s+e.amount;},0);
+  var totalVar     = varExp.reduce(function(s,e){return s+e.amount;},0);
+  var totalExp     = totalSalary + totalFixed + totalVar;
+
+  // 公司實際可得收入（只算公司抽成部份）
+  var thisCoRev = Math.round(thisRev * companyRate / 100);
+  var lmCoRev   = Math.round(lmRev  * companyRate / 100);
+  var lqCoRev   = Math.round(lqRev  * companyRate / 100);
+  var lyCoRev   = Math.round(lyRev  * companyRate / 100);
+
+  var thisNet  = thisCoRev - totalExp;
+  var lmNet    = lmCoRev  - totalExp; // 支出假設同月固定
+
+  function pct(n,p) {
+    if (!p) return n>0?'<span style="color:var(--grn)">↑ 新增</span>':'<span style="color:var(--t3)">—</span>';
+    var v=Math.round((n-p)/Math.abs(p)*100);
+    return '<span style="color:'+(v>=0?'var(--grn)':'var(--red)')+'\">'+(v>=0?'↑':'↓')+Math.abs(v)+'%</span>';
   }
+  function fmt(n) { return '$'+(Math.round(n)||0).toLocaleString(); }
 
-  var thisLeads  = teamLeads.filter(function(l){return new Date(l.created_at)>=thisMonthStart;});
-  var total      = thisLeads.length;
-  var closed     = thisLeads.filter(function(l){return l.status==='closed';}).length;
-  var lmLeads    = countIn(teamLeads, lastMonthStart, lastMonthEnd);
-  var lmClosed   = closedIn(teamLeads, lastMonthStart, lastMonthEnd);
-  var lqLeads    = countIn(teamLeads, lastQStart, lastMonthEnd);
-  var lyLeads    = countIn(teamLeads, lastYStart, lastYEnd);
+  // ── ① 核心四格 ──
+  var s4 = document.createElement('div'); s4.className = 'stat-grid'; s4.style.marginBottom='12px';
+  s4.innerHTML =
+    '<div class="stat-card"><div class="stat-l">本月成交</div><div class="stat-v" style="color:var(--grn)">' + thisClosed.length + '</div><div class="stat-s">vs 前月 '+lmClosed.length+' 件 '+pct(thisClosed.length,lmClosed.length)+'</div></div>' +
+    '<div class="stat-card"><div class="stat-l">估算總收入</div><div class="stat-v" style="color:var(--grn);font-size:20px">'+fmt(thisRev)+'</div><div class="stat-s">'+pct(thisRev,lmRev)+' vs 前月</div></div>' +
+    '<div class="stat-card"><div class="stat-l">公司抽成 ('+companyRate+'%)</div><div class="stat-v" style="color:var(--acc);font-size:20px">'+fmt(thisCoRev)+'</div><div class="stat-s">'+pct(thisCoRev,lmCoRev)+' vs 前月</div></div>' +
+    '<div class="stat-card"><div class="stat-l">本月淨利</div><div class="stat-v" style="color:'+(thisNet>=0?'var(--grn)':'var(--red)')+';font-size:20px">'+fmt(thisNet)+'</div><div class="stat-s">扣除所有支出</div></div>';
+  el.appendChild(s4);
 
-  function arrowHtml(now, prev) {
-    if (prev===0) return now>0?'<span style="color:var(--grn)">↑ 新增</span>':'<span style="color:var(--t3)">—</span>';
-    var pct=Math.round((now-prev)/prev*100);
-    var col=pct>0?'var(--grn)':pct<0?'var(--red)':'var(--t3)';
-    return '<span style="color:'+col+'">'+(pct>0?'↑':'↓')+Math.abs(pct)+'%</span>';
-  }
-
-  // 統計卡
-  var statsDiv = document.createElement('div'); statsDiv.className = 'stat-grid';
-  statsDiv.innerHTML =
-    '<div class="stat-card"><div class="stat-l">本月新增</div><div class="stat-v">' + total + '</div><div class="stat-s">vs 前月 ' + lmLeads + ' 筆 ' + arrowHtml(total,lmLeads) + '</div></div>' +
-    '<div class="stat-card"><div class="stat-l">本月成交</div><div class="stat-v" style="color:var(--grn)">' + closed + '</div><div class="stat-s">vs 前月 ' + lmClosed + ' 筆 ' + arrowHtml(closed,lmClosed) + '</div></div>' +
-    '<div class="stat-card"><div class="stat-l">成員數</div><div class="stat-v">' + teamMembers.length + '</div><div class="stat-s">活躍成員</div></div>' +
-    '<div class="stat-card"><div class="stat-l">累計客戶</div><div class="stat-v">' + teamLeads.length + '</div><div class="stat-s">全部時間</div></div>';
-  el.appendChild(statsDiv);
-
-  // 比較表
+  // ── ② 月/季/年比較表 ──
   var cmpCard = document.createElement('div'); cmpCard.className = 'card';
-  cmpCard.innerHTML = '<div class="ct">團隊業績比較</div>' +
-    '<table style="width:100%;border-collapse:collapse;font-size:14px">' +
-    '<tr style="border-bottom:0.5px solid var(--bdr);color:var(--t2)">' +
-    '<th style="text-align:left;padding:6px 4px;font-weight:400">期間</th>' +
-    '<th style="text-align:center;padding:6px 4px;font-weight:400">新增名單</th>' +
-    '<th style="text-align:center;padding:6px 4px;font-weight:400">成交</th>' +
-    '<th style="text-align:center;padding:6px 4px;font-weight:400">vs 本月</th></tr>' +
-    [['本月',total,closed,null],['前月',lmLeads,lmClosed,lmLeads],['前三月',lqLeads,'—',lqLeads],['去年同月',lyLeads,'—',lyLeads]].map(function(r,i){
-      var bg=i===0?'background:var(--al)':'';
-      var fw=i===0?'font-weight:600':'';
-      return '<tr style="border-bottom:0.5px solid var(--bdr);'+bg+'"><td style="padding:8px 4px;'+fw+'">'+r[0]+'</td><td style="text-align:center;padding:8px 4px;'+fw+'">'+r[1]+'</td><td style="text-align:center;padding:8px 4px;color:var(--grn);'+fw+'">'+r[2]+'</td><td style="text-align:center;padding:8px 4px">'+(r[3]!==null?arrowHtml(total,r[3]):'<span style="color:var(--acc)">基準月</span>')+'</td></tr>';
-    }).join('') + '</table>';
+  var cmpH = '<div class="ct">📊 營收與淨利歷史比較</div>';
+  cmpH += '<table style="width:100%;border-collapse:collapse;font-size:13px">';
+  cmpH += '<tr style="border-bottom:0.5px solid var(--bdr);color:var(--t2)">';
+  ['期間','成交','總收入','公司抽成','淨利','vs本月'].forEach(function(h2){
+    cmpH += '<th style="text-align:'+(h2==='期間'?'left':'right')+';padding:6px 4px;font-weight:400">'+h2+'</th>';
+  });
+  cmpH += '</tr>';
+  [
+    {label:'本月',   deals:thisClosed.length, rev:thisRev,  coRev:thisCoRev,  net:thisNet,  cmp:null,     hl:true},
+    {label:'前月',   deals:lmClosed.length,   rev:lmRev,    coRev:lmCoRev,    net:lmNet,    cmp:lmRev,    hl:false},
+    {label:'前季均', deals:Math.round(lqClosed.length/3*10)/10, rev:Math.round(lqRev/3), coRev:Math.round(lqCoRev/3), net:Math.round(lqCoRev/3)-totalExp, cmp:lqRev/3, hl:false},
+    {label:'去年同月',deals:lyClosed.length,  rev:lyRev,    coRev:lyCoRev,    net:lyCoRev-totalExp, cmp:lyRev, hl:false},
+  ].forEach(function(r) {
+    cmpH += '<tr style="border-bottom:0.5px solid var(--bdr);'+(r.hl?'background:var(--al)':'')+'">';
+    cmpH += '<td style="padding:8px 4px;'+(r.hl?'font-weight:600;color:var(--acc)':'')+'">'+r.label+'</td>';
+    cmpH += '<td style="text-align:right;padding:8px 4px;color:var(--grn)">'+r.deals+'件</td>';
+    cmpH += '<td style="text-align:right;padding:8px 4px">'+fmt(r.rev)+'</td>';
+    cmpH += '<td style="text-align:right;padding:8px 4px;color:var(--acc)">'+fmt(r.coRev)+'</td>';
+    cmpH += '<td style="text-align:right;padding:8px 4px;color:'+(r.net>=0?'var(--grn)':'var(--red)')+'">'+fmt(r.net)+'</td>';
+    cmpH += '<td style="text-align:right;padding:8px 4px">'+(r.hl?'<span style="color:var(--acc)">基準</span>':pct(thisRev,r.cmp))+'</td>';
+    cmpH += '</tr>';
+  });
+  cmpH += '</table>';
+  cmpCard.innerHTML = cmpH;
   el.appendChild(cmpCard);
 
-  // 成員業績排行
-  if (isAdmin && teamMembers.length > 1) {
-    var rankCard = document.createElement('div'); rankCard.className = 'card';
-    var rankH = '<div class="ct">本月成員業績排行</div>';
-    var memberStats = teamMembers.map(function(tm) {
-      var mLeads = thisLeads.filter(function(l){return l.member_id===tm.member_id;});
-      return { name: tm.members?tm.members.name:'—', total: mLeads.length, closed: mLeads.filter(function(l){return l.status==='closed';}).length, role: tm.role };
-    }).sort(function(a,b){return b.closed-a.closed||b.total-a.total;});
+  // ── ③ 支出分析 ──
+  var expCard = document.createElement('div'); expCard.className = 'card';
+  var expH = '<div class="ct">💸 本月支出結構</div>';
+  expH += '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:10px">';
+  expH += '<div style="background:var(--rl);border-radius:8px;padding:10px;text-align:center"><div style="font-size:11px;color:var(--t2);margin-bottom:3px">薪資</div><div style="font-size:16px;font-weight:700;color:var(--red)">'+fmt(totalSalary)+'</div></div>';
+  expH += '<div style="background:var(--rl);border-radius:8px;padding:10px;text-align:center"><div style="font-size:11px;color:var(--t2);margin-bottom:3px">固定開銷</div><div style="font-size:16px;font-weight:700;color:var(--red)">'+fmt(totalFixed)+'</div></div>';
+  expH += '<div style="background:var(--rl);border-radius:8px;padding:10px;text-align:center"><div style="font-size:11px;color:var(--t2);margin-bottom:3px">非固定</div><div style="font-size:16px;font-weight:700;color:var(--red)">'+fmt(totalVar)+'</div></div>';
+  expH += '</div>';
+  // 橫條支出比例
+  [{label:'薪資',amt:totalSalary,color:'#C04030'},{label:'固定開銷',amt:totalFixed,color:'#B88020'},{label:'非固定',amt:totalVar,color:'#C8511A'}].forEach(function(e) {
+    var p2 = totalExp>0?Math.round(e.amt/totalExp*100):0;
+    expH += '<div style="margin-bottom:6px"><div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:2px"><span style="color:var(--t2)">'+e.label+'</span><span>'+fmt(e.amt)+' ('+p2+'%)</span></div>';
+    expH += '<div style="background:rgba(255,255,255,.08);border-radius:4px;height:6px"><div style="height:100%;border-radius:4px;background:'+e.color+';width:'+p2+'%"></div></div></div>';
+  });
+  expH += '<div style="display:flex;justify-content:space-between;padding-top:8px;border-top:0.5px solid var(--bdr);margin-top:4px"><span style="font-weight:600">總支出</span><span style="font-weight:700;color:var(--red)">'+fmt(totalExp)+'</span></div>';
+  expCard.innerHTML = expH;
+  el.appendChild(expCard);
 
-    memberStats.forEach(function(ms, i) {
-      var medal = i===0?'🥇':i===1?'🥈':i===2?'🥉':'　';
-      rankH += '<div style="display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:0.5px solid var(--bdr)">';
-      rankH += '<span style="font-size:18px;width:24px">' + medal + '</span>';
-      rankH += '<div style="flex:1"><div style="font-size:15px;font-weight:500">' + ms.name + '</div>';
-      rankH += '<div style="font-size:13px;color:var(--t2)">' + (ms.role==='leader'?'團長':ms.role==='admin'?'管理員':'成員') + '</div></div>';
-      rankH += '<div style="text-align:right"><div style="font-size:15px;font-weight:600;color:var(--grn)">' + ms.closed + ' 成交</div>';
-      rankH += '<div style="font-size:13px;color:var(--t2)">' + ms.total + ' 件</div></div></div>';
+  // ── ④ 員工表現 vs 前月 ──
+  if (isAdmin && teamMembers.length > 0) {
+    var empCard = document.createElement('div'); empCard.className = 'card';
+    var empH = '<div class="ct">👥 員工本月表現</div>';
+
+    var empRows = teamMembers.map(function(tm) {
+      if (!tm.members) return null;
+      var name = tm.members.name;
+      var mid  = tm.member_id;
+      var thisDone = thisClosed.filter(function(l){return l.member_id===mid;});
+      var lmDone   = lmClosed.filter(function(l){return l.member_id===mid;});
+      var llmDone  = llmClosed.filter(function(l){return l.member_id===mid;});
+      var thisRev2 = sumRevenue(thisDone);
+      var lmRev2   = sumRevenue(lmDone);
+      var salary   = (teamCompany.salaries||[]).find(function(s){return s.name===name;});
+      var base     = salary ? salary.amount : 0;
+      var trend    = thisDone.length > lmDone.length ? 'up' : thisDone.length < lmDone.length ? 'down' : 'flat';
+      // 前月 vs 前前月趨勢（連續下滑警示）
+      var dropping = lmDone.length < llmDone.length && thisDone.length < lmDone.length;
+      return { name:name, role:tm.role, mid:mid, thisDone:thisDone.length, lmDone:lmDone.length, thisRev:thisRev2, lmRev:lmRev2, base:base, trend:trend, dropping:dropping };
+    }).filter(Boolean).sort(function(a,b){return b.thisDone-a.thisDone;});
+
+    empRows.forEach(function(e, i) {
+      var medal = i===0&&e.thisDone>0?'🥇':i===1&&e.thisDone>0?'🥈':i===2&&e.thisDone>0?'🥉':'';
+      var trendIcon = e.trend==='up'?'📈':e.trend==='down'?'📉':'➡️';
+      var warn = e.dropping;
+      empH += '<div style="border:0.5px solid '+(warn?'rgba(192,64,48,.4)':'var(--bdr)')+';border-radius:9px;padding:10px 12px;margin-bottom:8px;background:'+(warn?'var(--rl)':'var(--inp)')+';">';
+      empH += '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">';
+      empH += '<div style="width:34px;height:34px;border-radius:50%;background:var(--al);color:var(--acc);display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;flex-shrink:0">' + e.name.charAt(0) + '</div>';
+      empH += '<div style="flex:1"><div style="font-size:14px;font-weight:600">' + (medal?medal+' ':'') + e.name + ' <span style="font-size:13px">' + trendIcon + '</span></div>';
+      empH += '<div style="font-size:12px;color:var(--t2)">' + (e.role==='leader'?'團長':e.role==='admin'?'管理員':'成員') + (e.base?' · 底薪 $'+e.base.toLocaleString():'') + '</div></div>';
+      empH += '</div>';
+      empH += '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:4px">';
+      empH += '<div style="text-align:center;background:var(--bg2);border-radius:6px;padding:6px"><div style="font-size:11px;color:var(--t2);margin-bottom:2px">本月成交</div><div style="font-size:16px;font-weight:700;color:var(--grn)">'+e.thisDone+'</div></div>';
+      empH += '<div style="text-align:center;background:var(--bg2);border-radius:6px;padding:6px"><div style="font-size:11px;color:var(--t2);margin-bottom:2px">前月成交</div><div style="font-size:15px;font-weight:600;color:var(--t1)">'+e.lmDone+'</div></div>';
+      empH += '<div style="text-align:center;background:var(--bg2);border-radius:6px;padding:6px"><div style="font-size:11px;color:var(--t2);margin-bottom:2px">本月貢獻</div><div style="font-size:13px;font-weight:600;color:var(--acc)">'+(e.thisRev?'$'+(e.thisRev/10000).toFixed(1)+'W':'—')+'</div></div>';
+      empH += '<div style="text-align:center;background:var(--bg2);border-radius:6px;padding:6px"><div style="font-size:11px;color:var(--t2);margin-bottom:2px">vs前月</div><div style="font-size:14px;font-weight:600">'+pct(e.thisDone,e.lmDone)+'</div></div>';
+      empH += '</div>';
+      if (warn) empH += '<div style="font-size:12px;color:var(--red);margin-top:7px">⚠️ 連續兩個月業績下滑，建議關注與追蹤</div>';
+      empH += '</div>';
     });
-    rankCard.innerHTML = rankH;
-    el.appendChild(rankCard);
+    empCard.innerHTML = empH;
+    el.appendChild(empCard);
   }
+
+  // ── ⑤ 智慧警示 ──
+  var alerts = [];
+  // 業績下滑
+  if (lmRev>0 && thisRev < lmRev*0.8) alerts.push({ level:'red', msg:'本月估算收入較前月下滑 '+Math.round((1-thisRev/lmRev)*100)+'%，請確認成交狀況' });
+  // 淨利轉負
+  if (thisNet < 0) alerts.push({ level:'red', msg:'本月淨利為負（'+fmt(thisNet)+'），支出高於公司抽成收入' });
+  // 支出超過收入60%
+  if (thisCoRev>0 && totalExp/thisCoRev > 0.8) alerts.push({ level:'yel', msg:'總支出佔公司抽成收入的 '+Math.round(totalExp/thisCoRev*100)+'%，支出比重偏高' });
+  // 非固定開銷偏高
+  if (totalVar>0 && totalExp>0 && totalVar/totalExp > 0.4) alerts.push({ level:'yel', msg:'非固定開銷佔總支出 '+Math.round(totalVar/totalExp*100)+'%，建議檢視雜項支出' });
+  // 季度下滑
+  if (lqRev>0 && thisRev < lqRev/3*0.8) alerts.push({ level:'yel', msg:'本月收入低於前季月均 '+Math.round((1-thisRev/(lqRev/3))*100)+'%，留意業績趨勢' });
+  // 員工連續下滑
+  var droppingCount = (isAdmin ? teamMembers : []).filter(function(tm) {
+    if (!tm.members) return false;
+    var mid=tm.member_id;
+    return lmClosed.filter(function(l){return l.member_id===mid;}).length < llmClosed.filter(function(l){return l.member_id===mid;}).length &&
+           thisClosed.filter(function(l){return l.member_id===mid;}).length < lmClosed.filter(function(l){return l.member_id===mid;}).length;
+  }).length;
+  if (droppingCount>0) alerts.push({ level:'yel', msg: droppingCount+'位員工連續兩個月業績下滑，建議個別追蹤' });
+
+  if (alerts.length > 0) {
+    var alertCard = document.createElement('div'); alertCard.className = 'card';
+    var alertH = '<div class="ct">🚨 智慧警示</div>';
+    alerts.forEach(function(a) {
+      alertH += '<div style="display:flex;gap:8px;align-items:flex-start;padding:9px 10px;background:var(--'+a.level+'l);border:0.5px solid rgba('+(a.level==='red'?'192,64,48':'184,128,32')+',.3);border-radius:8px;margin-bottom:6px">';
+      alertH += '<span style="font-size:18px;flex-shrink:0">'+(a.level==='red'?'🔴':'🟡')+'</span>';
+      alertH += '<span style="font-size:13px;color:var(--t1);line-height:1.5">'+a.msg+'</span></div>';
+    });
+    alertCard.innerHTML = alertH;
+    el.appendChild(alertCard);
+  }
+
+  // ── ⑥ 名單統計 ──
+  var statCard = document.createElement('div'); statCard.className = 'card';
+  statCard.innerHTML =
+    '<div class="ct">📋 本月名單統計</div>' +
+    '<div class="ri"><span class="rl">新增名單</span><span class="rv">'+thisLeads.length+' 筆 '+pct(thisLeads.length,lmLeads.length)+' vs 前月</span></div>' +
+    '<div class="ri"><span class="rl">成交件數</span><span class="rv" style="color:var(--grn)">'+thisClosed.length+' 件</span></div>' +
+    '<div class="ri"><span class="rl">轉換率</span><span class="rv">'+(thisLeads.length?Math.round(thisClosed.length/thisLeads.length*100):0)+'%</span></div>' +
+    '<div class="ri"><span class="rl">團隊成員</span><span class="rv">'+teamMembers.length+' 人</span></div>' +
+    '<div class="ri"><span class="rl">累計客戶</span><span class="rv">'+teamLeads.length+' 筆</span></div>';
+  el.appendChild(statCard);
 }
 
 function renderTeamMembers(el, isLeader, isAdmin) {
@@ -2865,28 +2992,142 @@ function renderTeamFinance(el, isLeader, isAdmin) {
     (isAdmin?'<div class="frow" style="margin-top:10px"><div class="flbl">每件成交均收（元）</div><input class="fi" id="tc-per-deal" type="number" inputmode="numeric" value="'+(teamCompany.revenuePerDeal||20000)+'" onchange="teamCompany.revenuePerDeal=parseInt(this.value)||20000;renderTeam()"></div>':'');
   el.appendChild(perfCard);
 
-  // ── 薪水計算 ──
+  // ── 公司拆分比率設定 ──
+  var companyRate = teamCompany.companyRate !== undefined ? teamCompany.companyRate : 40; // 公司預設抽40%
+  var splitCard = document.createElement('div'); splitCard.className = 'card';
+  var splitH = '<div class="ct">⚙️ 公司拆分比率設定</div>';
+  splitH += '<div style="font-size:13px;color:var(--t2);margin-bottom:10px">設定公司統一抽成比率，系統自動與員工呈報的分潤比率比對</div>';
+  splitH += '<div style="display:flex;align-items:center;gap:10px;background:var(--inp);border-radius:8px;padding:12px">';
+  splitH += '<span style="font-size:13px;color:var(--t2);flex:1">🏢 公司統一抽成</span>';
+  if (isAdmin) {
+    splitH += '<input type="number" min="0" max="100" value="' + companyRate + '" ';
+    splitH += 'style="width:65px;padding:7px 8px;background:var(--bg2);border:0.5px solid var(--bdr2);border-radius:7px;color:var(--inpt);font-size:16px;font-weight:700;font-family:var(--sans);text-align:center" ';
+    splitH += 'oninput="teamCompany.companyRate=parseInt(this.value)||0" onchange="renderTeam()">';
+  } else {
+    splitH += '<span style="font-size:20px;font-weight:800;color:var(--acc)">' + companyRate + '</span>';
+  }
+  splitH += '<span style="font-size:16px;font-weight:700;color:var(--t1)">%</span>';
+  splitH += '<span style="font-size:13px;color:var(--t2)">員工留 ' + (100-companyRate) + '%</span>';
+  splitH += '</div>';
+  splitCard.innerHTML = splitH;
+  el.appendChild(splitCard);
+
+  // ── 員工案件統計與薪資 ──
   var salCard = document.createElement('div'); salCard.className = 'card';
-  var salH = '<div class="ct">👥 員工薪資';
-  if (isAdmin) salH += ' <button class="btn-sm" onclick="showAddSalary()">+ 新增</button>';
+  var salH = '<div class="ct">👥 員工案件統計與薪資';
+  if (isAdmin) salH += ' <button class="btn-sm" onclick="showAddSalary()">+ 新增員工</button>';
   salH += '</div>';
+
+  // 新增員工表單
   salH += '<div id="add-salary-form" style="display:none;background:var(--inp);border-radius:8px;padding:12px;margin-bottom:10px">';
-  salH += '<div class="frow2"><div class="frow"><div class="flbl">姓名/職位</div><input class="fi" id="ts-name" placeholder="業務顧問"></div>';
-  salH += '<div class="frow"><div class="flbl">月薪（元）</div><input class="fi" id="ts-amount" type="number" inputmode="numeric" placeholder="35000"></div></div>';
-  salH += '<div style="display:flex;gap:6px;margin-top:8px"><button class="btn-sm" onclick="document.getElementById(\'add-salary-form\').style.display=\'none\'">取消</button>';
+  salH += '<div class="frow2"><div class="frow"><div class="flbl">員工姓名</div><input class="fi" id="ts-name" placeholder="王小明"></div>';
+  salH += '<div class="frow"><div class="flbl">底薪（元）</div><input class="fi" id="ts-amount" type="number" inputmode="numeric" placeholder="35000"></div></div>';
+  salH += '<div style="display:flex;gap:6px;margin-top:8px">';
+  salH += '<button class="btn-sm" onclick="document.getElementById(\'add-salary-form\').style.display=\'none\'">取消</button>';
   salH += '<button class="btn-p" onclick="saveTeamSalary()" style="flex:1">新增</button></div></div>';
 
   if (!teamCompany.salaries || teamCompany.salaries.length === 0) {
-    salH += '<div style="text-align:center;padding:12px;color:var(--t2)">尚未新增薪資項目</div>';
+    salH += '<div style="text-align:center;padding:12px;color:var(--t2)">尚未新增員工，點「+ 新增員工」開始建立</div>';
   } else {
-    teamCompany.salaries.forEach(function(s,i) {
-      salH += '<div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:0.5px solid var(--bdr)">';
-      salH += '<span style="font-size:20px">👤</span><div style="flex:1"><div style="font-weight:500">' + s.name + '</div></div>';
-      salH += '<span style="font-weight:600;color:var(--red)">$' + s.amount.toLocaleString() + '</span>';
-      if (isAdmin) salH += '<button onclick="removeTeamSalary(' + i + ')" style="font-size:12px;padding:2px 8px;border-radius:5px;border:0.5px solid rgba(192,64,48,.3);background:transparent;color:var(--red);cursor:pointer;font-family:var(--sans)">刪</button>';
+    // 每位員工統計本月結案
+    teamCompany.salaries.forEach(function(s, si) {
+      // 找對應的 teamMember
+      var tm = teamMembers.find(function(m){ return m.members && m.members.name === s.name; });
+      var memberId = tm ? tm.member_id : null;
+
+      // 本月結案
+      var memberClosed = memberId
+        ? teamLeads.filter(function(l){ return l.member_id===memberId && l.status==='closed' && new Date(l.created_at)>=thisM; })
+        : [];
+
+      // 計算員工申報的總收入（從 dealData 讀取）
+      var totalActual = 0;
+      var totalMyShare = 0;
+      var warnings = [];
+      memberClosed.forEach(function(l) {
+        var d = dealData[l.id] || {};
+        var actual = d.actualIncome || l.closed_amount || 0;
+        totalActual += actual;
+        var myRate = parseFloat(d.myRate !== undefined ? d.myRate : (d.isEmployee ? 0 : 100));
+        totalMyShare += actual ? Math.round(actual * myRate / 100) : 0;
+
+        // 比對：員工申報的公司抽成是否符合設定
+        if (d.isEmployee && actual > 0) {
+          var empCompanyRate = parseFloat(d.companyRate || 0);
+          if (Math.abs(empCompanyRate - companyRate) > 1) {
+            warnings.push({
+              name: l.name,
+              reported: empCompanyRate,
+              expected: companyRate,
+              diff: Math.round(actual * Math.abs(empCompanyRate - companyRate) / 100)
+            });
+          }
+        }
+      });
+
+      var companyShare = totalActual > 0 ? Math.round(totalActual * companyRate / 100) : 0;
+      var base = s.amount || 0;
+      var totalPay = base; // 底薪（佣金另計）
+
+      salH += '<div style="border:0.5px solid var(--bdr2);border-radius:10px;padding:12px;margin-bottom:10px">';
+
+      // 員工標題
+      salH += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">';
+      salH += '<div style="display:flex;align-items:center;gap:8px">';
+      salH += '<div style="width:36px;height:36px;border-radius:50%;background:var(--al);color:var(--acc);display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:700">' + (s.name||'?').charAt(0) + '</div>';
+      salH += '<div><div style="font-size:15px;font-weight:600">' + s.name + '</div>';
+      salH += '<div style="font-size:12px;color:var(--t2)">底薪 $' + base.toLocaleString() + '/月</div></div></div>';
+      if (isAdmin) salH += '<button onclick="removeTeamSalary(' + si + ')" style="font-size:12px;padding:2px 8px;border-radius:5px;border:0.5px solid rgba(192,64,48,.3);background:transparent;color:var(--red);cursor:pointer;font-family:var(--sans)">刪</button>';
       salH += '</div>';
+
+      // 本月案件統計
+      salH += '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:8px">';
+      salH += '<div style="background:var(--inp);border-radius:7px;padding:8px;text-align:center"><div style="font-size:11px;color:var(--t2);margin-bottom:2px">本月結案</div><div style="font-size:18px;font-weight:700">' + memberClosed.length + ' 件</div></div>';
+      salH += '<div style="background:var(--gl);border-radius:7px;padding:8px;text-align:center"><div style="font-size:11px;color:var(--t2);margin-bottom:2px">申報總收入</div><div style="font-size:15px;font-weight:700;color:var(--grn)">$' + totalActual.toLocaleString() + '</div></div>';
+      salH += '<div style="background:var(--al);border-radius:7px;padding:8px;text-align:center"><div style="font-size:11px;color:var(--t2);margin-bottom:2px">公司應得</div><div style="font-size:15px;font-weight:700;color:var(--acc)">$' + companyShare.toLocaleString() + '</div></div>';
+      salH += '</div>';
+
+      // 逐筆案件
+      if (memberClosed.length > 0) {
+        salH += '<div style="font-size:12px;font-weight:500;color:var(--t2);margin-bottom:4px">案件明細</div>';
+        memberClosed.forEach(function(l) {
+          var d = dealData[l.id] || {};
+          var actual = d.actualIncome || l.closed_amount || 0;
+          var myRate2 = parseFloat(d.myRate !== undefined ? d.myRate : 100);
+          var empCoRate = parseFloat(d.companyRate || 0);
+          var isEmp = d.isEmployee || false;
+          var myAmt = actual ? Math.round(actual * myRate2 / 100) : 0;
+          var coAmt = actual && isEmp ? Math.round(actual * empCoRate / 100) : 0;
+          var mismatch = isEmp && actual > 0 && Math.abs(empCoRate - companyRate) > 1;
+
+          salH += '<div style="display:flex;align-items:center;gap:6px;padding:6px 8px;background:' + (mismatch?'var(--rl)':'var(--inp)') + ';border-radius:6px;margin-bottom:4px;border:0.5px solid ' + (mismatch?'rgba(192,64,48,.3)':'var(--bdr)') + '">';
+          salH += '<div style="flex:1"><div style="font-size:13px;font-weight:500">' + (l.name||'—') + '</div>';
+          salH += '<div style="font-size:12px;color:var(--t2)">總收 $' + actual.toLocaleString() + ' · 員工留 ' + myRate2 + '% = $' + myAmt.toLocaleString() + (isEmp?' · 公司 '+empCoRate+'%=$'+coAmt.toLocaleString():'') + '</div></div>';
+          if (mismatch) salH += '<span style="font-size:18px" title="公司比率不符">⚠️</span>';
+          else if (actual) salH += '<span style="font-size:18px">✓</span>';
+          salH += '</div>';
+        });
+      } else {
+        salH += '<div style="font-size:13px;color:var(--t3);padding:6px 0">本月尚無結案</div>';
+      }
+
+      // ⚠️ 比率警告
+      if (warnings.length > 0) {
+        salH += '<div style="background:var(--rl);border:0.5px solid rgba(192,64,48,.4);border-radius:8px;padding:10px;margin-top:8px">';
+        salH += '<div style="font-size:13px;font-weight:600;color:var(--red);margin-bottom:6px">⚠️ 分潤比率異常（共 ' + warnings.length + ' 筆）</div>';
+        warnings.forEach(function(w) {
+          salH += '<div style="font-size:13px;color:var(--t1);margin-bottom:3px">「' + w.name + '」申報公司 ' + w.reported + '%，應為 ' + w.expected + '%，差異 $' + w.diff.toLocaleString() + '</div>';
+        });
+        salH += '</div>';
+      }
+
+      salH += '</div>'; // end employee card
     });
-    salH += '<div style="display:flex;justify-content:space-between;padding-top:8px;border-top:0.5px solid var(--bdr);margin-top:4px"><span style="color:var(--t2)">薪資合計</span><span style="font-weight:600;color:var(--red)">$' + totalSalary.toLocaleString() + '/月</span></div>';
+
+    // 薪資合計
+    salH += '<div style="display:flex;justify-content:space-between;padding-top:10px;border-top:0.5px solid var(--bdr);margin-top:4px">';
+    salH += '<span style="color:var(--t2)">底薪合計</span>';
+    salH += '<span style="font-weight:600;color:var(--red)">$' + totalSalary.toLocaleString() + '/月</span></div>';
   }
   salCard.innerHTML = salH;
   el.appendChild(salCard);
