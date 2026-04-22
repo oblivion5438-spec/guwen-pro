@@ -1497,8 +1497,12 @@ function showLeadDetail(id) {
     var spText = scores.propStatus==='ok'?'有效成交':scores.propStatus==='warn'?'有效買賣':'空間不足';
     html += '<div class="score-prop ' + spCls + '" style="margin-top:8px"><div style="font-size:14px;font-weight:500;color:var(--' + spColor + ')">🏠 不動產評估：' + spText + '（' + (scores.propRatio ? scores.propRatio.toFixed(1) : '0') + '%）</div></div>';
   }
-  html += '<div style="margin-top:10px"><div class="flbl" style="margin-bottom:6px">案件進度</div>';
-  html += '<select class="fi" id="status-sel-' + id + '">';
+  html += '</div>';  // 關閉 AI 評估 card
+
+  // 案件進度 — 獨立 card
+  html += '<div class="card">';
+  html += '<div class="ct">案件進度</div>';
+  html += '<select class="fi" id="status-sel-' + id + '" style="-webkit-appearance:auto;appearance:auto">';
   ['new','invited','submitting','approved','closed','pending_guarantor','rejected','lost'].forEach(function(s) {
     html += '<option value="' + s + '"' + (lead.status===s?' selected':'') + '>' + statusText(s) + '</option>';
   });
@@ -1612,8 +1616,8 @@ function showLeadDetail(id) {
   html += '</div>';
 
   html += '<button class="btn-grn" style="width:100%" onclick="saveClosedIncome(\'' + id + '\')">儲存結案收入</button>';
-  html += '</div></div>';
-  html += '</div></div>';
+  html += '</div></div>';  // 關閉 gl div + closed-income div
+  html += '</div>';        // 關閉 案件進度 card
 
   html += '<div class="card"><div class="ct">顧問備註</div>';
   html += '<textarea class="fi" id="note-' + id + '" rows="3" style="resize:none;font-size:14px">' + (lead.advisor_note||'') + '</textarea>';
