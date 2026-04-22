@@ -1338,6 +1338,7 @@ function renderAddLead() {
   html += '<div class="frow"><div class="flbl">警示/協商/更生/清算</div><select class="fi" id="n-alert"><option value="none">否</option><option value="alert">警示戶</option><option value="negotiation">協商中</option><option value="rehabilitation">更生</option><option value="liquidation">清算</option></select></div>';
   html += '<div class="frow"><div class="flbl">居住地址</div><input class="fi" id="n-addr" placeholder="完整地址"></div>';
   html += '<div class="frow"><div class="flbl">戶籍地址</div><input class="fi" id="n-huji" placeholder="不同戶籍才填"></div>';
+  html += '<div class="frow"><div class="flbl">居住狀況</div><select class="fi" id="n-housing"><option value="none">未填</option><option value="self_own">本人名下（自有）</option><option value="self_live">自住（非本人名下）</option><option value="family">親屬/家人房子</option><option value="rent">租屋</option><option value="other">其他</option></select></div>';
   html += '<div class="frow2"><div class="frow"><div class="flbl">需求資金（元）<span class="req">*</span></div><input class="fi" id="n-amount" type="number" placeholder="500000" inputmode="numeric"></div>';
   html += '<div class="frow"><div class="flbl">資金用途</div><select class="fi" id="n-purpose"><option>週轉</option><option>整合負債</option><option>購屋</option><option>購車</option><option>其他</option></select></div></div>';
   html += '</div>';
@@ -1351,10 +1352,7 @@ function renderAddLead() {
   html += '<div class="frow"><div class="flbl">機車駕照</div><select class="fi" id="n-bike-lic"><option value="true">有</option><option value="false">無</option></select></div></div>';
   html += '<div class="frow2"><div class="frow"><div class="flbl">名下不動產</div><select class="fi" id="n-property" onchange="togglePropFields(this.value)"><option value="false">無</option><option value="true">有</option></select></div>';
   html += '<div class="frow"><div class="flbl">有無抵押品</div><select class="fi" id="n-collateral"><option value="false">無</option><option value="true">有實物抵押</option></select></div></div>';
-
-  // 居住狀況
-  html += '<div class="frow2"><div class="frow"><div class="flbl">居住狀況</div><select class="fi" id="n-housing"><option value="none">未填</option><option value="self_own">本人名下（自有）</option><option value="self_live">自住（非本人名下）</option><option value="family">親屬/家人房子</option><option value="rent">租屋</option><option value="other">其他</option></select></div>';
-  html += '<div class="frow"><div class="flbl">負債比（%）</div><input class="fi" id="n-debt-ratio" type="number" min="0" max="100" placeholder="0" inputmode="numeric"></div></div>';
+  html += '<div class="frow"><div class="flbl">負債比（%）</div><input class="fi" id="n-debt-ratio" type="number" min="0" max="100" placeholder="0" inputmode="numeric"></div>';
   html += '</div>';
 
   html += '<div class="form-section"><div class="fs-title">📋 未過件與貸款記錄</div>';
@@ -1847,8 +1845,8 @@ function showLeadDetail(id) {
   html += '<div class="frow2"><div class="frow"><div class="flbl">需求資金（元）</div><input class="fi" id="ef-amount-' + id + '" type="number" value="' + (lead.required_amount||'') + '"></div>';
   html += '<div class="frow"><div class="flbl">資金用途</div><select class="fi" id="ef-purpose-' + id + '"><option' + (lead.fund_purpose==='週轉'?' selected':'') + '>週轉</option><option' + (lead.fund_purpose==='整合負債'?' selected':'') + '>整合負債</option><option' + (lead.fund_purpose==='購屋'?' selected':'') + '>購屋</option><option' + (lead.fund_purpose==='購車'?' selected':'') + '>購車</option><option' + (lead.fund_purpose==='其他'?' selected':'') + '>其他</option></select></div></div>';
   html += '<div style="display:flex;gap:8px;margin-top:12px">';
-  html += '<button class="btn-sm" onclick="toggleLeadEdit(\'' + id + '\')">取消</button>';
-  html += '<button class="btn-p" onclick="saveLeadEdit(\'' + id + '\')" style="flex:1">儲存變更</button>';
+  html += '<button class="btn-sm" id="cancel-edit-btn-' + id + '">取消</button>';
+  html += '<button class="btn-p" id="save-edit-btn-' + id + '" style="flex:1">儲存變更</button>';
   html += '</div></div>';
   html += '</div>';
 
@@ -1927,14 +1925,15 @@ function showLeadDetail(id) {
 
   el.innerHTML = html;
 
-  // DOM 綁定編輯按鈕（避免 inline onclick 在某些情況失效）
+  // DOM 綁定所有按鈕（避免 inline onclick 在 overflow 容器裡失效）
   var editBtn = document.getElementById('edit-btn-' + id);
-  if (editBtn) {
-    editBtn.addEventListener('click', function(e) {
-      e.stopPropagation();
-      toggleLeadEdit(id);
-    });
-  }
+  if (editBtn) editBtn.onclick = function(e) { e.stopPropagation(); toggleLeadEdit(id); };
+
+  var cancelBtn = document.getElementById('cancel-edit-btn-' + id);
+  if (cancelBtn) cancelBtn.onclick = function(e) { e.stopPropagation(); toggleLeadEdit(id); };
+
+  var saveBtn = document.getElementById('save-edit-btn-' + id);
+  if (saveBtn) saveBtn.onclick = function(e) { e.stopPropagation(); saveLeadEdit(id); };
 
   loadDocuments(id);
 }
