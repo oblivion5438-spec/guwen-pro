@@ -2979,22 +2979,59 @@ function renderTeamOverview(el, isLeader, isAdmin) {
 
   // ── ③ 支出分析 ──
   // 公司淨利說明卡
+  // 計算實發薪資總計（含加扣項）
+  var totalFinalSalary = (teamCompany.salaries||[]).reduce(function(s,emp){
+    var adj = (emp.adjustments||[]).reduce(function(a,b){return a+(parseInt(b.amount)||0);},0);
+    return s + (emp.amount||0) + adj;
+  }, 0);
+
   var netCard = document.createElement('div'); netCard.className = 'card';
   netCard.innerHTML =
-    '<div class="ct">💰 公司收益計算</div>' +
-    '<div style="font-size:12px;color:var(--t3);margin-bottom:10px">淨利 = 公司抽成收入 − 固定開銷 − 非固定開銷（薪資另計）</div>' +
-    '<div class="ri"><span class="rl">估算總收入</span><span class="rv" style="color:var(--grn);font-weight:600">'+fmt(thisRev)+'</span></div>' +
-    '<div class="ri"><span class="rl">公司抽成 ('+companyRate+'%)</span><span class="rv" style="color:var(--acc);font-weight:600">'+fmt(thisCoRev)+'</span></div>' +
-    '<div class="ri" style="padding-left:12px"><span class="rl" style="color:var(--t2);font-size:13px">- 固定開銷</span><span class="rv" style="color:var(--red)">'+fmt(totalFixed)+'</span></div>' +
-    '<div class="ri" style="padding-left:12px"><span class="rl" style="color:var(--t2);font-size:13px">- 非固定開銷</span><span class="rv" style="color:var(--red)">'+fmt(totalVar)+'</span></div>' +
-    '<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-top:0.5px solid var(--bdr);margin-top:6px">' +
-      '<span style="font-size:15px;font-weight:600">公司淨利</span>' +
-      '<span style="font-size:22px;font-weight:800;color:'+(thisNet>=0?'var(--grn)':'var(--red)')+'">'+fmt(thisNet)+'</span>' +
+    '<div class="ct">💰 公司本月收益計算</div>' +
+    '<div style="font-size:12px;color:var(--t3);margin-bottom:12px">公司淨利 = 公司抽成收入 − 固定開銷 − 非固定開銷（薪資為人事成本，分開計算）</div>' +
+
+    // 第一區：收入端
+    '<div style="background:var(--gl);border-radius:8px;padding:10px 12px;margin-bottom:8px">' +
+      '<div style="font-size:12px;font-weight:600;color:var(--grn);margin-bottom:6px">📥 收入端</div>' +
+      '<div class="ri"><span class="rl" style="font-size:13px">本月估算總收入</span><span class="rv" style="color:var(--grn);font-weight:600">'+fmt(thisRev)+'</span></div>' +
+      '<div class="ri"><span class="rl" style="font-size:13px">公司抽成比率</span><span class="rv" style="color:var(--t2)">'+companyRate+'%</span></div>' +
+      '<div class="ri" style="border-top:0.5px solid rgba(45,138,78,.2);margin-top:4px;padding-top:6px"><span class="rl" style="font-weight:600">公司抽成收入</span><span class="rv" style="font-size:16px;font-weight:700;color:var(--grn)">'+fmt(thisCoRev)+'</span></div>' +
     '</div>' +
-    '<div style="background:var(--inp);border-radius:8px;padding:10px 12px;margin-top:4px">' +
-      '<div style="font-size:13px;font-weight:500;color:var(--t2);margin-bottom:6px">👥 員工薪資（另計）</div>' +
-      '<div class="ri"><span class="rl" style="font-size:13px">底薪合計</span><span class="rv" style="color:var(--red)">'+fmt(totalSalary)+'</span></div>' +
-      '<div style="font-size:12px;color:var(--t3);margin-top:4px">薪資為員工成本，不計入公司淨利</div>' +
+
+    // 第二區：公司支出（不含薪資）
+    '<div style="background:var(--rl);border-radius:8px;padding:10px 12px;margin-bottom:8px">' +
+      '<div style="font-size:12px;font-weight:600;color:var(--red);margin-bottom:6px">📤 公司營運支出（不含薪資）</div>' +
+      '<div class="ri"><span class="rl" style="font-size:13px">固定開銷</span><span class="rv" style="color:var(--red)">− '+fmt(totalFixed)+'</span></div>' +
+      '<div class="ri"><span class="rl" style="font-size:13px">非固定開銷</span><span class="rv" style="color:var(--red)">− '+fmt(totalVar)+'</span></div>' +
+      '<div class="ri" style="border-top:0.5px solid rgba(192,64,48,.2);margin-top:4px;padding-top:6px"><span class="rl" style="font-weight:600">營運支出合計</span><span class="rv" style="font-size:15px;font-weight:700;color:var(--red)">− '+fmt(totalOpsExp)+'</span></div>' +
+    '</div>' +
+
+    // 公司淨利結果
+    '<div style="display:flex;justify-content:space-between;align-items:center;padding:12px 14px;background:'+(thisNet>=0?'var(--gl)':'var(--rl)')+';border-radius:8px;margin-bottom:12px">' +
+      '<div><div style="font-size:15px;font-weight:700;color:'+(thisNet>=0?'var(--grn)':'var(--red)')+'">公司淨利</div>' +
+      '<div style="font-size:12px;color:var(--t3);margin-top:2px">抽成收入 − 固定 − 非固定</div></div>' +
+      '<div style="font-size:28px;font-weight:800;color:'+(thisNet>=0?'var(--grn)':'var(--red)')+'">'+fmt(thisNet)+'</div>' +
+    '</div>' +
+
+    // 第三區：薪資（人事成本，獨立計算）
+    '<div style="background:var(--inp);border:0.5px solid var(--bdr2);border-radius:8px;padding:10px 12px">' +
+      '<div style="font-size:12px;font-weight:600;color:var(--t2);margin-bottom:8px">👥 員工人事成本（獨立計算，不影響上方淨利）</div>' +
+      (teamCompany.salaries && teamCompany.salaries.length > 0
+        ? teamCompany.salaries.map(function(emp) {
+            var adj = (emp.adjustments||[]).reduce(function(a,b){return a+(parseInt(b.amount)||0);},0);
+            var final2 = (emp.amount||0) + adj;
+            return '<div class="ri">' +
+              '<span class="rl" style="font-size:13px">'+emp.name+'（底薪 '+fmt(emp.amount)+(adj!==0?' '+(adj>0?'+':'')+adj.toLocaleString():'')+'）</span>' +
+              '<span class="rv" style="color:var(--red);font-weight:500">'+fmt(final2)+'</span>' +
+            '</div>';
+          }).join('')
+        : '<div style="font-size:13px;color:var(--t3)">尚未設定員工薪資</div>'
+      ) +
+      '<div style="display:flex;justify-content:space-between;padding-top:8px;border-top:0.5px solid var(--bdr);margin-top:6px">' +
+        '<span style="font-weight:600;font-size:14px">本月實發薪資總計</span>' +
+        '<span style="font-weight:700;font-size:16px;color:var(--red)">'+fmt(totalFinalSalary)+'</span>' +
+      '</div>' +
+      '<div style="font-size:12px;color:var(--t3);margin-top:6px">人事成本合計 = 薪資合計 + 加扣項</div>' +
     '</div>';
   el.appendChild(netCard);
 
