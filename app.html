@@ -4186,11 +4186,6 @@ function renderCalc() {
   html += '<div style="font-size:15px;color:var(--t2);margin-bottom:6px">每月應繳</div>';
   html += '<div style="font-size:36px;font-weight:700;color:var(--acc)" id="calc-monthly">—</div></div>';
   html += '<div id="calc-detail" style="margin-top:12px"></div></div>';
-  html += '<div class="card"><div class="ct">各類貸款參考利率</div>';
-  [['銀行信用貸款','3.5–8%'],['汽車貸款（買車）','1.9–4%'],['機車貸款','6–18%'],['商品手機貸','18–24%'],['不動產一胎','1.5–2.5%'],['不動產二胎','6–15%'],['當鋪民間借貸','36–60%']].forEach(function(r) {
-    html += '<div class="ri"><span class="rl">' + r[0] + '</span><span style="color:var(--acc);font-weight:500">' + r[1] + '</span></div>';
-  });
-  html += '</div>';
   el.innerHTML = html;
   calcLoan();
 }
