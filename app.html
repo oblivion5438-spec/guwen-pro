@@ -3646,26 +3646,30 @@ function renderTeamSalary(el, isLeader, isAdmin) {
 
 function toggleStatusMenu(id) {
   var menu = document.getElementById('status-menu-' + id);
-  var btn  = document.getElementById('status-wrap-' + id);
+  var wrap = document.getElementById('status-wrap-' + id);
   if (!menu) return;
   if (menu.style.display === 'none') {
-    // 定位 menu 在按鈕下方
-    var rect = btn.querySelector('button').getBoundingClientRect();
+    var btn = wrap.querySelector('button');
+    var rect = btn.getBoundingClientRect();
     menu.style.top  = (rect.bottom + 4) + 'px';
     menu.style.left = rect.left + 'px';
     menu.style.width = rect.width + 'px';
     menu.style.display = 'block';
-    // 點其他地方關閉
+    menu._open = true;
+    // 用 mousedown 且等下一個 event loop 才綁，避免觸發自己
     setTimeout(function() {
-      document.addEventListener('click', function handler(e) {
-        if (!menu.contains(e.target) && !btn.contains(e.target)) {
+      function closeHandler(e) {
+        if (!menu.contains(e.target) && !wrap.contains(e.target)) {
           menu.style.display = 'none';
-          document.removeEventListener('click', handler);
+          menu._open = false;
+          document.removeEventListener('mousedown', closeHandler);
         }
-      });
-    }, 50);
+      }
+      document.addEventListener('mousedown', closeHandler);
+    }, 200);
   } else {
     menu.style.display = 'none';
+    menu._open = false;
   }
 }
 
