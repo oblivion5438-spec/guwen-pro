@@ -1440,10 +1440,13 @@ function showLeadDetail(id) {
   // 結案收入完整填寫區（選結案才顯示）
   var d = dealData[id] || {};
   var actualIncome = d.actualIncome !== undefined ? d.actualIncome : (lead.closed_amount || '');
-  var partners = d.partners || [];
+  var myRate       = d.myRate !== undefined ? d.myRate : 100; // 我的比率，預設100%
+  var partners     = d.partners || [];
   var totalPartnerRate = partners.reduce(function(ps,p){ return ps+(parseFloat(p.rate)||0); },0);
-  totalPartnerRate = Math.min(totalPartnerRate,100);
-  var myShare = actualIncome ? Math.round(actualIncome*(1-totalPartnerRate/100)) : '';
+  var totalAllRate = (parseFloat(myRate)||0) + totalPartnerRate;
+  var myShare = actualIncome ? Math.round(actualIncome*(parseFloat(myRate)||0)/100) : '';
+  // 比率警告
+  var rateWarn = (totalAllRate !== 100 && totalAllRate > 0);
 
   html += '<div id="closed-income-' + id + '" style="display:' + (lead.status==='closed'?'block':'none') + ';margin-top:10px">';
   html += '<div style="background:var(--gl);border:0.5px solid rgba(45,138,78,.3);border-radius:10px;padding:12px 14px">';
@@ -1456,10 +1459,24 @@ function showLeadDetail(id) {
   html += 'oninput="dealData[\'' + id + '\']=dealData[\'' + id + '\']||{};dealData[\'' + id + '\'].actualIncome=parseInt(this.value)||0;refreshClosedBlock(\'' + id + '\')">';
   html += '</div>';
 
-  // ② 合作人員
+  // ② 我的比率
+  html += '<div style="background:rgba(45,138,78,.12);border:0.5px solid rgba(45,138,78,.3);border-radius:8px;padding:10px 12px;margin-bottom:10px">';
+  html += '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px">';
+  html += '<div><div style="font-size:13px;font-weight:600;color:var(--grn)">② 我的分潤比率</div>';
+  html += '<div style="font-size:12px;color:var(--t2);margin-top:2px">例：與公司55拆填50%</div></div>';
+  html += '<div style="display:flex;align-items:center;gap:6px">';
+  html += '<input type="number" min="0" max="100" placeholder="100" value="' + myRate + '" ';
+  html += 'style="width:65px;padding:7px 8px;background:var(--bg2);border:0.5px solid rgba(45,138,78,.5);border-radius:7px;color:var(--inpt);font-size:15px;font-weight:600;font-family:var(--sans);text-align:center" ';
+  html += 'oninput="dealData[\'' + id + '\']=dealData[\'' + id + '\']||{};dealData[\'' + id + '\'].myRate=this.value;refreshClosedBlock(\'' + id + '\')">';
+  html += '<span style="font-size:15px;font-weight:600;color:var(--grn)">%</span>';
+  if (myShare !== '') html += '<span style="font-size:15px;font-weight:700;color:var(--grn)">= $' + parseInt(myShare).toLocaleString() + '</span>';
+  html += '</div></div>';
+  html += '</div>';
+
+  // ③ 合作人員
   html += '<div style="margin-bottom:10px">';
   html += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">';
-  html += '<div class="flbl">② 合作人員分潤</div>';
+  html += '<div class="flbl">③ 合作人員分潤</div>';
   html += '<button onclick="addPartnerLead(\'' + id + '\')" style="font-size:12px;padding:3px 10px;background:transparent;border:0.5px solid var(--bdr2);border-radius:5px;color:var(--t1);cursor:pointer;font-family:var(--sans)">+ 新增</button>';
   html += '</div>';
   html += '<div id="partners-list-' + id + '">';
@@ -1475,7 +1492,6 @@ function showLeadDetail(id) {
       if(pAmt) html += '<span style="font-size:13px;color:var(--yel)">$'+pAmt.toLocaleString()+'</span>';
       html += '<button onclick="removePartnerLead(\'' + id + '\',' + pi + ')" style="font-size:12px;padding:2px 8px;border-radius:5px;border:0.5px solid rgba(192,64,48,.3);background:transparent;color:var(--red);cursor:pointer;font-family:var(--sans)">刪</button>';
       html += '</div></div>';
-      // 姓名
       if (typeof teamMembers !== 'undefined' && teamMembers.length > 1) {
         html += '<select style="width:100%;padding:7px 10px;background:var(--bg2);border:0.5px solid var(--bdr2);border-radius:7px;color:var(--inpt);font-size:13px;font-family:var(--sans);margin-bottom:6px" ';
         html += 'onchange="dealData[\'' + id + '\'].partners[' + pi + '].name=this.value">';
@@ -1492,7 +1508,6 @@ function showLeadDetail(id) {
         html += 'style="width:100%;padding:7px 10px;background:var(--bg2);border:0.5px solid var(--bdr2);border-radius:7px;color:var(--inpt);font-size:13px;font-family:var(--sans);margin-bottom:6px" ';
         html += 'oninput="dealData[\'' + id + '\'].partners[' + pi + '].name=this.value">';
       }
-      // 工作內容 + 比率
       html += '<div style="display:grid;grid-template-columns:1fr auto;gap:6px">';
       html += '<input type="text" placeholder="工作內容" value="'+(p.work||'')+'" ';
       html += 'style="padding:7px 10px;background:var(--bg2);border:0.5px solid var(--bdr2);border-radius:7px;color:var(--inpt);font-size:13px;font-family:var(--sans)" ';
@@ -1507,19 +1522,28 @@ function showLeadDetail(id) {
   }
   html += '</div></div>';
 
-  // ③ 結算
+  // ④ 結算明細 + 比率警告
   if (actualIncome) {
-    html += '<div style="border-top:0.5px solid rgba(45,138,78,.3);margin-top:8px;padding-top:8px">';
-    html += '<div style="display:flex;justify-content:space-between;margin-bottom:4px"><span style="font-size:14px;font-weight:600;color:var(--grn)">我的收入</span><span style="font-size:16px;font-weight:700;color:var(--grn)">$'+parseInt(myShare).toLocaleString()+'</span></div>';
+    html += '<div style="border-top:0.5px solid rgba(45,138,78,.3);margin-top:8px;padding-top:10px">';
+    html += '<div style="font-size:13px;font-weight:500;color:var(--t2);margin-bottom:6px">④ 分潤結算</div>';
+    // 我
+    html += '<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:0.5px solid rgba(45,138,78,.2)">';
+    html += '<span style="font-size:14px;font-weight:600;color:var(--grn)">我（' + (myRate||100) + '%）</span>';
+    html += '<span style="font-size:16px;font-weight:700;color:var(--grn)">$' + parseInt(myShare||0).toLocaleString() + '</span></div>';
+    // 合作人員
     partners.forEach(function(p,pi){
-      var pAmt2=Math.round(actualIncome*(parseFloat(p.rate)||0)/100);
-      html += '<div style="display:flex;justify-content:space-between;font-size:13px;color:var(--t2);margin-bottom:2px">';
-      html += '<span>'+(p.name||'合作人員'+(pi+1))+(p.work?' · '+p.work:'')+'（'+(p.rate||0)+'%）</span>';
-      html += '<span>$'+pAmt2.toLocaleString()+'</span></div>';
+      var pAmt2 = Math.round(actualIncome*(parseFloat(p.rate)||0)/100);
+      html += '<div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:0.5px solid var(--bdr)">';
+      html += '<span style="font-size:13px;color:var(--t1)">'+(p.name||'合作人員'+(pi+1))+(p.work?' <span style="color:var(--t3)">· '+p.work+'</span>':'')+'（'+(p.rate||0)+'%）</span>';
+      html += '<span style="font-size:14px;font-weight:500">$'+pAmt2.toLocaleString()+'</span></div>';
     });
+    // 總比率提示
+    html += '<div style="display:flex;justify-content:space-between;align-items:center;padding-top:8px;margin-top:2px">';
+    html += '<span style="font-size:13px;color:' + (rateWarn?'var(--red)':'var(--t3)') + '">合計比率：' + totalAllRate + '%' + (rateWarn?' ⚠️ 請確認加總為100%':'✓') + '</span>';
+    html += '<span style="font-size:13px;color:var(--t2)">總收入 $' + parseInt(actualIncome).toLocaleString() + '</span></div>';
+    html += '</div>';
   }
 
-  // 儲存按鈕
   html += '<button class="btn-grn" style="width:100%;margin-top:10px" onclick="saveClosedIncome(\'' + id + '\')">儲存結案收入</button>';
   html += '</div></div>';
   html += '</div></div>';
@@ -2048,10 +2072,8 @@ function renderFinance() {
       var d = dealData[l.id] || {};
       var actualIncome = d.actualIncome || l.closed_amount || 0;
       if (!actualIncome) return s;
-      var partners = d.partners || [];
-      var totalPartnerRate = partners.reduce(function(ps,p){ return ps + (parseFloat(p.rate)||0); }, 0);
-      totalPartnerRate = Math.min(totalPartnerRate, 100);
-      return s + Math.round(actualIncome * (1 - totalPartnerRate/100));
+      var myRate = parseFloat(d.myRate !== undefined ? d.myRate : 100);
+      return s + Math.round(actualIncome * myRate / 100);
     }, 0);
     var totalExtraIncome = extraIncome.reduce(function(s,e){return s+e.amount;},0);
     var totalIncome = totalCommission + totalExtraIncome;
