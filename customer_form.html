@@ -70,6 +70,36 @@ var memberName = '';
 var step = 1;
 var totalSteps = 4;
 var formData = {};
+var mydataFiles = []; // 儲存 MyData 上傳的檔案
+
+function handleMydataUpload(input) {
+  var files = Array.from(input.files);
+  if (!files.length) return;
+  files.forEach(function(file) {
+    // 避免重複
+    if (mydataFiles.find(function(f){ return f.name === file.name && f.size === file.size; })) return;
+    mydataFiles.push(file);
+  });
+  renderMydataFileList();
+}
+
+function renderMydataFileList() {
+  var el = document.getElementById('mydata-file-list');
+  if (!el) return;
+  if (mydataFiles.length === 0) { el.innerHTML = ''; return; }
+  var h = '';
+  mydataFiles.forEach(function(f, i) {
+    var isImg = f.type.startsWith('image/');
+    var sizeStr = f.size > 1024*1024 ? (f.size/1024/1024).toFixed(1)+'MB' : Math.round(f.size/1024)+'KB';
+    h += '<div style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--inp);border-radius:8px;margin-bottom:6px">';
+    h += '<span style="font-size:18px">'+(isImg?'🖼️':'📄')+'</span>';
+    h += '<div style="flex:1;min-width:0"><div style="font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+f.name+'</div>';
+    h += '<div style="font-size:11px;color:var(--t2)">'+sizeStr+'</div></div>';
+    h += '<button onclick="mydataFiles.splice('+i+',1);renderMydataFileList()" style="background:transparent;border:none;color:var(--red);font-size:16px;cursor:pointer;padding:4px">✕</button>';
+    h += '</div>';
+  });
+  el.innerHTML = h;
+}
 
 // 從 URL 取得 member ID
 function getMemberId() {
@@ -459,6 +489,20 @@ function renderStep(s) {
     });
     h += '</div>';
     h += '<div style="font-size:11px;color:var(--t3);text-align:center;margin-top:8px">⚠️ 請確認授權對象為合法業者，MyData 不會要求您提供帳號密碼</div>';
+
+    // MyData 上傳區塊
+    h += '<div style="margin-top:14px;padding-top:14px;border-top:0.5px solid rgba(45,138,78,.3)">';
+    h += '<div style="font-size:13px;font-weight:600;color:var(--grn);margin-bottom:8px">📤 調閱完成後上傳截圖或檔案</div>';
+    h += '<div style="font-size:12px;color:var(--t2);margin-bottom:10px">調閱後截圖或儲存檔案，直接上傳給顧問</div>';
+    h += '<div id="mydata-upload-area" onclick="document.getElementById(\'mydata-file-input\').click()" style="border:1.5px dashed rgba(45,138,78,.5);border-radius:10px;padding:20px;text-align:center;cursor:pointer;background:rgba(45,138,78,.04);transition:background .15s" onmouseover="this.style.background=\'rgba(45,138,78,.1)\'" onmouseout="this.style.background=\'rgba(45,138,78,.04)\'">';
+    h += '<div style="font-size:28px;margin-bottom:6px">📁</div>';
+    h += '<div style="font-size:13px;font-weight:600;color:var(--grn)">點擊上傳截圖或 PDF</div>';
+    h += '<div style="font-size:12px;color:var(--t2);margin-top:3px">支援 JPG、PNG、PDF，可多選</div>';
+    h += '</div>';
+    h += '<input type="file" id="mydata-file-input" multiple accept="image/*,.pdf" style="display:none" onchange="handleMydataUpload(this)">';
+    h += '<div id="mydata-file-list" style="margin-top:8px"></div>';
+    h += '</div>';
+
     h += '</div>';
 
     // 注意事項
@@ -702,17 +746,44 @@ async function submitForm() {
     var res = await sb.from('leads').insert(payload).select().single();
     if (res.error) throw new Error(res.error.message);
 
+    var leadId = res.data.id;
+
+    // 上傳 MyData 檔案
+    var uploadedDocs = [];
+    if (mydataFiles.length > 0) {
+      for (var fi = 0; fi < mydataFiles.length; fi++) {
+        var file = mydataFiles[fi];
+        var ext = file.name.split('.').pop().toLowerCase();
+        var filePath = leadId + '/mydata_' + Date.now() + '_' + fi + '.' + ext;
+        var upRes = await sb.storage.from('lead-documents').upload(filePath, file, { upsert: true });
+        if (!upRes.error) {
+          var urlRes = sb.storage.from('lead-documents').getPublicUrl(filePath);
+          uploadedDocs.push({
+            type: 'mydata',
+            name: file.name,
+            url: urlRes.data.publicUrl,
+            size: file.size,
+            uploaded_at: new Date().toISOString()
+          });
+        }
+      }
+      // 更新 lead 的 documents 欄位
+      if (uploadedDocs.length > 0) {
+        await sb.from('leads').update({ documents: JSON.stringify(uploadedDocs) }).eq('id', leadId);
+      }
+    }
+
     // 通知會員有新客戶填寫
     await sb.from('notifications').insert({
       member_id: memberId,
       type: 'new_customer_form',
       title: '📋 新客戶填寫資料',
-      body: (formData.name||'客戶') + ' 已填寫完成，需求 ' + (formData.required_amount ? '$'+formData.required_amount.toLocaleString() : '未填'),
-      data: { lead_id: res.data.id }
+      body: (formData.name||'客戶') + ' 已填寫完成，需求 ' + (formData.required_amount ? '$'+formData.required_amount.toLocaleString() : '未填') + (uploadedDocs.length > 0 ? '，已上傳 '+uploadedDocs.length+' 份文件' : ''),
+      data: { lead_id: leadId }
     });
 
     // 顯示完整結果頁
-    showResultPage(res.data.id);
+    showResultPage(leadId);
 
   } catch (err) {
     alert('送出失敗：' + err.message);
