@@ -320,6 +320,8 @@ select.fi{-webkit-appearance:auto;appearance:auto;display:block;max-width:100%;w
       <button class="ds-ni" onclick="navTo('calendar',this)">📅 行事曆</button>
       <button class="ds-ni" onclick="navTo('finance',this)">💰 收支理財工具</button>
       <button class="ds-ni" onclick="navTo('team',this)">🏢 團隊管理</button>
+      <button class="ds-ni" onclick="navTo('connections',this)">🤝 對接管理 <span id="conn-badge" style="display:none;background:var(--red);color:#FFF;font-size:11px;padding:1px 6px;border-radius:10px;margin-left:4px">0</span></button>
+      <button class="ds-ni" onclick="navTo('notifications',this)">🔔 通知中心 <span id="notif-badge" style="display:none;background:var(--red);color:#FFF;font-size:11px;padding:1px 6px;border-radius:10px;margin-left:4px">0</span></button>
       <div class="ds-lbl">其他業務</div>
       <button class="ds-ni" onclick="navTo('car-dealer',this)">🚙 車行管理</button>
       <button class="ds-ni" onclick="navTo('car-finance',this)">🚗 車貸融資方</button>
@@ -992,6 +994,7 @@ async function init() {
     await loadMember();
     showPage('member');
     renderDash();
+    loadNotifCount();
   } else {
     showPage('auth');
   }
@@ -1094,7 +1097,7 @@ function navTo(key, el) {
   var bn = document.getElementById('bn-' + key);
   if (bn) bn.classList.add('on');
   // 更新桌機 topbar 標題
-  var titles = {'dash':'儀表板','leads':'客戶名單','add-lead':'新增客戶資料','calendar':'行事曆','finance':'收支理財工具','team':'團隊管理','invite':'邀請碼 / 折扣','calc':'貸款試算','review':'照會生成','antifraud':'詐騙辨識','score-rules':'評分規則','prop-thresholds':'貸款項目設定','appearance':'外觀設定','settings':'帳號設定','report':'問題回報','car-dealer':'🚙 車行管理','car-finance':'🚗 車貸融資方','pawn':'🏛 當鋪管理'};
+  var titles = {'dash':'儀表板','leads':'客戶名單','add-lead':'新增客戶資料','calendar':'行事曆','finance':'收支理財工具','team':'團隊管理','connections':'🤝 對接管理','notifications':'🔔 通知中心','invite':'邀請碼 / 折扣','calc':'貸款試算','review':'照會生成','antifraud':'詐騙辨識','score-rules':'評分規則','prop-thresholds':'貸款項目設定','appearance':'外觀設定','settings':'帳號設定','report':'問題回報','car-dealer':'🚙 車行管理','car-finance':'🚗 車貸融資方','pawn':'🏛 當鋪管理'};
   var dt = document.getElementById('dt-title'); if (dt) dt.textContent = titles[key] || '';
   var renders = {
     'dash': renderDash, 'leads': renderLeads, 'add-lead': renderAddLead,
@@ -1106,7 +1109,9 @@ function navTo(key, el) {
     'car-dealer': renderCarDealer,
     'car-finance': renderCarFinance,
     'review': renderReviewPage,
-    'pawn': renderPawn
+    'pawn': renderPawn,
+    'connections': renderConnections,
+    'notifications': renderNotifications
   };
   if (renders[key]) renders[key]();
 }
@@ -5063,6 +5068,249 @@ function scheduleNotifications(loanAlerts) {
 
 // ══════════════════════════════
 // ══════════════════════════════
+// ══════════════════════════════
+// 🤝 對接管理 & 🔔 通知中心
+// ══════════════════════════════
+var myConnections = []; // 已建立的配合關係
+var pendingRequests = []; // 待處理的申請
+
+// 初始化：載入通知數量
+async function loadNotifCount() {
+  if (!currentUser) return;
+  var res = await sb.from('notifications').select('id', {count:'exact'}).eq('member_id', currentUser.id).eq('is_read', false);
+  var count = res.count || 0;
+  var badge = document.getElementById('notif-badge');
+  if (badge) {
+    badge.textContent = count;
+    badge.style.display = count > 0 ? 'inline' : 'none';
+  }
+  // 待處理對接申請
+  var connRes = await sb.from('business_connections').select('id', {count:'exact'}).eq('receiver_id', currentUser.id).eq('status', 'pending');
+  var connCount = connRes.count || 0;
+  var connBadge = document.getElementById('conn-badge');
+  if (connBadge) {
+    connBadge.textContent = connCount;
+    connBadge.style.display = connCount > 0 ? 'inline' : 'none';
+  }
+}
+
+// ── 對接管理 ──
+async function renderConnections() {
+  var el = document.getElementById('member-content');
+  el.innerHTML = '<div style="text-align:center;padding:30px;color:var(--t2)"><div class="spinner" style="margin:0 auto 10px"></div>載入中...</div>';
+
+  var [myReq, received, accepted] = await Promise.all([
+    // 我發出去的申請
+    sb.from('business_connections').select('*, receiver:receiver_id(id,name,email)').eq('requester_id', currentUser.id).order('created_at', {ascending:false}),
+    // 我收到的申請（待處理）
+    sb.from('business_connections').select('*, requester:requester_id(id,name,email)').eq('receiver_id', currentUser.id).eq('status','pending').order('created_at', {ascending:false}),
+    // 已建立的配合關係
+    sb.from('business_connections').select('*, requester:requester_id(id,name,email), receiver:receiver_id(id,name,email)').or('requester_id.eq.'+currentUser.id+',receiver_id.eq.'+currentUser.id).eq('status','accepted').order('created_at', {ascending:false})
+  ]);
+
+  el.innerHTML = '';
+
+  // ── 申請新對接 ──
+  var applyCard = document.createElement('div');
+  applyCard.className = 'card';
+  applyCard.innerHTML =
+    '<div class="ct">🤝 申請新對接</div>' +
+    '<div style="font-size:13px;color:var(--t2);margin-bottom:12px">輸入對方的帳號 ID 或邀請碼，申請建立配合關係</div>' +
+    '<div style="display:flex;gap:8px">' +
+    '<input id="conn-input" placeholder="對方帳號 ID 或邀請碼" style="flex:1;padding:11px 14px;background:var(--inp);border:0.5px solid var(--bdr2);border-radius:9px;color:var(--inpt);font-size:15px;font-family:var(--sans)">' +
+    '<button id="conn-apply-btn" class="btn-p" style="white-space:nowrap;padding:11px 18px">申請對接</button>' +
+    '</div>' +
+    '<div id="conn-apply-result" style="margin-top:8px"></div>';
+  el.appendChild(applyCard);
+  var applyBtn = applyCard.querySelector('#conn-apply-btn');
+  if (applyBtn) applyBtn.onclick = function(){ applyConnection(); };
+
+  // ── 收到的申請（待處理）──
+  if (received.data && received.data.length > 0) {
+    var recCard = document.createElement('div');
+    recCard.className = 'card';
+    var recH = '<div class="ct">📥 收到的對接申請 <span class="badge b-red">' + received.data.length + '</span></div>';
+    received.data.forEach(function(conn) {
+      var requester = conn.requester || {};
+      recH += '<div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:0.5px solid var(--bdr)">';
+      recH += '<div style="width:40px;height:40px;border-radius:50%;background:var(--al);color:var(--acc);display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:700">' + (requester.name||'?').charAt(0) + '</div>';
+      recH += '<div style="flex:1"><div style="font-size:15px;font-weight:500">' + (requester.name||'—') + '</div>';
+      recH += '<div style="font-size:12px;color:var(--t2)">' + (requester.email||'') + '</div>';
+      if (conn.note) recH += '<div style="font-size:12px;color:var(--t3)">備註：' + conn.note + '</div>';
+      recH += '</div>';
+      recH += '<div style="display:flex;gap:6px">';
+      recH += '<button id="accept-' + conn.id + '" style="padding:6px 14px;background:var(--grn);color:#FFF;border:none;border-radius:7px;cursor:pointer;font-family:var(--sans);font-size:13px;font-weight:600">接受</button>';
+      recH += '<button id="reject-' + conn.id + '" style="padding:6px 14px;background:transparent;border:0.5px solid rgba(192,64,48,.3);color:var(--red);border-radius:7px;cursor:pointer;font-family:var(--sans);font-size:13px">拒絕</button>';
+      recH += '</div></div>';
+    });
+    recCard.innerHTML = recH;
+    // DOM 綁定
+    received.data.forEach(function(conn) {
+      var acc = recCard.querySelector('#accept-' + conn.id);
+      var rej = recCard.querySelector('#reject-' + conn.id);
+      if (acc) acc.onclick = function(){ handleConnection(conn.id, 'accepted', conn.requester_id); };
+      if (rej) rej.onclick = function(){ handleConnection(conn.id, 'rejected', null); };
+    });
+    el.appendChild(recCard);
+  }
+
+  // ── 已建立的配合關係 ──
+  var accCard = document.createElement('div');
+  accCard.className = 'card';
+  var accH = '<div class="ct">✅ 配合業者（' + (accepted.data ? accepted.data.length : 0) + '）</div>';
+  if (!accepted.data || accepted.data.length === 0) {
+    accH += '<div style="text-align:center;padding:16px;color:var(--t2)">尚無配合業者，申請對接後即可建立</div>';
+  } else {
+    accepted.data.forEach(function(conn) {
+      var isRequester = conn.requester_id === currentUser.id;
+      var partner = isRequester ? conn.receiver : conn.requester;
+      if (!partner) return;
+      accH += '<div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:0.5px solid var(--bdr)">';
+      accH += '<div style="width:40px;height:40px;border-radius:50%;background:var(--gl);color:var(--grn);display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:700">' + (partner.name||'?').charAt(0) + '</div>';
+      accH += '<div style="flex:1"><div style="font-size:15px;font-weight:500">' + (partner.name||'—') + '</div>';
+      accH += '<div style="font-size:12px;color:var(--t2)">' + (partner.email||'') + '</div>';
+      accH += '<div style="font-size:11px;color:var(--t3)">配合自 ' + new Date(conn.created_at).toLocaleDateString('zh-TW') + '</div></div>';
+      accH += '<button id="remove-conn-' + conn.id + '" style="font-size:12px;padding:4px 10px;border-radius:6px;border:0.5px solid rgba(192,64,48,.3);background:transparent;color:var(--red);cursor:pointer;font-family:var(--sans)">解除</button>';
+      accH += '</div>';
+    });
+  }
+  accCard.innerHTML = accH;
+  // DOM 綁定解除按鈕
+  if (accepted.data) {
+    accepted.data.forEach(function(conn) {
+      var removeBtn = accCard.querySelector('#remove-conn-' + conn.id);
+      if (removeBtn) removeBtn.onclick = function(){ removeConnection(conn.id); };
+    });
+  }
+  el.appendChild(accCard);
+
+  // ── 我發出去的申請 ──
+  var sentPending = (myReq.data||[]).filter(function(c){ return c.status === 'pending'; });
+  if (sentPending.length > 0) {
+    var sentCard = document.createElement('div');
+    sentCard.className = 'card';
+    var sentH = '<div class="ct">📤 已送出的申請（等待對方確認）</div>';
+    sentPending.forEach(function(conn) {
+      var receiver = conn.receiver || {};
+      sentH += '<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:0.5px solid var(--bdr)">';
+      sentH += '<div style="flex:1"><div style="font-size:14px">' + (receiver.name||receiver.email||conn.receiver_id) + '</div>';
+      sentH += '<div style="font-size:12px;color:var(--t3)">申請時間：' + new Date(conn.created_at).toLocaleDateString('zh-TW') + '</div></div>';
+      sentH += '<span class="badge b-gray">等待確認</span>';
+      sentH += '</div>';
+    });
+    sentCard.innerHTML = sentH;
+    el.appendChild(sentCard);
+  }
+
+  loadNotifCount();
+}
+
+async function applyConnection() {
+  var input = document.getElementById('conn-input');
+  var result = document.getElementById('conn-apply-result');
+  var code = input ? input.value.trim() : '';
+  if (!code) { if (result) result.innerHTML = '<div style="color:var(--red);font-size:13px">請輸入對方帳號 ID 或邀請碼</div>'; return; }
+  if (result) result.innerHTML = '<div style="color:var(--t2);font-size:13px">🔍 查詢中...</div>';
+
+  // 查詢對方帳號
+  var res = await sb.from('members').select('id,name,email').or('invite_code.eq.'+code+',id.eq.'+code).maybeSingle();
+  if (!res.data) {
+    if (result) result.innerHTML = '<div style="color:var(--red);font-size:13px">❌ 找不到此業者，請確認 ID 或邀請碼</div>';
+    return;
+  }
+  var receiver = res.data;
+  if (receiver.id === currentUser.id) {
+    if (result) result.innerHTML = '<div style="color:var(--red);font-size:13px">❌ 不能對自己申請對接</div>';
+    return;
+  }
+  // 檢查是否已申請
+  var exist = await sb.from('business_connections').select('id,status').or('and(requester_id.eq.'+currentUser.id+',receiver_id.eq.'+receiver.id+'),and(requester_id.eq.'+receiver.id+',receiver_id.eq.'+currentUser.id+')').maybeSingle();
+  if (exist.data) {
+    var msg = exist.data.status==='accepted'?'已是配合業者':exist.data.status==='pending'?'申請已送出，等待確認':'已申請過';
+    if (result) result.innerHTML = '<div style="color:var(--yel);font-size:13px">⚠️ ' + msg + '</div>';
+    return;
+  }
+  // 建立申請
+  await sb.from('business_connections').insert({ requester_id: currentUser.id, receiver_id: receiver.id, status:'pending' });
+  // 發送通知給對方
+  await sb.from('notifications').insert({
+    member_id: receiver.id,
+    type: 'connection_request',
+    title: '新的對接申請',
+    body: (currentUser.user_metadata&&currentUser.user_metadata.name||'有人') + ' 申請與您建立配合關係',
+    data: { requester_id: currentUser.id }
+  });
+  if (result) result.innerHTML = '<div style="color:var(--grn);font-size:13px">✓ 申請已送出給「' + (receiver.name||receiver.email) + '」，等待對方確認</div>';
+  if (input) input.value = '';
+}
+
+async function handleConnection(connId, status, requesterId) {
+  await sb.from('business_connections').update({status: status}).eq('id', connId);
+  if (status === 'accepted' && requesterId) {
+    // 通知申請方
+    await sb.from('notifications').insert({
+      member_id: requesterId,
+      type: 'connection_accepted',
+      title: '對接申請已接受',
+      body: (currentUser.user_metadata&&currentUser.user_metadata.name||'對方') + ' 已接受您的配合申請',
+      data: { conn_id: connId }
+    });
+  }
+  renderConnections();
+  loadNotifCount();
+}
+
+async function removeConnection(connId) {
+  if (!confirm('確定解除此配合關係？')) return;
+  await sb.from('business_connections').delete().eq('id', connId);
+  renderConnections();
+}
+
+// ── 通知中心 ──
+async function renderNotifications() {
+  var el = document.getElementById('member-content');
+  el.innerHTML = '<div style="text-align:center;padding:30px;color:var(--t2)"><div class="spinner" style="margin:0 auto 10px"></div>載入中...</div>';
+
+  var res = await sb.from('notifications').select('*').eq('member_id', currentUser.id).order('created_at', {ascending:false}).limit(50);
+  var notifs = res.data || [];
+
+  // 全部標為已讀
+  await sb.from('notifications').update({is_read: true}).eq('member_id', currentUser.id).eq('is_read', false);
+  loadNotifCount();
+
+  el.innerHTML = '';
+  var card = document.createElement('div');
+  card.className = 'card';
+
+  if (notifs.length === 0) {
+    card.innerHTML = '<div class="ct">🔔 通知中心</div><div style="text-align:center;padding:20px;color:var(--t2)">目前沒有通知</div>';
+  } else {
+    var h = '<div class="ct">🔔 通知中心</div>';
+    var typeIcons = { connection_request:'🤝', connection_accepted:'✅', pawn_due:'🏛', car_reserved:'🚙', default:'📢' };
+    notifs.forEach(function(n) {
+      var isNew = !n.is_read;
+      var icon = typeIcons[n.type] || typeIcons.default;
+      var timeStr = new Date(n.created_at).toLocaleString('zh-TW', {month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'});
+      h += '<div style="display:flex;gap:10px;padding:12px 0;border-bottom:0.5px solid var(--bdr);background:' + (isNew?'var(--al)':'transparent') + '">';
+      h += '<span style="font-size:22px;flex-shrink:0">' + icon + '</span>';
+      h += '<div style="flex:1"><div style="font-size:14px;font-weight:' + (isNew?'600':'400') + ';margin-bottom:2px">' + n.title + '</div>';
+      h += '<div style="font-size:13px;color:var(--t2)">' + (n.body||'') + '</div>';
+      h += '<div style="font-size:11px;color:var(--t3);margin-top:3px">' + timeStr + '</div></div>';
+      if (n.type === 'connection_request') {
+        h += '<button id="notif-go-conn-' + n.id + '" style="font-size:12px;padding:4px 10px;border-radius:6px;border:0.5px solid var(--acc);background:var(--al);color:var(--acc);cursor:pointer;font-family:var(--sans);white-space:nowrap;align-self:center">前往處理</button>';
+      }
+      h += '</div>';
+    });
+    card.innerHTML = h;
+    // DOM 綁定
+    notifs.forEach(function(n) {
+      var btn = card.querySelector('#notif-go-conn-' + n.id);
+      if (btn) btn.onclick = function(){ navTo('connections', null); };
+    });
+  }
+  el.appendChild(card);
+}
+
 // 🏛 當鋪管理
 // ══════════════════════════════
 var pawnLoans = [];
