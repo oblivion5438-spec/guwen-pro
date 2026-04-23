@@ -435,13 +435,30 @@ function renderStep(s) {
     ];
     steps2.forEach(function(s, i) {
       h += '<div style="display:flex;gap:10px;margin-bottom:8px">';
-      h += '<div style="width:22px;height:22px;border-radius:50%;background:var(--grn);color:#FFF;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;flex-shrink:0">'+( i+1)+'</div>';
+      h += '<div style="width:22px;height:22px;border-radius:50%;background:var(--grn);color:#FFF;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;flex-shrink:0">'+(i+1)+'</div>';
       h += '<div><div style="font-size:13px;font-weight:600">'+s[0]+'</div>';
       h += '<div style="font-size:12px;color:var(--t2)">'+s[1]+'</div></div>';
       h += '</div>';
     });
-    h += '<a href="https://mydata.nat.gov.tw/" target="_blank" style="display:block;text-align:center;padding:10px;background:var(--grn);color:#FFF;border-radius:8px;font-size:14px;font-weight:600;text-decoration:none;margin-top:8px">📱 前往 MyData 官網調閱</a>';
-    h += '<div style="font-size:11px;color:var(--t3);text-align:center;margin-top:6px">⚠️ 請確認授權對象為合法業者，MyData 不會要求您提供帳號密碼</div>';
+
+    // 5個直達連結按鈕
+    h += '<div style="font-size:13px;font-weight:600;color:var(--grn);margin:12px 0 8px">📂 教學完成後，點下方直接前往調閱：</div>';
+    var mydataLinks = [
+      { label:'🏠 戶籍資料', url:'https://mydata.nat.gov.tw/personal/detail/API.idPhotoRev', color:'#2D7AB8' },
+      { label:'💰 所得資料', url:'https://mydata.nat.gov.tw/personal/detail/API.syWqjr4flJ', color:'#2D8A4E' },
+      { label:'👷 勞保紀錄', url:'https://mydata.nat.gov.tw/personal/detail/API.UZQkKbsOpz', color:'#8A4E2D' },
+      { label:'🏥 健保紀錄', url:'https://mydata.nat.gov.tw/personal/detail/API.zH584wn59r', color:'#C04030' },
+      { label:'💼 財產清單', url:'https://mydata.nat.gov.tw/personal/detail/API.finance', color:'#7A2D8A' },
+    ];
+    h += '<div style="display:flex;flex-direction:column;gap:8px">';
+    mydataLinks.forEach(function(lk) {
+      h += '<a href="'+lk.url+'" target="_blank" style="display:flex;align-items:center;gap:10px;padding:11px 14px;background:'+lk.color+';color:#FFF;border-radius:9px;font-size:14px;font-weight:600;text-decoration:none">';
+      h += '<span style="flex:1">'+lk.label+'</span>';
+      h += '<span style="font-size:12px;opacity:.85">前往調閱 →</span>';
+      h += '</a>';
+    });
+    h += '</div>';
+    h += '<div style="font-size:11px;color:var(--t3);text-align:center;margin-top:8px">⚠️ 請確認授權對象為合法業者，MyData 不會要求您提供帳號密碼</div>';
     h += '</div>';
 
     // 注意事項
