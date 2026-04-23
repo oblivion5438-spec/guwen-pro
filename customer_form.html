@@ -68,7 +68,7 @@ const sb = supabase.createClient(SURL, SKEY);
 var memberId = null;
 var memberName = '';
 var step = 1;
-var totalSteps = 3;
+var totalSteps = 4;
 var formData = {};
 
 // 從 URL 取得 member ID
@@ -333,6 +333,109 @@ function renderStep(s) {
     h += '<div style="font-size:12px;color:var(--t3);margin-bottom:12px;text-align:center">填寫的資料僅用於貸款諮詢評估，不會用於其他用途</div>';
     h += '<div style="display:flex;gap:8px">';
     h += '<button class="btn-p" onclick="renderStep(2)" style="background:var(--inp);color:var(--t1);flex:0 0 auto;width:80px">← 上一步</button>';
+    h += '<button class="btn-p" onclick="nextStep(3)" style="flex:1">下一步 →</button>';
+    h += '</div>';
+
+  } else if (step === 4) {
+    // ── Step 4：資料調閱授權 + MyData 教學 ──
+    h += '<div class="card">';
+    h += '<div class="ct">🔍 資料查詢授權</div>';
+    h += '<div style="font-size:13px;color:var(--t2);margin-bottom:14px">為協助評估您的貸款條件，請勾選您同意本顧問查詢或協助您調閱的資料項目（均為選填，不影響基本諮詢）</div>';
+
+    // 三個授權選項
+    var authItems = [
+      {
+        key: 'auth_movable',
+        icon: '🏷️',
+        title: '動產擔保登記查詢授權',
+        desc: '授權查詢您名下動產擔保登記資料（如：汽機車擔保情形），資料來源：經濟部商業司動產擔保交易線上登記系統',
+        law: '依動產擔保交易法第5條，任何人均可查詢公開登記資料',
+        link: 'https://murl.nat.gov.tw/murl/?id=40',
+        linkLabel: '前往動產擔保查詢系統'
+      },
+      {
+        key: 'auth_verdict',
+        icon: '⚖️',
+        title: '司法院裁判書查詢授權',
+        desc: '授權查詢您相關的司法院公開裁判書資料，了解是否有相關訴訟記錄，資料來源：司法院法學資料檢索系統',
+        law: '依法院組織法第83條，裁判書除法定不公開情形外均得公開查詢',
+        link: 'https://judgment.judicial.gov.tw/',
+        linkLabel: '前往司法院裁判書查詢'
+      },
+      {
+        key: 'auth_traffic',
+        icon: '🚗',
+        title: '監理網違規記錄查詢授權',
+        desc: '授權查詢您的駕駛違規記錄、駕照狀態及車籍資料，資料來源：交通部公路局監理服務網，用於評估汽機車貸款資格',
+        law: '依道路交通管理處罰條例，本人或授權業者可查詢相關駕駛記錄',
+        link: 'https://www.mvdis.gov.tw/',
+        linkLabel: '前往監理服務網查詢'
+      },
+      {
+        key: 'auth_license',
+        icon: '📜',
+        title: '技術士證照查詢授權',
+        desc: '授權查詢您持有的技術士證照資料，資料來源：勞動部技能檢定中心，持有專業證照可提升貸款評估分數',
+        law: '依技術士技能檢定及發證辦法，證照資料可由本人授權查詢',
+        link: 'https://techbank.wda.gov.tw/',
+        linkLabel: '前往技能資料庫查詢'
+      },
+      {
+        key: 'auth_mydata',
+        icon: '📊',
+        title: 'MyData 個人資料調閱授權',
+        desc: '同意由您本人透過 MyData 平台自行調閱並提供財力證明，包含：所得資料、勞健保投保記錄、財產資料、車駕籍資料等，由您自主操作，顧問不會直接取得您的帳號密碼',
+        law: '依個人資料保護法，MyData 調閱需由本人操作同意，資料授權範圍由您自行決定',
+        link: 'https://mydata.nat.gov.tw/',
+        linkLabel: '前往 MyData 官網'
+      },
+    ];
+
+    authItems.forEach(function(item) {
+      h += '<label style="display:flex;align-items:flex-start;gap:10px;padding:14px;background:var(--inp);border-radius:10px;margin-bottom:10px;cursor:pointer" id="auth-label-'+item.key+'">';
+      h += '<input type="checkbox" id="'+item.key+'" onchange="updateAuthLabel(\''+item.key+'\')" style="width:20px;height:20px;accent-color:var(--grn);flex-shrink:0;margin-top:3px">';
+      h += '<div>';
+      h += '<div style="font-size:15px;font-weight:600;margin-bottom:4px">'+item.icon+' '+item.title+'</div>';
+      h += '<div style="font-size:13px;color:var(--t2);margin-bottom:6px;line-height:1.7">'+item.desc+'</div>';
+      h += '<div style="font-size:11px;color:var(--t3);margin-bottom:6px">📌 '+item.law+'</div>';
+      h += '<a href="'+item.link+'" target="_blank" style="font-size:12px;color:var(--acc);text-decoration:none">🔗 '+item.linkLabel+' →</a>';
+      h += '</div></label>';
+    });
+
+    // MyData 自行調閱教學
+    h += '<div style="background:rgba(45,138,78,.08);border:0.5px solid rgba(45,138,78,.3);border-radius:10px;padding:14px;margin-bottom:14px">';
+    h += '<div style="font-size:14px;font-weight:700;color:var(--grn);margin-bottom:10px">📱 MyData 自行調閱教學</div>';
+    h += '<div style="font-size:13px;color:var(--t2);margin-bottom:10px">MyData 是政府推出的個人資料自主平台，以下為調閱步驟：</div>';
+    var steps2 = [
+      ['開啟 MyData 官網', '前往 mydata.nat.gov.tw，點選「馬上申請」或「找文件」'],
+      ['身分驗證', '選擇驗證方式：行動自然人憑證（推薦）、健保卡、晶片金融卡或雙證件驗證'],
+      ['選擇要調閱的資料', '貸款常用項目：所得資料、勞保投保紀錄、財產資料、健保投保記錄'],
+      ['下載資料', '完成驗證後，可預覽並下載（檔案8小時內有效）'],
+      ['傳給顧問', '下載後截圖或直接上傳給您的顧問，由顧問協助評估'],
+    ];
+    steps2.forEach(function(s, i) {
+      h += '<div style="display:flex;gap:10px;margin-bottom:8px">';
+      h += '<div style="width:22px;height:22px;border-radius:50%;background:var(--grn);color:#FFF;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;flex-shrink:0">'+( i+1)+'</div>';
+      h += '<div><div style="font-size:13px;font-weight:600">'+s[0]+'</div>';
+      h += '<div style="font-size:12px;color:var(--t2)">'+s[1]+'</div></div>';
+      h += '</div>';
+    });
+    h += '<a href="https://mydata.nat.gov.tw/" target="_blank" style="display:block;text-align:center;padding:10px;background:var(--grn);color:#FFF;border-radius:8px;font-size:14px;font-weight:600;text-decoration:none;margin-top:8px">📱 前往 MyData 官網調閱</a>';
+    h += '<div style="font-size:11px;color:var(--t3);text-align:center;margin-top:6px">⚠️ 請確認授權對象為合法業者，MyData 不會要求您提供帳號密碼</div>';
+    h += '</div>';
+
+    // 注意事項
+    h += '<div style="background:rgba(184,128,32,.08);border:0.5px solid rgba(184,128,32,.3);border-radius:10px;padding:12px;margin-bottom:14px">';
+    h += '<div style="font-size:13px;font-weight:600;color:var(--yel);margin-bottom:6px">⚠️ 重要提醒</div>';
+    h += '<div style="font-size:12px;color:var(--t2);line-height:1.8">';
+    h += '• 以上查詢授權均為<strong>選填</strong>，不勾選不影響基本諮詢服務<br>';
+    h += '• MyData 調閱需由<strong>您本人操作</strong>，顧問不會要求您提供帳號密碼<br>';
+    h += '• 動產擔保及裁判書為政府公開資料，合法業者均可自行查詢<br>';
+    h += '• 如有任何疑問請撥打 <strong>165 反詐騙專線</strong>確認';
+    h += '</div></div>';
+
+    h += '<div style="display:flex;gap:8px">';
+    h += '<button class="btn-p" onclick="renderStep(3)" style="background:var(--inp);color:var(--t1);flex:0 0 auto;width:80px">← 上一步</button>';
     h += '<button class="btn-p" id="submit-btn" onclick="submitForm()" style="flex:1">✓ 送出資料</button>';
     h += '</div>';
   }
@@ -359,8 +462,7 @@ function nextStep(from) {
     var birthYear = parseInt(getVal('f-birth')) || 0;
     var age = birthYear > 1900 ? new Date().getFullYear() - birthYear : 0;
     Object.assign(formData, {
-      name: name,
-      phone: phone,
+      name: name, phone: phone,
       id_number: getVal('f-idno'),
       birth_year: getVal('f-birth'),
       age: age || null,
@@ -383,20 +485,42 @@ function nextStep(from) {
       has_bike_license: getCheck('f-bike-lic'),
     });
     renderStep(3);
+  } else if (from === 3) {
+    var propertyVal = getVal('f-property');
+    Object.assign(formData, {
+      credit_card_age: getVal('f-cc'),
+      bank_reject_count: parseInt(getVal('f-bank-rej')) || 0,
+      fin_reject_count: parseInt(getVal('f-fin-rej')) || 0,
+      late_pay_days: parseInt(getVal('f-late')) || 0,
+      has_property: propertyVal === 'true' ? true : propertyVal === 'false' ? false : null,
+      alert_status: getVal('f-alert') || 'none',
+      note: getVal('f-note'),
+    });
+    renderStep(4);
   }
 }
 
+// 授權勾選高亮
+window.updateAuthLabel = function(key) {
+  var cb = document.getElementById(key);
+  var label = document.getElementById('auth-label-' + key);
+  if (!cb || !label) return;
+  if (cb.checked) {
+    label.style.background = 'rgba(45,138,78,.12)';
+    label.style.border = '0.5px solid rgba(45,138,78,.4)';
+  } else {
+    label.style.background = 'var(--inp)';
+    label.style.border = 'none';
+  }
+};
+
 async function submitForm() {
-  var propertyVal = getVal('f-property');
-  Object.assign(formData, {
-    credit_card_age: getVal('f-cc'),
-    bank_reject_count: parseInt(getVal('f-bank-rej')) || 0,
-    fin_reject_count: parseInt(getVal('f-fin-rej')) || 0,
-    late_pay_days: parseInt(getVal('f-late')) || 0,
-    has_property: propertyVal === 'true' ? true : propertyVal === 'false' ? false : null,
-    alert_status: getVal('f-alert') || 'none',
-    note: getVal('f-note'),
-  });
+  // 收集授權勾選
+  formData.auth_movable = !!(document.getElementById('auth_movable') && document.getElementById('auth_movable').checked);
+  formData.auth_verdict = !!(document.getElementById('auth_verdict') && document.getElementById('auth_verdict').checked);
+  formData.auth_traffic = !!(document.getElementById('auth_traffic') && document.getElementById('auth_traffic').checked);
+  formData.auth_license = !!(document.getElementById('auth_license') && document.getElementById('auth_license').checked);
+  formData.auth_mydata  = !!(document.getElementById('auth_mydata')  && document.getElementById('auth_mydata').checked);
 
   var btn = document.getElementById('submit-btn');
   if (btn) { btn.disabled = true; btn.textContent = '送出中...'; }
@@ -431,6 +555,11 @@ async function submitForm() {
       source: 'customer_form',
       consent_at: formData.consent_at || new Date().toISOString(),
       consent_version: formData.consent_version || '2025-v1',
+      auth_movable_query: formData.auth_movable || false,
+      auth_verdict_query: formData.auth_verdict || false,
+      auth_traffic_query: formData.auth_traffic || false,
+      auth_license_query: formData.auth_license || false,
+      auth_mydata_query: formData.auth_mydata || false,
       consent_at: formData.consent_at || new Date().toISOString(),
       consent_version: formData.consent_version || '2024-v1',
     };
