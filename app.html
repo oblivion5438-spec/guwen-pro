@@ -2244,10 +2244,9 @@ function renderClosingList(leadId) {
   items.forEach(function(item) {
     var typeLabel = (closingTypes.find(function(t){return t.key===item.closing_type;})||{label:'其他'}).label;
     var myIncome = 0;
-    if (item.closing_type === 'pawn' && item.closed_amount && item.pawn_monthly_rate) {
-      // 當鋪：分潤基礎是每月利息
-      var monthlyInterest = Math.round(item.closed_amount * item.pawn_monthly_rate / 100);
-      myIncome = Math.round(monthlyInterest * (item.my_rate||100) / 100);
+    if (item.closing_type === 'pawn' && item.closed_amount) {
+      // 當鋪：my_rate 直接是利率%，例如 2.5% → 借款 × 2.5%
+      myIncome = Math.round(item.closed_amount * (item.my_rate||0) / 100);
     } else {
       myIncome = item.closed_amount ? Math.round(item.closed_amount * (item.my_rate||100) / 100) : 0;
     }
@@ -5546,21 +5545,23 @@ function scheduleNotifications(loanAlerts) {
 // 🔀 轉介功能
 // ══════════════════════════════
 var referralFields = [
-  // 基本資料
-  {key:'name',        label:'姓名',         group:'basic', enabled:true},
-  {key:'age',         label:'年齡',         group:'basic', enabled:true},
-  {key:'id_number',   label:'身分證字號',   group:'basic', enabled:false},
-  {key:'phone',       label:'聯絡電話',     group:'basic', enabled:true},
-  {key:'work',        label:'工作單位/職位',group:'basic', enabled:true},
-  {key:'salary',      label:'月薪',         group:'basic', enabled:true},
-  {key:'transfer',    label:'薪轉',         group:'basic', enabled:true},
-  {key:'address',     label:'居住地址',     group:'basic', enabled:true},
-  {key:'housing',     label:'居住狀況',     group:'basic', enabled:true},
-  {key:'alert',       label:'警示協商狀況', group:'basic', enabled:true},
-  {key:'car_lic',     label:'汽車駕照',     group:'basic', enabled:false},
-  {key:'bike_lic',    label:'機車駕照',     group:'basic', enabled:false},
-  {key:'required_amt',label:'需求資金',     group:'basic', enabled:true},
-  {key:'fund_purpose',label:'資金用途',     group:'basic', enabled:true},
+  // 基本資料（需求資金放姓名後面）
+  {key:'name',        label:'姓名',           group:'basic', enabled:true},
+  {key:'required_amt',label:'需求資金',       group:'basic', enabled:true},
+  {key:'age',         label:'年齡',           group:'basic', enabled:true},
+  {key:'id_number',   label:'身分證字號',     group:'basic', enabled:false},
+  {key:'phone',       label:'聯絡電話',       group:'basic', enabled:true},
+  {key:'work',        label:'工作單位/職位',  group:'basic', enabled:true},
+  {key:'company_phone',label:'公司電話',      group:'basic', enabled:false},
+  {key:'company_addr', label:'公司地址',      group:'basic', enabled:false},
+  {key:'salary',      label:'月薪',           group:'basic', enabled:true},
+  {key:'transfer',    label:'薪轉',           group:'basic', enabled:true},
+  {key:'address',     label:'居住地址',       group:'basic', enabled:true},
+  {key:'housing',     label:'居住狀況',       group:'basic', enabled:true},
+  {key:'alert',       label:'警示協商狀況',   group:'basic', enabled:true},
+  {key:'car_lic',     label:'汽車駕照',       group:'basic', enabled:false},
+  {key:'bike_lic',    label:'機車駕照',       group:'basic', enabled:false},
+  {key:'fund_purpose',label:'資金用途',       group:'basic', enabled:true},
   // 財務信用
   {key:'cc_age',      label:'信用卡持卡時間', group:'credit', enabled:true},
   {key:'bank_rej',    label:'銀行婉拒次數',   group:'credit', enabled:true},
@@ -5568,13 +5569,15 @@ var referralFields = [
   {key:'late_pay',    label:'遲繳天數',       group:'credit', enabled:true},
   {key:'has_property',label:'名下不動產',     group:'credit', enabled:false},
   {key:'debt_ratio',  label:'負債比',         group:'credit', enabled:false},
-  // 查詢資料
-  {key:'doc_asset',   label:'動產擔保截圖',   group:'docs', enabled:false},
-  {key:'doc_verdict', label:'司法院裁判書截圖',group:'docs', enabled:false},
-  {key:'doc_traffic', label:'監理網違規截圖',  group:'docs', enabled:false},
-  {key:'doc_license', label:'技術士證照截圖',  group:'docs', enabled:false},
-  // 照會內容
-  {key:'review',      label:'生成照會內容',   group:'review', enabled:false},
+  {key:'labor_ins',   label:'勞保投保',       group:'credit', enabled:false},
+  {key:'health_ins',  label:'健保投保',       group:'credit', enabled:false},
+  // MyData 查詢資料
+  {key:'doc_asset',   label:'動產擔保截圖',     group:'docs', enabled:false},
+  {key:'doc_verdict', label:'司法院裁判書截圖', group:'docs', enabled:false},
+  {key:'doc_traffic', label:'監理網違規截圖',   group:'docs', enabled:false},
+  {key:'doc_license', label:'技術士證照截圖',   group:'docs', enabled:false},
+  // 汽車資訊（照會用）
+  {key:'review',      label:'附上汽車資訊（車貸用）', group:'review', enabled:false},
 ];
 
 async function showReferralModal(leadId) {
@@ -5661,7 +5664,7 @@ async function showReferralModal(leadId) {
   h += '<div><div style="font-size:12px;color:var(--t3);font-weight:600;margin-bottom:4px;text-transform:uppercase;letter-spacing:0.5px">📋 照會</div>';
   h += '<div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:8px">';
   h += '<label style="display:flex;align-items:center;gap:4px;padding:5px 10px;border-radius:15px;border:0.5px solid var(--bdr2);cursor:pointer;font-size:13px" id="ref-review-label">';
-  h += '<input type="checkbox" class="ref-field" id="ref-review-check" data-key="review" style="accent-color:var(--acc)"> 附上照會內容（車貸用）';
+  h += '<input type="checkbox" class="ref-field" id="ref-review-check" data-key="review" style="accent-color:var(--acc)"> 附上汽車資訊（車貸用）';
   h += '</label>';
   h += '</div>';
   // 車輛資訊區塊（照會勾選時展開）
@@ -5797,11 +5800,15 @@ function collectReferralData(leadId, lead, box) {
   var housingLabels = {self_own:'本人名下（自有）',self_live:'自住（非本人名下）',family:'親屬/家人房子',rent:'租屋',other:'其他'};
   var lines = [];
 
+  // 順序：姓名 → 需求資金 → 其他基本資料
   if (selectedKeys.name) lines.push('姓名：' + (lead.name||'—'));
+  if (selectedKeys.required_amt && lead.required_amount) lines.push('需求資金：$' + lead.required_amount.toLocaleString());
   if (selectedKeys.age && lead.age) lines.push('年齡：' + lead.age + '歲');
   if (selectedKeys.id_number && lead.id_number_hash) lines.push('身分證：' + lead.id_number_hash);
   if (selectedKeys.phone && lead.phone) lines.push('電話：' + lead.phone);
   if (selectedKeys.work && lead.work_type) lines.push('工作：' + lead.work_type);
+  if (selectedKeys.company_phone && lead.company_phone) lines.push('公司電話：' + lead.company_phone);
+  if (selectedKeys.company_addr && lead.company_address) lines.push('公司地址：' + lead.company_address);
   if (selectedKeys.salary && lead.monthly_salary) lines.push('月薪：$' + lead.monthly_salary.toLocaleString());
   if (selectedKeys.transfer) lines.push('薪轉：' + (lead.has_salary_transfer?'有':'無'));
   if (selectedKeys.address && lead.address) lines.push('居住地址：' + lead.address);
@@ -5809,15 +5816,16 @@ function collectReferralData(leadId, lead, box) {
   if (selectedKeys.alert) lines.push('警示協商：' + (lead.alert_status==='none'?'無':'⚠️ '+lead.alert_status));
   if (selectedKeys.car_lic) lines.push('汽車駕照：' + (lead.has_car_license?'有':'無'));
   if (selectedKeys.bike_lic) lines.push('機車駕照：' + (lead.has_bike_license?'有':'無'));
-  if (selectedKeys.required_amt && lead.required_amount) lines.push('需求資金：$' + lead.required_amount.toLocaleString());
   if (selectedKeys.fund_purpose && lead.fund_purpose) lines.push('資金用途：' + lead.fund_purpose);
-
+  // 財務信用
   if (selectedKeys.cc_age && lead.credit_card_age) lines.push('信用卡：' + lead.credit_card_age);
   if (selectedKeys.bank_rej && lead.bank_reject_count) lines.push('銀行婉拒：' + lead.bank_reject_count + '次');
   if (selectedKeys.fin_rej && lead.fin_reject_count) lines.push('融資婉拒：' + lead.fin_reject_count + '次');
   if (selectedKeys.late_pay && lead.late_pay_days) lines.push('最長遲繳：' + lead.late_pay_days + '天');
   if (selectedKeys.has_property) lines.push('名下不動產：' + (lead.has_property?'有':'無'));
   if (selectedKeys.debt_ratio && lead.debt_ratio) lines.push('負債比：' + lead.debt_ratio + '%');
+  if (selectedKeys.labor_ins && lead.labor_insurance_years && lead.labor_insurance_years!=='none') lines.push('勞保：' + lead.labor_insurance_years);
+  if (selectedKeys.health_ins) lines.push('健保：' + (lead.has_health_insurance?'有投保':'未知'));
 
   return { selectedKeys: selectedKeys, lines: lines };
 }
@@ -5877,10 +5885,8 @@ function generateReferralLine(leadId, lead, box, modal) {
     }
   });
 
-  // 附上照會內容（含車輛資訊）
+  // 附上汽車資訊（車貸用，不重複客戶基本資料）
   if (selectedKeys.review) {
-    var tpl = reviewTemplates[0];
-    var fields = tpl ? (tpl.fields||[]) : getDefaultReviewFields();
     var refCarModel   = box.querySelector('#ref-car-model')   ? box.querySelector('#ref-car-model').value.trim()   : '';
     var refCarYear    = box.querySelector('#ref-car-year')    ? box.querySelector('#ref-car-year').value.trim()    : '';
     var refPlate      = box.querySelector('#ref-plate')       ? box.querySelector('#ref-plate').value.trim()       : '';
@@ -5896,24 +5902,8 @@ function generateReferralLine(leadId, lead, box, modal) {
 
     text.push('');
     text.push('═══════════════════════');
-    text.push('📋 車貸照會資料');
+    text.push('🚙 汽車資訊（車貸用）');
     text.push('═══════════════════════');
-    fields.forEach(function(f) {
-      if (!f.enabled) return;
-      var val = '';
-      if (f.key==='name') val = lead.name||'—';
-      else if (f.key==='age') val = lead.age?lead.age+'歲':'—';
-      else if (f.key==='id_number') val = lead.id_number_hash?lead.id_number_hash.substring(0,3)+'****':'—';
-      else if (f.key==='work') val = lead.work_type||'—';
-      else if (f.key==='salary') val = lead.monthly_salary?'$'+lead.monthly_salary.toLocaleString()+'/月':'—';
-      else if (f.key==='transfer') val = lead.has_salary_transfer?'有薪轉':'無薪轉';
-      else if (f.key==='address') val = lead.address||'—';
-      else if (f.key==='alert') val = lead.alert_status==='none'?'無':'⚠️ '+lead.alert_status;
-      else if (f.custom) val = f.value||'';
-      if (val) text.push(f.label+'：'+val);
-    });
-    text.push('───────────────────────');
-    text.push('🚙 車輛資訊');
     if (refCarModel) text.push('廠牌型號：'+refCarModel+(refCarYear?' ('+refCarYear+'年)':''));
     if (refPlate) text.push('車牌號碼：'+refPlate);
     if (refMileage) text.push('里程數：'+refMileage);
