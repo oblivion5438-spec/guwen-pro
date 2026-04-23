@@ -6662,16 +6662,30 @@ function renderSettings() {
 
   // 📋 客戶填寫連結
   var formUrl = 'https://guwen-pro.vercel.app/customer_form.html?m=' + (currentUser ? currentUser.id : '');
+  var invCode2 = (currentMember && currentMember.invite_code) ? currentMember.invite_code : '';
+  var inviteUrl = invCode2 ? 'https://guwen-pro.vercel.app/customer_form.html?code=' + invCode2 : formUrl;
+
   html += '<div class="card">';
   html += '<div class="ct">📋 客戶資料填寫連結</div>';
   html += '<div style="font-size:13px;color:var(--t2);margin-bottom:10px">分享給客戶，讓他們自行填寫基本資料，填完後自動通知您</div>';
-  html += '<div style="display:flex;gap:6px;margin-bottom:10px">';
-  html += '<input id="form-url-input" value="'+formUrl+'" readonly style="flex:1;padding:8px 10px;background:var(--inp);border:0.5px solid var(--bdr2);border-radius:8px;color:var(--t2);font-size:12px;font-family:monospace">';
-  html += '<button onclick="navigator.clipboard.writeText(\''+formUrl+'\').then(function(){alert(\'已複製連結！\')})" class="btn-sm">複製</button>';
+
+  // 主要連結（用邀請碼格式，比較短好記）
+  html += '<div style="font-size:12px;color:var(--t3);margin-bottom:4px">📌 邀請碼連結（推薦分享）</div>';
+  html += '<div style="display:flex;gap:6px;margin-bottom:8px">';
+  html += '<input id="form-url-input" value="'+inviteUrl+'" readonly style="flex:1;padding:8px 10px;background:var(--inp);border:0.5px solid var(--bdr2);border-radius:8px;color:var(--t2);font-size:12px;font-family:monospace">';
+  html += '<button onclick="navigator.clipboard.writeText(\''+inviteUrl+'\').then(function(){alert(\'已複製連結！\')})" class="btn-sm">複製</button>';
   html += '</div>';
+
+  // 完整 UUID 連結
+  html += '<div style="font-size:12px;color:var(--t3);margin-bottom:4px">🔗 完整連結（備用）</div>';
+  html += '<div style="display:flex;gap:6px;margin-bottom:10px">';
+  html += '<input value="'+formUrl+'" readonly style="flex:1;padding:8px 10px;background:var(--inp);border:0.5px solid var(--bdr2);border-radius:8px;color:var(--t2);font-size:12px;font-family:monospace">';
+  html += '<button onclick="navigator.clipboard.writeText(\''+formUrl+'\').then(function(){alert(\'已複製！\')})" class="btn-sm">複製</button>';
+  html += '</div>';
+
   html += '<div style="display:flex;gap:8px;flex-wrap:wrap">';
   html += '<button onclick="showCustomerFormQR()" style="padding:8px 16px;border-radius:8px;border:0.5px solid var(--bdr2);background:transparent;color:var(--t1);cursor:pointer;font-family:var(--sans);font-size:13px">📱 顯示 QR Code</button>';
-  html += '<button onclick="window.open(\'https://line.me/R/share?text='+encodeURIComponent('請點選連結填寫貸款諮詢資料：\n'+formUrl)+'\',\'_blank\')" style="padding:8px 16px;border-radius:8px;border:none;background:#06C755;color:#FFF;cursor:pointer;font-family:var(--sans);font-size:13px;font-weight:600">📱 LINE 分享</button>';
+  html += '<button onclick="window.open(\'https://line.me/R/share?text='+encodeURIComponent('請點選連結填寫貸款諮詢資料：\n'+inviteUrl)+'\',\'_blank\')" style="padding:8px 16px;border-radius:8px;border:none;background:#06C755;color:#FFF;cursor:pointer;font-family:var(--sans);font-size:13px;font-weight:600">📱 LINE 分享</button>';
   html += '</div>';
   html += '<div id="qr-container" style="display:none;margin-top:12px;text-align:center"></div>';
   html += '</div>';
