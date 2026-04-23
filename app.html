@@ -320,8 +320,13 @@ select.fi{-webkit-appearance:auto;appearance:auto;display:block;max-width:100%;w
       <button class="ds-ni" onclick="navTo('calendar',this)">📅 行事曆</button>
       <button class="ds-ni" onclick="navTo('finance',this)">💰 收支理財工具</button>
       <button class="ds-ni" onclick="navTo('team',this)">🏢 團隊管理</button>
+      <div class="ds-lbl">其他業務</div>
+      <button class="ds-ni" onclick="navTo('car-dealer',this)">🚙 車行管理</button>
+      <button class="ds-ni" onclick="navTo('car-finance',this)">🚗 車貸融資方</button>
+      <button class="ds-ni" onclick="navTo('pawn',this)">🏛 當鋪管理</button>
       <button class="ds-ni" onclick="navTo('invite',this)">🎁 邀請碼 / 折扣</button>
       <button class="ds-ni" onclick="navTo('calc',this)">🧮 貸款試算</button>
+      <button class="ds-ni" onclick="navTo('review',this)">📋 照會生成</button>
       <button class="ds-ni" onclick="navTo('antifraud',this)">🛡️ 詐騙辨識</button>
       <div class="ds-lbl">評估項目</div>
       <button class="ds-ni" onclick="navTo('score-rules',this)">🎯 評分規則</button>
@@ -1089,7 +1094,7 @@ function navTo(key, el) {
   var bn = document.getElementById('bn-' + key);
   if (bn) bn.classList.add('on');
   // 更新桌機 topbar 標題
-  var titles = {'dash':'儀表板','leads':'客戶名單','add-lead':'新增客戶資料','calendar':'行事曆','finance':'收支理財工具','team':'團隊管理','invite':'邀請碼 / 折扣','calc':'貸款試算','antifraud':'詐騙辨識','score-rules':'評分規則','prop-thresholds':'貸款項目設定','appearance':'外觀設定','settings':'帳號設定','report':'問題回報'};
+  var titles = {'dash':'儀表板','leads':'客戶名單','add-lead':'新增客戶資料','calendar':'行事曆','finance':'收支理財工具','team':'團隊管理','invite':'邀請碼 / 折扣','calc':'貸款試算','review':'照會生成','antifraud':'詐騙辨識','score-rules':'評分規則','prop-thresholds':'貸款項目設定','appearance':'外觀設定','settings':'帳號設定','report':'問題回報','car-dealer':'🚙 車行管理','car-finance':'🚗 車貸融資方','pawn':'🏛 當鋪管理'};
   var dt = document.getElementById('dt-title'); if (dt) dt.textContent = titles[key] || '';
   var renders = {
     'dash': renderDash, 'leads': renderLeads, 'add-lead': renderAddLead,
@@ -1097,7 +1102,11 @@ function navTo(key, el) {
     'score-rules': renderScoreRules, 'prop-thresholds': renderPropThresholds,
     'appearance': renderAppearance, 'report': renderReport,
     'calc': renderCalc, 'antifraud': renderAntiFraud, 'team': renderTeam,
-    'calendar': renderCalendar
+    'calendar': renderCalendar,
+    'car-dealer': renderCarDealer,
+    'car-finance': renderCarFinance,
+    'review': renderReviewPage,
+    'pawn': renderPawn
   };
   if (renders[key]) renders[key]();
 }
@@ -5050,6 +5059,1085 @@ function scheduleNotifications(loanAlerts) {
       });
     }, 2000);
   });
+}
+
+// ══════════════════════════════
+// ══════════════════════════════
+// 🏛 當鋪管理
+// ══════════════════════════════
+var pawnLoans = [];
+var pawnTab = 'list'; // list | add | stats
+
+async function renderPawn() {
+  var el = document.getElementById('member-content');
+  el.innerHTML = '<div style="text-align:center;padding:30px;color:var(--t2)"><div class="spinner" style="margin:0 auto 10px"></div>載入中...</div>';
+
+  var res = await sb.from('pawn_loans').select('*').eq('member_id', currentUser.id).order('created_at', {ascending:false});
+  pawnLoans = res.data || [];
+
+  buildPawnUI(el);
+}
+
+function buildPawnUI(el) {
+  el.innerHTML = '';
+
+  // Tab
+  var tabDiv = document.createElement('div');
+  tabDiv.style.cssText = 'display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap;align-items:center';
+  [
+    {key:'list',  icon:'📋', label:'借款名單'},
+    {key:'stats', icon:'📊', label:'收益統計'},
+  ].forEach(function(t) {
+    var btn = document.createElement('button');
+    var on = pawnTab === t.key;
+    btn.style.cssText = 'padding:7px 14px;border-radius:20px;font-size:14px;cursor:pointer;border:0.5px solid '+(on?'var(--acc)':'var(--bdr2)')+';background:'+(on?'var(--al)':'transparent')+';color:'+(on?'var(--acc)':'var(--t1)')+';font-family:var(--sans)';
+    btn.textContent = t.icon + ' ' + t.label;
+    btn.onclick = (function(k){ return function(){ pawnTab=k; buildPawnUI(document.getElementById('member-content')); }; })(t.key);
+    tabDiv.appendChild(btn);
+  });
+  var addBtn = document.createElement('button');
+  addBtn.className = 'btn-p';
+  addBtn.style.marginLeft = 'auto';
+  addBtn.textContent = '+ 新增借款';
+  addBtn.onclick = function(){ showAddPawnForm(); };
+  tabDiv.appendChild(addBtn);
+  el.appendChild(tabDiv);
+
+  if (pawnTab === 'list') buildPawnListTab(el);
+  else buildPawnStatsTab(el);
+}
+
+function buildPawnListTab(el) {
+  // 新增表單
+  var formCard = document.createElement('div');
+  formCard.className = 'card';
+  formCard.id = 'add-pawn-form';
+  formCard.style.display = 'none';
+  formCard.innerHTML = buildAddPawnFormHTML();
+  el.appendChild(formCard);
+
+  if (pawnLoans.length === 0) {
+    var empty = document.createElement('div');
+    empty.className = 'card';
+    empty.style.cssText = 'text-align:center;padding:30px;color:var(--t2)';
+    empty.innerHTML = '<div style="font-size:40px;margin-bottom:10px">🏛</div>尚無借款記錄，點「+ 新增借款」開始';
+    el.appendChild(empty);
+    return;
+  }
+
+  // 狀態分組顯示
+  var statusGroups = {active:'進行中', overdue:'逾期', redeemed:'已贖回', forfeited:'流當'};
+  var now = new Date();
+
+  pawnLoans.forEach(function(loan) {
+    el.appendChild(buildPawnCard(loan, now));
+  });
+}
+
+function buildPawnCard(loan, now) {
+  var dueDate = loan.due_date ? new Date(loan.due_date) : null;
+  var daysLeft = dueDate ? Math.ceil((dueDate - now) / (1000*60*60*24)) : null;
+  var isOverdue = daysLeft !== null && daysLeft < 0 && loan.status === 'active';
+  var isNearDue = daysLeft !== null && daysLeft >= 0 && daysLeft <= 7 && loan.status === 'active';
+
+  var statusColors = {active:'grn', overdue:'red', redeemed:'t2', forfeited:'red'};
+  var statusLabels = {active:'進行中', overdue:'逾期', redeemed:'已贖回', forfeited:'流當'};
+  var displayStatus = isOverdue ? 'overdue' : loan.status;
+  var col = statusColors[displayStatus] || 'grn';
+
+  var card = document.createElement('div');
+  card.className = 'card';
+  card.id = 'pawn-card-' + loan.id;
+
+  // 計算應收利息
+  var monthlyInterest = loan.loan_amount && loan.monthly_rate
+    ? Math.round(loan.loan_amount * loan.monthly_rate / 100)
+    : 0;
+
+  var h = '';
+  // 頂部：借款人 + 狀態
+  h += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">';
+  h += '<div style="display:flex;align-items:center;gap:8px">';
+  h += '<div style="width:38px;height:38px;border-radius:50%;background:var(--al);color:var(--acc);display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:700">' + (loan.name||'?').charAt(0) + '</div>';
+  h += '<div><div style="font-size:16px;font-weight:600">' + (loan.name||'—') + '</div>';
+  h += '<div style="font-size:12px;color:var(--t2)">' + (loan.phone||'') + '</div></div></div>';
+  h += '<div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px">';
+  h += '<span class="badge b-' + col + '">' + statusLabels[displayStatus] + '</span>';
+  if (isNearDue) h += '<span style="font-size:11px;color:var(--yel)">⚠️ ' + daysLeft + '天後到期</span>';
+  if (isOverdue) h += '<span style="font-size:11px;color:var(--red)">逾期 ' + Math.abs(daysLeft) + ' 天</span>';
+  h += '</div></div>';
+
+  // 抵押品資訊
+  h += '<div style="background:var(--inp);border-radius:8px;padding:10px;margin-bottom:8px">';
+  h += '<div style="font-size:13px;font-weight:600;color:var(--acc);margin-bottom:6px">📦 抵押品</div>';
+  h += '<div style="display:flex;gap:8px;flex-wrap:wrap">';
+  if (loan.item_name) h += '<div style="font-size:13px"><span style="color:var(--t3)">品項：</span>' + loan.item_name + '</div>';
+  if (loan.item_type) h += '<div style="font-size:13px"><span style="color:var(--t3)">類型：</span>' + loan.item_type + '</div>';
+  if (loan.location) h += '<div style="font-size:13px"><span style="color:var(--t3)">存放地點：</span>' + loan.location + '</div>';
+  if (loan.appraised_value) h += '<div style="font-size:13px"><span style="color:var(--t3)">估價：</span><span style="font-weight:500">$'+loan.appraised_value.toLocaleString()+'</span></div>';
+  h += '</div></div>';
+
+  // 借款資訊
+  h += '<div style="display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:8px">';
+  h += '<div style="background:var(--al);border-radius:7px;padding:8px;text-align:center"><div style="font-size:11px;color:var(--t2);margin-bottom:2px">借款金額</div><div style="font-size:16px;font-weight:700;color:var(--acc)">$' + (loan.loan_amount||0).toLocaleString() + '</div></div>';
+  h += '<div style="background:var(--gl);border-radius:7px;padding:8px;text-align:center"><div style="font-size:11px;color:var(--t2);margin-bottom:2px">月利率</div><div style="font-size:16px;font-weight:700;color:var(--grn)">' + (loan.monthly_rate||0) + '%</div></div>';
+  h += '<div style="background:var(--inp);border-radius:7px;padding:8px;text-align:center"><div style="font-size:11px;color:var(--t2);margin-bottom:2px">每月利息</div><div style="font-size:16px;font-weight:700">$' + monthlyInterest.toLocaleString() + '</div></div>';
+  h += '<div style="background:'+(isOverdue?'var(--rl)':isNearDue?'var(--yl)':'var(--inp)')+';border-radius:7px;padding:8px;text-align:center"><div style="font-size:11px;color:var(--t2);margin-bottom:2px">到期日</div><div style="font-size:13px;font-weight:600;color:'+(isOverdue?'var(--red)':isNearDue?'var(--yel)':'var(--t1)')+'">' + (loan.due_date||'—') + '</div></div>';
+  h += '</div>';
+
+  if (loan.note) h += '<div style="font-size:12px;color:var(--t2);margin-bottom:8px">📝 ' + loan.note + '</div>';
+
+  // 額外收費
+  var fees = loan.extra_fees || [];
+  if (fees.length > 0) {
+    var totalFees = fees.reduce(function(s,f){ return s+(f.amount||0); }, 0);
+    h += '<div style="background:var(--inp);border-radius:7px;padding:8px;margin-bottom:8px">';
+    h += '<div style="font-size:12px;font-weight:600;color:var(--t2);margin-bottom:4px">💵 額外收費</div>';
+    fees.forEach(function(f){
+      h += '<div style="display:flex;justify-content:space-between;font-size:13px;padding:2px 0"><span style="color:var(--t2)">'+f.name+'</span><span>$'+( f.amount||0).toLocaleString()+'</span></div>';
+    });
+    h += '<div style="display:flex;justify-content:space-between;font-size:13px;padding-top:4px;border-top:0.5px solid var(--bdr);margin-top:2px;font-weight:600"><span>合計</span><span style="color:var(--grn)">$'+totalFees.toLocaleString()+'</span></div>';
+    h += '</div>';
+  }
+
+  // 分潤明細
+  if (loan.my_rate !== undefined && loan.my_rate !== null && loan.my_rate !== 100) {
+    var totalIncome = monthlyInterest + (fees.reduce(function(s,f){return s+(f.amount||0);},0));
+    h += '<div style="background:var(--inp);border-radius:7px;padding:8px;margin-bottom:8px">';
+    h += '<div style="font-size:12px;font-weight:600;color:var(--t2);margin-bottom:4px">📊 收入分潤（月利息+額外收費）</div>';
+    if (loan.company_rate) h += '<div style="display:flex;justify-content:space-between;font-size:13px;padding:2px 0"><span style="color:var(--t2)">🏢 公司 ('+loan.company_rate+'%)</span><span>$'+Math.round(totalIncome*loan.company_rate/100).toLocaleString()+'</span></div>';
+    h += '<div style="display:flex;justify-content:space-between;font-size:13px;padding:2px 0"><span style="color:var(--grn);font-weight:500">👤 我 ('+loan.my_rate+'%)</span><span style="color:var(--grn);font-weight:600">$'+Math.round(totalIncome*loan.my_rate/100).toLocaleString()+'</span></div>';
+    var partners = loan.partners || [];
+    partners.forEach(function(p){
+      h += '<div style="display:flex;justify-content:space-between;font-size:13px;padding:2px 0"><span style="color:var(--t2)">👥 '+p.name+' ('+p.rate+'%)</span><span>$'+Math.round(totalIncome*(p.rate||0)/100).toLocaleString()+'</span></div>';
+    });
+    h += '</div>';
+  }
+
+  // 操作按鈕
+  h += '<div style="display:flex;gap:6px;flex-wrap:wrap">';
+  if (loan.status === 'active') {
+    h += '<button id="pawn-redeem-' + loan.id + '" style="padding:6px 12px;border-radius:7px;font-size:13px;font-family:var(--sans);cursor:pointer;border:0.5px solid rgba(45,138,78,.3);background:transparent;color:var(--grn)">✓ 已贖回</button>';
+    h += '<button id="pawn-forfeit-' + loan.id + '" style="padding:6px 12px;border-radius:7px;font-size:13px;font-family:var(--sans);cursor:pointer;border:0.5px solid rgba(192,64,48,.3);background:transparent;color:var(--red)">流當</button>';
+    h += '<button id="pawn-renew-' + loan.id + '" style="padding:6px 12px;border-radius:7px;font-size:13px;font-family:var(--sans);cursor:pointer;border:0.5px solid rgba(42,106,184,.3);background:transparent;color:var(--blu)">🔄 續當</button>';
+  }
+  h += '<button id="pawn-edit-' + loan.id + '" style="padding:6px 12px;border-radius:7px;font-size:13px;font-family:var(--sans);cursor:pointer;border:0.5px solid var(--bdr2);background:transparent;color:var(--t1)">✏️ 編輯</button>';
+  h += '<button id="pawn-del-' + loan.id + '" style="padding:6px 12px;border-radius:7px;font-size:13px;font-family:var(--sans);cursor:pointer;border:0.5px solid rgba(192,64,48,.3);background:transparent;color:var(--red)">刪除</button>';
+  h += '</div>';
+
+  card.innerHTML = h;
+
+  // DOM 綁定
+  var redeemBtn = card.querySelector('#pawn-redeem-' + loan.id);
+  if (redeemBtn) redeemBtn.onclick = function(){ updatePawnStatus(loan.id, 'redeemed'); };
+  var forfeitBtn = card.querySelector('#pawn-forfeit-' + loan.id);
+  if (forfeitBtn) forfeitBtn.onclick = function(){ updatePawnStatus(loan.id, 'forfeited'); };
+  var renewBtn = card.querySelector('#pawn-renew-' + loan.id);
+  if (renewBtn) renewBtn.onclick = function(){ showRenewPawnForm(loan); };
+  var editBtn = card.querySelector('#pawn-edit-' + loan.id);
+  if (editBtn) editBtn.onclick = function(){ showEditPawnForm(loan); };
+  var delBtn = card.querySelector('#pawn-del-' + loan.id);
+  if (delBtn) delBtn.onclick = function(){ deletePawnLoan(loan.id); };
+
+  return card;
+}
+
+function buildPawnStatsTab(el) {
+  var now = new Date();
+  var active = pawnLoans.filter(function(l){ return l.status==='active'; });
+  var totalLoan = active.reduce(function(s,l){ return s+(l.loan_amount||0); }, 0);
+  var totalInterest = active.reduce(function(s,l){
+    return s + (l.loan_amount&&l.monthly_rate ? Math.round(l.loan_amount*l.monthly_rate/100) : 0);
+  }, 0);
+  var overdue = active.filter(function(l){
+    return l.due_date && new Date(l.due_date) < now;
+  }).length;
+
+  var statCard = document.createElement('div');
+  statCard.className = 'card';
+  statCard.innerHTML =
+    '<div class="ct">📊 當鋪收益統計</div>' +
+    '<div style="display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:12px">' +
+    '<div style="background:var(--al);border-radius:8px;padding:12px;text-align:center"><div style="font-size:12px;color:var(--t2);margin-bottom:4px">進行中借款</div><div style="font-size:24px;font-weight:800;color:var(--acc)">' + active.length + '</div><div style="font-size:11px;color:var(--t3)">筆</div></div>' +
+    '<div style="background:var(--gl);border-radius:8px;padding:12px;text-align:center"><div style="font-size:12px;color:var(--t2);margin-bottom:4px">每月應收利息</div><div style="font-size:20px;font-weight:800;color:var(--grn)">$' + totalInterest.toLocaleString() + '</div></div>' +
+    '<div style="background:var(--inp);border-radius:8px;padding:12px;text-align:center"><div style="font-size:12px;color:var(--t2);margin-bottom:4px">放出總金額</div><div style="font-size:20px;font-weight:800">$' + (totalLoan/10000).toFixed(1) + 'W</div></div>' +
+    '<div style="background:'+(overdue>0?'var(--rl)':'var(--inp)')+';border-radius:8px;padding:12px;text-align:center"><div style="font-size:12px;color:var(--t2);margin-bottom:4px">逾期筆數</div><div style="font-size:24px;font-weight:800;color:'+(overdue>0?'var(--red)':'var(--t1)')+'">' + overdue + '</div></div>' +
+    '</div>' +
+    '<div class="ri"><span class="rl">已贖回</span><span class="rv">' + pawnLoans.filter(function(l){return l.status==='redeemed';}).length + ' 筆</span></div>' +
+    '<div class="ri"><span class="rl">流當</span><span class="rv">' + pawnLoans.filter(function(l){return l.status==='forfeited';}).length + ' 筆</span></div>' +
+    '<div class="ri"><span class="rl">總筆數</span><span class="rv">' + pawnLoans.length + ' 筆</span></div>';
+  el.appendChild(statCard);
+}
+
+function buildAddPawnFormHTML() {
+  var itemTypes = ['黃金/珠寶','名錶','3C電子','汽機車','名牌包','其他'];
+  return '<div class="ct">🏛 新增借款</div>' +
+    '<div class="sl">借款人資料</div>' +
+    '<div class="frow2"><div class="frow"><div class="flbl">姓名</div><input class="fi" id="np-name" placeholder="王小明"></div>' +
+    '<div class="frow"><div class="flbl">聯絡電話</div><input class="fi" id="np-phone" type="tel" placeholder="0912-345678"></div></div>' +
+    '<div class="frow" style="margin-top:6px"><div class="flbl">身分證字號</div><input class="fi" id="np-idno" placeholder="A123456789" maxlength="10" style="letter-spacing:2px;font-family:monospace"></div>' +
+    '<div class="sl">抵押品資訊</div>' +
+    '<div class="frow2"><div class="frow"><div class="flbl">品項名稱</div><input class="fi" id="np-item" placeholder="勞力士手錶"></div>' +
+    '<div class="frow"><div class="flbl">類型</div><select class="fi" id="np-type">' + itemTypes.map(function(t){ return '<option>'+t+'</option>'; }).join('') + '</select></div></div>' +
+    '<div class="frow2" style="margin-top:6px"><div class="frow"><div class="flbl">估價金額（元）</div><input class="fi" id="np-appraise" type="number" inputmode="numeric" placeholder="0"></div>' +
+    '<div class="frow"><div class="flbl">存放地點</div><input class="fi" id="np-location" placeholder="台北店/新莊店"></div></div>' +
+    '<div class="sl">借款條件</div>' +
+    '<div class="frow2"><div class="frow"><div class="flbl">借款金額（元）</div><input class="fi" id="np-amount" type="number" inputmode="numeric" placeholder="0" oninput="updatePawnCalc()"></div>' +
+    '<div class="frow"><div class="flbl">月利率（%）</div><input class="fi" id="np-rate" type="number" step="0.1" inputmode="decimal" placeholder="3.0" oninput="updatePawnCalc()"></div></div>' +
+    '<div id="np-interest-hint" style="font-size:13px;color:var(--grn);margin-top:4px"></div>' +
+    '<div class="frow2" style="margin-top:6px"><div class="frow"><div class="flbl">借款日期</div><input class="fi" id="np-start" type="date"></div>' +
+    '<div class="frow"><div class="flbl">到期日</div><input class="fi" id="np-due" type="date"></div></div>' +
+    '<div class="sl">放款方式</div>' +
+    '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px">' +
+    '<button type="button" id="np-lend-self" onclick="setPawnLendType(\'self\')" style="padding:7px 14px;border-radius:20px;font-size:13px;font-family:var(--sans);cursor:pointer;border:1.5px solid var(--acc);background:var(--al);color:var(--acc)">👤 自己放款</button>' +
+    '<button type="button" id="np-lend-company" onclick="setPawnLendType(\'company\')" style="padding:7px 14px;border-radius:20px;font-size:13px;font-family:var(--sans);cursor:pointer;border:0.5px solid var(--bdr2);background:transparent;color:var(--t2)">🏢 公司放款</button>' +
+    '</div>' +
+    '<div class="sl">收入分潤</div>' +
+    '<div style="background:var(--inp);border-radius:8px;padding:10px;margin-bottom:8px">' +
+    '<div id="np-split-type" style="display:flex;gap:6px;margin-bottom:8px">' +
+    '<button type="button" onclick="setPawnSplitType(\'self\')" id="nps-self" style="padding:5px 12px;border-radius:20px;font-size:13px;font-family:var(--sans);cursor:pointer;border:1.5px solid var(--acc);background:var(--al);color:var(--acc)">個人</button>' +
+    '<button type="button" onclick="setPawnSplitType(\'company\')" id="nps-company" style="padding:5px 12px;border-radius:20px;font-size:13px;font-family:var(--sans);cursor:pointer;border:0.5px solid var(--bdr2);background:transparent;color:var(--t2)">公司員工</button>' +
+    '</div>' +
+    '<div class="frow2" id="np-company-rate-row" style="display:none"><div class="frow"><div class="flbl">公司抽成（%）</div><input class="fi" id="np-company-rate" type="number" min="0" max="100" placeholder="40" oninput="updatePawnCalc()"></div><div class="frow"></div></div>' +
+    '<div class="frow2"><div class="frow"><div class="flbl">我的分潤（%）</div><input class="fi" id="np-my-rate" type="number" min="0" max="100" value="100" oninput="updatePawnCalc()"></div><div class="frow"></div></div>' +
+    '<div id="np-partners-section"><div style="font-size:13px;color:var(--t2);margin-top:4px">合作人員：<button type="button" onclick="addPawnPartner()" style="font-size:12px;padding:2px 8px;border-radius:5px;border:0.5px solid var(--bdr2);background:transparent;color:var(--t1);cursor:pointer;font-family:var(--sans)">+ 新增</button></div><div id="np-partners-list"></div></div>' +
+    '<div id="np-rate-total" style="font-size:13px;margin-top:6px;color:var(--t2)">合計：100%</div>' +
+    '</div>' +
+    '<div class="sl">額外收費</div>' +
+    '<div style="background:var(--inp);border-radius:8px;padding:10px;margin-bottom:8px">' +
+    '<div id="np-fees-list"></div>' +
+    '<button type="button" onclick="addPawnFee()" style="font-size:13px;padding:5px 12px;border-radius:6px;border:0.5px solid var(--bdr2);background:transparent;color:var(--t1);cursor:pointer;font-family:var(--sans)">+ 新增收費項目</button>' +
+    '</div>' +
+    '<div class="frow"><div class="flbl">備註</div><input class="fi" id="np-note" placeholder="其他說明"></div>' +
+    '<div style="display:flex;gap:6px;margin-top:10px">' +
+    '<button id="cancel-add-pawn" class="btn-sm">取消</button>' +
+    '<button id="save-add-pawn" class="btn-p" style="flex:1">儲存借款</button>' +
+    '</div>';
+}
+
+function showAddPawnForm() {
+  var f = document.getElementById('add-pawn-form');
+  if (!f) return;
+  f.style.display = f.style.display === 'none' ? 'block' : 'none';
+  if (f.style.display === 'block') {
+    var today = new Date().toISOString().split('T')[0];
+    var startEl = document.getElementById('np-start');
+    if (startEl && !startEl.value) startEl.value = today;
+    var cancelBtn = f.querySelector('#cancel-add-pawn');
+    var saveBtn = f.querySelector('#save-add-pawn');
+    if (cancelBtn) cancelBtn.onclick = function(){ f.style.display='none'; };
+    if (saveBtn) saveBtn.onclick = function(){ savePawnLoan(); };
+  }
+}
+
+var pawnLendType = 'self';
+var pawnSplitType = 'self';
+var pawnPartnerCount = 0;
+var pawnFeeCount = 0;
+
+function setPawnLendType(type) {
+  pawnLendType = type;
+  ['self','company'].forEach(function(t) {
+    var btn = document.getElementById('np-lend-' + t);
+    if (!btn) return;
+    var on = t === type;
+    btn.style.border = on ? '1.5px solid var(--acc)' : '0.5px solid var(--bdr2)';
+    btn.style.background = on ? 'var(--al)' : 'transparent';
+    btn.style.color = on ? 'var(--acc)' : 'var(--t2)';
+  });
+}
+
+function setPawnSplitType(type) {
+  pawnSplitType = type;
+  ['self','company'].forEach(function(t) {
+    var btn = document.getElementById('nps-' + t);
+    if (!btn) return;
+    var on = t === type;
+    btn.style.border = on ? '1.5px solid var(--acc)' : '0.5px solid var(--bdr2)';
+    btn.style.background = on ? 'var(--al)' : 'transparent';
+    btn.style.color = on ? 'var(--acc)' : 'var(--t2)';
+  });
+  var companyRow = document.getElementById('np-company-rate-row');
+  if (companyRow) companyRow.style.display = type === 'company' ? 'flex' : 'none';
+  if (type === 'company') {
+    var myRate = document.getElementById('np-my-rate');
+    if (myRate && myRate.value === '100') myRate.value = '60';
+  } else {
+    var myRate2 = document.getElementById('np-my-rate');
+    if (myRate2) myRate2.value = '100';
+  }
+  updatePawnCalc();
+}
+
+function addPawnPartner() {
+  var list = document.getElementById('np-partners-list');
+  if (!list) return;
+  var idx = pawnPartnerCount++;
+  var row = document.createElement('div');
+  row.id = 'np-partner-' + idx;
+  row.style.cssText = 'display:flex;gap:6px;align-items:center;margin-top:6px';
+  row.innerHTML =
+    '<input placeholder="姓名" id="np-p-name-'+idx+'" style="flex:2;padding:8px;background:var(--bg2);border:0.5px solid var(--bdr2);border-radius:7px;color:var(--inpt);font-family:var(--sans);font-size:14px">' +
+    '<input placeholder="%" type="number" id="np-p-rate-'+idx+'" min="0" max="100" style="width:70px;padding:8px;background:var(--bg2);border:0.5px solid var(--bdr2);border-radius:7px;color:var(--inpt);font-family:var(--sans);font-size:14px;text-align:center" oninput="updatePawnCalc()">' +
+    '<button onclick="document.getElementById(\'np-partner-'+idx+'\').remove();updatePawnCalc()" style="padding:4px 8px;border-radius:5px;border:0.5px solid rgba(192,64,48,.3);background:transparent;color:var(--red);cursor:pointer;font-family:var(--sans)">✕</button>';
+  list.appendChild(row);
+}
+
+function addPawnFee() {
+  var list = document.getElementById('np-fees-list');
+  if (!list) return;
+  var idx = pawnFeeCount++;
+  var row = document.createElement('div');
+  row.id = 'np-fee-' + idx;
+  row.style.cssText = 'display:flex;gap:6px;align-items:center;margin-bottom:6px';
+  row.innerHTML =
+    '<input placeholder="費用名稱（手續費/倉儲費...）" id="np-f-name-'+idx+'" style="flex:2;padding:8px;background:var(--bg2);border:0.5px solid var(--bdr2);border-radius:7px;color:var(--inpt);font-family:var(--sans);font-size:14px">' +
+    '<input placeholder="金額" type="number" id="np-f-amt-'+idx+'" style="width:100px;padding:8px;background:var(--bg2);border:0.5px solid var(--bdr2);border-radius:7px;color:var(--inpt);font-family:var(--sans);font-size:14px" inputmode="numeric">' +
+    '<button onclick="document.getElementById(\'np-fee-'+idx+'\').remove()" style="padding:4px 8px;border-radius:5px;border:0.5px solid rgba(192,64,48,.3);background:transparent;color:var(--red);cursor:pointer;font-family:var(--sans)">✕</button>';
+  list.appendChild(row);
+}
+
+function updatePawnCalc() {
+  var amount = parseInt(document.getElementById('np-amount') ? document.getElementById('np-amount').value : 0) || 0;
+  var rate = parseFloat(document.getElementById('np-rate') ? document.getElementById('np-rate').value : 0) || 0;
+  var monthlyInterest = amount > 0 && rate > 0 ? Math.round(amount * rate / 100) : 0;
+  var hint = document.getElementById('np-interest-hint');
+  if (hint) hint.textContent = monthlyInterest > 0 ? '每月利息：$' + monthlyInterest.toLocaleString() : '';
+
+  // 合計比率
+  var myRate = parseFloat(document.getElementById('np-my-rate') ? document.getElementById('np-my-rate').value : 0) || 0;
+  var coRate = pawnSplitType === 'company' ? (parseFloat(document.getElementById('np-company-rate') ? document.getElementById('np-company-rate').value : 0) || 0) : 0;
+  var partnerTotal = 0;
+  for (var i = 0; i < pawnPartnerCount; i++) {
+    var pr = document.getElementById('np-p-rate-' + i);
+    if (pr && pr.closest && pr.closest('[id^="np-partner"]')) partnerTotal += parseFloat(pr.value) || 0;
+  }
+  var total = myRate + coRate + partnerTotal;
+  var totalEl = document.getElementById('np-rate-total');
+  if (totalEl) {
+    totalEl.textContent = '合計：' + Math.round(total) + '%';
+    totalEl.style.color = Math.round(total) === 100 ? 'var(--grn)' : 'var(--red)';
+  }
+}
+
+async function savePawnLoan() {
+  var gv = function(id){ var el=document.getElementById(id); return el?el.value.trim():''; };
+  if (!gv('np-name')) { alert('請填寫借款人姓名'); return; }
+  if (!gv('np-amount')) { alert('請填寫借款金額'); return; }
+
+  // 收集合作人員
+  var partners = [];
+  for (var i = 0; i < pawnPartnerCount; i++) {
+    var nameEl = document.getElementById('np-p-name-' + i);
+    var rateEl = document.getElementById('np-p-rate-' + i);
+    if (nameEl && rateEl && nameEl.closest && nameEl.closest('[id^="np-partner"]')) {
+      partners.push({ name: nameEl.value.trim(), rate: parseFloat(rateEl.value)||0 });
+    }
+  }
+
+  // 收集額外收費
+  var fees = [];
+  for (var j = 0; j < pawnFeeCount; j++) {
+    var fnEl = document.getElementById('np-f-name-' + j);
+    var faEl = document.getElementById('np-f-amt-' + j);
+    if (fnEl && faEl && fnEl.closest && fnEl.closest('[id^="np-fee"]')) {
+      fees.push({ name: fnEl.value.trim(), amount: parseInt(faEl.value)||0 });
+    }
+  }
+
+  var payload = {
+    member_id: currentUser.id,
+    name: gv('np-name'), phone: gv('np-phone')||null,
+    id_number: gv('np-idno')||null,
+    item_name: gv('np-item')||null, item_type: gv('np-type')||null,
+    location: gv('np-location')||null,
+    appraised_value: parseInt(gv('np-appraise'))||null,
+    loan_amount: parseInt(gv('np-amount'))||0,
+    monthly_rate: parseFloat(gv('np-rate'))||0,
+    loan_date: gv('np-start')||null, due_date: gv('np-due')||null,
+    note: gv('np-note')||null, status: 'active',
+    lending_type: pawnLendType,
+    split_type: pawnSplitType,
+    my_rate: parseFloat(gv('np-my-rate'))||100,
+    company_rate: pawnSplitType==='company' ? (parseFloat(gv('np-company-rate'))||0) : 0,
+    partners: partners,
+    extra_fees: fees
+  };
+  var res = await sb.from('pawn_loans').insert(payload).select().single();
+  if (res.error) { alert('儲存失敗：'+res.error.message); return; }
+  pawnLoans.unshift(res.data);
+  if (payload.due_date) {
+    await sb.from('schedules').insert({
+      member_id: currentUser.id,
+      title: payload.name + ' · 當鋪到期',
+      schedule_date: payload.due_date,
+      type: 'pawn_due',
+      description: (payload.item_name||'') + ' 借款 $' + payload.loan_amount.toLocaleString(),
+      is_done: false
+    });
+  }
+  pawnPartnerCount = 0; pawnFeeCount = 0;
+  buildPawnUI(document.getElementById('member-content'));
+}
+
+function showEditPawnForm(loan) {
+  var itemTypes = ['黃金/珠寶','名錶','3C電子','汽機車','名牌包','其他'];
+  var modal = document.createElement('div');
+  modal.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.7);z-index:9999;display:flex;align-items:flex-start;justify-content:center;padding:20px;overflow-y:auto';
+  var box = document.createElement('div');
+  box.style.cssText = 'background:var(--card);border-radius:14px;padding:16px;width:100%;max-width:500px;margin:auto';
+  box.innerHTML =
+    '<div class="ct">✏️ 編輯借款</div>' +
+    '<div class="frow2"><div class="frow"><div class="flbl">姓名</div><input class="fi" id="ep-name" value="'+(loan.name||'')+'"></div>' +
+    '<div class="frow"><div class="flbl">電話</div><input class="fi" id="ep-phone" value="'+(loan.phone||'')+'"></div></div>' +
+    '<div class="frow" style="margin-top:6px"><div class="flbl">品項名稱</div><input class="fi" id="ep-item" value="'+(loan.item_name||'')+'"></div>' +
+    '<div class="frow2" style="margin-top:6px"><div class="frow"><div class="flbl">類型</div><select class="fi" id="ep-type">' + itemTypes.map(function(t){ return '<option'+(loan.item_type===t?' selected':'')+'>'+t+'</option>'; }).join('') + '</select></div>' +
+    '<div class="frow"><div class="flbl">存放地點</div><input class="fi" id="ep-location" value="'+(loan.location||'')+'"></div></div>' +
+    '<div class="frow2" style="margin-top:6px"><div class="frow"><div class="flbl">估價（元）</div><input class="fi" id="ep-appraise" type="number" value="'+(loan.appraised_value||'')+'"></div>' +
+    '<div class="frow"><div class="flbl">借款金額</div><input class="fi" id="ep-amount" type="number" value="'+(loan.loan_amount||'')+'"></div></div>' +
+    '<div class="frow2" style="margin-top:6px"><div class="frow"><div class="flbl">月利率（%）</div><input class="fi" id="ep-rate" type="number" step="0.1" value="'+(loan.monthly_rate||'')+'"></div>' +
+    '<div class="frow"><div class="flbl">到期日</div><input class="fi" id="ep-due" type="date" value="'+(loan.due_date||'')+'"></div></div>' +
+    '<div class="frow" style="margin-top:6px"><div class="flbl">備註</div><input class="fi" id="ep-note" value="'+(loan.note||'')+'"></div>' +
+    '<div style="display:flex;gap:6px;margin-top:12px">' +
+    '<button id="ep-cancel" class="btn-sm">取消</button>' +
+    '<button id="ep-save" class="btn-p" style="flex:1">儲存</button></div>';
+  modal.appendChild(box);
+  document.body.appendChild(modal);
+  modal.querySelector('#ep-cancel').onclick = function(){ modal.remove(); };
+  modal.querySelector('#ep-save').onclick = function(){ saveEditPawnLoan(loan.id, modal); };
+  modal.onclick = function(e){ if(e.target===modal) modal.remove(); };
+}
+
+async function saveEditPawnLoan(loanId, modal) {
+  var gv = function(id){ var el=document.getElementById(id); return el?el.value.trim():''; };
+  var payload = {
+    name: gv('ep-name'), phone: gv('ep-phone')||null,
+    item_name: gv('ep-item')||null, item_type: gv('ep-type')||null,
+    location: gv('ep-location')||null,
+    appraised_value: parseInt(gv('ep-appraise'))||null,
+    loan_amount: parseInt(gv('ep-amount'))||0,
+    monthly_rate: parseFloat(gv('ep-rate'))||0,
+    due_date: gv('ep-due')||null, note: gv('ep-note')||null
+  };
+  var res = await sb.from('pawn_loans').update(payload).eq('id', loanId);
+  if (res.error) { alert('儲存失敗：'+res.error.message); return; }
+  pawnLoans = pawnLoans.map(function(l){ return l.id===loanId ? Object.assign({},l,payload) : l; });
+  modal.remove();
+  buildPawnUI(document.getElementById('member-content'));
+}
+
+function showRenewPawnForm(loan) {
+  var modal = document.createElement('div');
+  modal.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.7);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px';
+  var box = document.createElement('div');
+  box.style.cssText = 'background:var(--card);border-radius:14px;padding:16px;width:100%;max-width:400px';
+  var newDue = loan.due_date ? new Date(loan.due_date) : new Date();
+  newDue.setMonth(newDue.getMonth() + 1);
+  var newDueStr = newDue.toISOString().split('T')[0];
+  box.innerHTML =
+    '<div class="ct">🔄 續當</div>' +
+    '<div style="font-size:14px;color:var(--t2);margin-bottom:12px">' + (loan.name||'') + ' · ' + (loan.item_name||'') + '</div>' +
+    '<div class="frow"><div class="flbl">新到期日</div><input class="fi" id="renew-due" type="date" value="'+newDueStr+'"></div>' +
+    '<div class="frow" style="margin-top:6px"><div class="flbl">備註</div><input class="fi" id="renew-note" placeholder="續當備註"></div>' +
+    '<div style="display:flex;gap:6px;margin-top:12px">' +
+    '<button id="renew-cancel" class="btn-sm">取消</button>' +
+    '<button id="renew-save" class="btn-p" style="flex:1">確認續當</button></div>';
+  modal.appendChild(box);
+  document.body.appendChild(modal);
+  modal.querySelector('#renew-cancel').onclick = function(){ modal.remove(); };
+  modal.querySelector('#renew-save').onclick = function(){ renewPawnLoan(loan.id, modal); };
+}
+
+async function renewPawnLoan(loanId, modal) {
+  var dueEl = document.getElementById('renew-due');
+  var noteEl = document.getElementById('renew-note');
+  var newDue = dueEl ? dueEl.value : '';
+  var note = noteEl ? noteEl.value.trim() : '';
+  if (!newDue) { alert('請填寫新到期日'); return; }
+  await sb.from('pawn_loans').update({due_date: newDue, note: note||null}).eq('id', loanId);
+  pawnLoans = pawnLoans.map(function(l){ return l.id===loanId ? Object.assign({},l,{due_date:newDue}) : l; });
+  // 更新行事曆
+  await sb.from('schedules').delete().eq('member_id', currentUser.id).eq('type', 'pawn_due').like('description', '%'+loanId+'%');
+  modal.remove();
+  buildPawnUI(document.getElementById('member-content'));
+}
+
+async function updatePawnStatus(loanId, status) {
+  await sb.from('pawn_loans').update({status:status}).eq('id', loanId);
+  pawnLoans = pawnLoans.map(function(l){ return l.id===loanId ? Object.assign({},l,{status:status}) : l; });
+  buildPawnUI(document.getElementById('member-content'));
+}
+
+async function deletePawnLoan(loanId) {
+  if (!confirm('確定刪除此借款記錄？')) return;
+  await sb.from('pawn_loans').delete().eq('id', loanId);
+  pawnLoans = pawnLoans.filter(function(l){ return l.id!==loanId; });
+  buildPawnUI(document.getElementById('member-content'));
+}
+
+// 🚙 車行管理
+// ══════════════════════════════
+var carInventory = [];
+var carDealerTab = 'inventory'; // inventory | market | connections
+
+async function renderCarDealer() {
+  var el = document.getElementById('member-content');
+  el.innerHTML = '<div style="text-align:center;padding:30px;color:var(--t2)"><div class="spinner" style="margin:0 auto 10px"></div>載入中...</div>';
+
+  var res = await sb.from('car_inventory').select('*').eq('member_id', currentUser.id).order('created_at', {ascending:false});
+  carInventory = res.data || [];
+
+  buildCarDealerUI(el);
+}
+
+function buildCarDealerUI(el) {
+  el.innerHTML = '';
+
+  // Tab 切換
+  var tabDiv = document.createElement('div');
+  tabDiv.style.cssText = 'display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap;align-items:center';
+  [
+    {key:'inventory', icon:'🚙', label:'我的庫存'},
+    {key:'market',    icon:'📋', label:'在售車輛表'},
+    {key:'connections', icon:'🤝', label:'配合業者'},
+  ].forEach(function(t) {
+    var btn = document.createElement('button');
+    var on = carDealerTab === t.key;
+    btn.style.cssText = 'padding:7px 14px;border-radius:20px;font-size:14px;cursor:pointer;border:0.5px solid '+(on?'var(--acc)':'var(--bdr2)')+';background:'+(on?'var(--al)':'transparent')+';color:'+(on?'var(--acc)':'var(--t1)')+';font-family:var(--sans)';
+    btn.textContent = t.icon + ' ' + t.label;
+    btn.onclick = (function(k){ return function(){ carDealerTab=k; buildCarDealerUI(document.getElementById('member-content')); }; })(t.key);
+    tabDiv.appendChild(btn);
+  });
+  // 新增車輛按鈕
+  var addBtn = document.createElement('button');
+  addBtn.className = 'btn-p';
+  addBtn.style.marginLeft = 'auto';
+  addBtn.textContent = '+ 新增車輛';
+  addBtn.onclick = function(){ showAddCarForm(); };
+  tabDiv.appendChild(addBtn);
+  el.appendChild(tabDiv);
+
+  if (carDealerTab === 'inventory') buildCarInventoryTab(el);
+  else if (carDealerTab === 'market') buildCarMarketTab(el);
+  else if (carDealerTab === 'connections') buildCarConnectionsTab(el);
+}
+
+function buildCarInventoryTab(el) {
+  // 新增車輛表單
+  var formCard = document.createElement('div');
+  formCard.className = 'card';
+  formCard.id = 'add-car-form';
+  formCard.style.display = 'none';
+  formCard.innerHTML = buildAddCarFormHTML();
+  el.appendChild(formCard);
+
+  if (carInventory.length === 0) {
+    var empty = document.createElement('div');
+    empty.className = 'card';
+    empty.style.cssText = 'text-align:center;padding:30px;color:var(--t2)';
+    empty.innerHTML = '<div style="font-size:40px;margin-bottom:10px">🚙</div>尚無車輛庫存，點「+ 新增車輛」開始建立';
+    el.appendChild(empty);
+    return;
+  }
+
+  // 統計
+  var avail = carInventory.filter(function(c){return c.status==='available';}).length;
+  var reserved = carInventory.filter(function(c){return c.status==='reserved';}).length;
+  var sold = carInventory.filter(function(c){return c.status==='sold';}).length;
+  var statCard = document.createElement('div');
+  statCard.className = 'card';
+  statCard.innerHTML =
+    '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">' +
+    '<div style="background:var(--gl);border-radius:8px;padding:10px;text-align:center"><div style="font-size:12px;color:var(--t2);margin-bottom:4px">在庫可售</div><div style="font-size:22px;font-weight:800;color:var(--grn)">' + avail + '</div></div>' +
+    '<div style="background:var(--yl);border-radius:8px;padding:10px;text-align:center"><div style="font-size:12px;color:var(--t2);margin-bottom:4px">已預訂</div><div style="font-size:22px;font-weight:800;color:var(--yel)">' + reserved + '</div></div>' +
+    '<div style="background:var(--inp);border-radius:8px;padding:10px;text-align:center"><div style="font-size:12px;color:var(--t2);margin-bottom:4px">已售出</div><div style="font-size:22px;font-weight:800;color:var(--t2)">' + sold + '</div></div>' +
+    '</div>';
+  el.appendChild(statCard);
+
+  // 車輛列表
+  carInventory.forEach(function(car) {
+    el.appendChild(buildCarCard(car));
+  });
+}
+
+function buildCarCard(car) {
+  var statusColors = {available:'grn', reserved:'yel', sold:'t3'};
+  var statusLabels = {available:'在庫', reserved:'已預訂', sold:'已售出'};
+  var col = statusColors[car.status] || 'grn';
+  var card = document.createElement('div');
+  card.className = 'card';
+  card.id = 'car-card-' + car.id;
+
+  var h = '<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px">';
+  h += '<div style="flex:1">';
+  h += '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">';
+  h += '<span style="font-size:16px;font-weight:700">' + (car.brand||'') + ' ' + (car.model||'') + '</span>';
+  h += '<span class="badge b-' + col + '">' + (statusLabels[car.status]||'在庫') + '</span>';
+  h += '</div>';
+  h += '<div style="font-size:13px;color:var(--t2);margin-bottom:8px">' + (car.year||'') + '年 · ' + (car.cc||'') + 'cc · ' + (car.color||'') + (car.mileage?' · '+car.mileage.toLocaleString()+'km':'') + '</div>';
+  h += '<div style="display:grid;grid-template-columns:repeat(2,1fr);gap:4px 16px">';
+  if (car.book_price) h += '<div style="font-size:13px"><span style="color:var(--t3)">天書</span> <span style="font-weight:500">$'+car.book_price.toLocaleString()+'</span></div>';
+  if (car.authority_price) h += '<div style="font-size:13px"><span style="color:var(--t3)">權威</span> <span style="font-weight:500">$'+car.authority_price.toLocaleString()+'</span></div>';
+  if (car.loanable_amount) h += '<div style="font-size:13px"><span style="color:var(--t3)">可貸</span> <span style="font-weight:600;color:var(--acc)">$'+car.loanable_amount.toLocaleString()+'</span></div>';
+  if (car.floor_price) h += '<div style="font-size:13px"><span style="color:var(--t3)">盤價</span> <span style="font-weight:500">$'+car.floor_price.toLocaleString()+'</span></div>';
+  if (car.price_space) h += '<div style="font-size:13px"><span style="color:var(--t3)">空間</span> <span style="font-weight:500;color:var(--grn)">$'+car.price_space.toLocaleString()+'</span></div>';
+  h += '</div>';
+  if (car.features) h += '<div style="font-size:12px;color:var(--t2);margin-top:6px;padding:6px 8px;background:var(--inp);border-radius:6px">🔧 ' + car.features + '</div>';
+  if (car.note) h += '<div style="font-size:12px;color:var(--t3);margin-top:4px">📝 ' + car.note + '</div>';
+  h += '</div>';
+
+  // 右側操作按鈕
+  h += '<div style="display:flex;flex-direction:column;gap:4px;flex-shrink:0">';
+  h += '<button id="edit-car-' + car.id + '" style="font-size:12px;padding:4px 10px;border-radius:6px;border:0.5px solid var(--bdr2);background:transparent;color:var(--t1);cursor:pointer;font-family:var(--sans)">✏️ 編輯</button>';
+  // 狀態切換
+  if (car.status === 'available') {
+    h += '<button id="reserve-car-' + car.id + '" style="font-size:12px;padding:4px 10px;border-radius:6px;border:0.5px solid rgba(184,128,32,.3);background:transparent;color:var(--yel);cursor:pointer;font-family:var(--sans)">預訂</button>';
+    h += '<button id="sold-car-' + car.id + '" style="font-size:12px;padding:4px 10px;border-radius:6px;border:0.5px solid var(--bdr2);background:transparent;color:var(--t2);cursor:pointer;font-family:var(--sans)">售出</button>';
+  } else if (car.status === 'reserved') {
+    h += '<button id="avail-car-' + car.id + '" style="font-size:12px;padding:4px 10px;border-radius:6px;border:0.5px solid rgba(45,138,78,.3);background:transparent;color:var(--grn);cursor:pointer;font-family:var(--sans)">回在庫</button>';
+  }
+  h += '<button id="del-car-' + car.id + '" style="font-size:12px;padding:4px 10px;border-radius:6px;border:0.5px solid rgba(192,64,48,.3);background:transparent;color:var(--red);cursor:pointer;font-family:var(--sans)">刪除</button>';
+  h += '</div></div>';
+
+  card.innerHTML = h;
+
+  // DOM 綁定按鈕
+  var editCarBtn = card.querySelector('#edit-car-' + car.id);
+  if (editCarBtn) editCarBtn.onclick = function(){ showEditCarForm(car); };
+  var reserveBtn = card.querySelector('#reserve-car-' + car.id);
+  if (reserveBtn) reserveBtn.onclick = function(){ updateCarStatus(car.id, 'reserved'); };
+  var soldBtn = card.querySelector('#sold-car-' + car.id);
+  if (soldBtn) soldBtn.onclick = function(){ updateCarStatus(car.id, 'sold'); };
+  var availBtn = card.querySelector('#avail-car-' + car.id);
+  if (availBtn) availBtn.onclick = function(){ updateCarStatus(car.id, 'available'); };
+  var delBtn = card.querySelector('#del-car-' + car.id);
+  if (delBtn) delBtn.onclick = function(){ deleteCar(car.id); };
+
+  return card;
+}
+
+function buildCarMarketTab(el) {
+  var avail = carInventory.filter(function(c){return c.status==='available' && c.is_public;});
+  var card = document.createElement('div');
+  card.className = 'card';
+  var h = '<div class="ct">📋 在售車輛公開資訊表 <span style="font-size:13px;color:var(--t2);font-weight:400">配合業者可見</span></div>';
+  h += '<div style="font-size:13px;color:var(--t2);margin-bottom:12px">以下車輛資訊，配合的貸款仲介和融資方可在軟體上瀏覽</div>';
+  if (avail.length === 0) {
+    h += '<div style="text-align:center;padding:20px;color:var(--t2)">目前無在售車輛</div>';
+  } else {
+    avail.forEach(function(car) {
+      h += '<div style="border:0.5px solid var(--bdr2);border-radius:10px;padding:12px;margin-bottom:8px">';
+      h += '<div style="font-size:15px;font-weight:700;margin-bottom:6px">' + (car.brand||'') + ' ' + (car.model||'') + ' <span style="font-size:13px;color:var(--t2);font-weight:400">' + (car.year||'') + '年</span></div>';
+      h += '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:8px">';
+      if (car.book_price) h += '<div style="background:var(--inp);border-radius:6px;padding:7px;text-align:center"><div style="font-size:11px;color:var(--t3);margin-bottom:2px">天書</div><div style="font-size:14px;font-weight:600">$'+car.book_price.toLocaleString()+'</div></div>';
+      if (car.authority_price) h += '<div style="background:var(--inp);border-radius:6px;padding:7px;text-align:center"><div style="font-size:11px;color:var(--t3);margin-bottom:2px">權威</div><div style="font-size:14px;font-weight:600">$'+car.authority_price.toLocaleString()+'</div></div>';
+      if (car.loanable_amount) h += '<div style="background:var(--al);border-radius:6px;padding:7px;text-align:center"><div style="font-size:11px;color:var(--t3);margin-bottom:2px">可貸金額</div><div style="font-size:14px;font-weight:700;color:var(--acc)">$'+car.loanable_amount.toLocaleString()+'</div></div>';
+      h += '</div>';
+      h += '<div style="font-size:12px;color:var(--t2)">' + (car.cc||'') + 'cc · ' + (car.color||'') + (car.mileage?' · '+car.mileage.toLocaleString()+'km':'') + '</div>';
+      if (car.features) h += '<div style="font-size:12px;color:var(--t2);margin-top:4px">🔧 ' + car.features + '</div>';
+      h += '</div>';
+    });
+  }
+  card.innerHTML = h;
+  el.appendChild(card);
+}
+
+function buildCarConnectionsTab(el) {
+  var card = document.createElement('div');
+  card.className = 'card';
+  card.innerHTML =
+    '<div class="ct">🤝 配合業者</div>' +
+    '<div style="font-size:13px;color:var(--t2);margin-bottom:12px">透過對方的推廣碼或 ID 申請配合，配合後對方即可瀏覽你的在售車輛資訊</div>' +
+    '<div style="display:flex;gap:6px;margin-bottom:12px">' +
+    '<input id="car-connect-code" placeholder="輸入對方推廣碼或帳號 ID" style="flex:1;padding:10px 12px;background:var(--inp);border:0.5px solid var(--bdr2);border-radius:9px;color:var(--inpt);font-size:15px;font-family:var(--sans)">' +
+    '<button id="car-connect-btn" style="padding:10px 16px;background:var(--acc);color:#FFF;border:none;border-radius:9px;cursor:pointer;font-family:var(--sans);font-size:14px;font-weight:600;white-space:nowrap">申請對接</button>' +
+    '</div>' +
+    '<div id="car-connect-result"></div>';
+  el.appendChild(card);
+  var btn = card.querySelector('#car-connect-btn');
+  if (btn) btn.onclick = function(){ sendCarConnection(); };
+}
+
+function buildAddCarFormHTML() {
+  return '<div class="ct">🚙 新增車輛</div>' +
+    '<div class="frow2"><div class="frow"><div class="flbl">廠牌</div><input class="fi" id="nc-brand" placeholder="Toyota"></div>' +
+    '<div class="frow"><div class="flbl">型號</div><input class="fi" id="nc-model" placeholder="Camry 2.5"></div></div>' +
+    '<div class="frow2" style="margin-top:6px"><div class="frow"><div class="flbl">年份</div><input class="fi" id="nc-year" type="number" placeholder="2020" inputmode="numeric"></div>' +
+    '<div class="frow"><div class="flbl">CC數</div><input class="fi" id="nc-cc" type="number" placeholder="2500" inputmode="numeric"></div></div>' +
+    '<div class="frow2" style="margin-top:6px"><div class="frow"><div class="flbl">顏色</div><input class="fi" id="nc-color" placeholder="珍珠白"></div>' +
+    '<div class="frow"><div class="flbl">里程數（km）</div><input class="fi" id="nc-mileage" type="number" placeholder="50000" inputmode="numeric"></div></div>' +
+    '<div class="sl">價格資訊</div>' +
+    '<div class="frow2"><div class="frow"><div class="flbl">天書價格（元）</div><input class="fi" id="nc-book" type="number" placeholder="0" inputmode="numeric"></div>' +
+    '<div class="frow"><div class="flbl">權威價格（元）</div><input class="fi" id="nc-auth" type="number" placeholder="0" inputmode="numeric"></div></div>' +
+    '<div class="frow2" style="margin-top:6px"><div class="frow"><div class="flbl">可貸金額（元）</div><input class="fi" id="nc-loan" type="number" placeholder="0" inputmode="numeric"></div>' +
+    '<div class="frow"><div class="flbl">盤價（元）</div><input class="fi" id="nc-floor" type="number" placeholder="0" inputmode="numeric"></div></div>' +
+    '<div class="frow" style="margin-top:6px"><div class="flbl">價格空間（元）</div><input class="fi" id="nc-space" type="number" placeholder="0" inputmode="numeric"></div>' +
+    '<div class="frow" style="margin-top:6px"><div class="flbl">配備清單</div><input class="fi" id="nc-features" placeholder="天窗、倒車鏡頭、盲點偵測..."></div>' +
+    '<div class="frow" style="margin-top:6px"><div class="flbl">備註</div><input class="fi" id="nc-note" placeholder="其他說明"></div>' +
+    '<div style="display:flex;gap:6px;margin-top:10px">' +
+    '<button id="cancel-add-car" class="btn-sm">取消</button>' +
+    '<button id="save-add-car" class="btn-p" style="flex:1">儲存車輛</button>' +
+    '</div>';
+}
+
+function showAddCarForm() {
+  var f = document.getElementById('add-car-form');
+  if (f) {
+    f.style.display = f.style.display==='none'?'block':'none';
+    var cancelBtn = f.querySelector('#cancel-add-car');
+    var saveBtn = f.querySelector('#save-add-car');
+    if (cancelBtn) cancelBtn.onclick = function(){ f.style.display='none'; };
+    if (saveBtn) saveBtn.onclick = function(){ saveCar(); };
+  }
+}
+
+function showEditCarForm(car) {
+  var modal = document.createElement('div');
+  modal.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.7);z-index:9999;display:flex;align-items:flex-start;justify-content:center;padding:20px;overflow-y:auto';
+  var box = document.createElement('div');
+  box.style.cssText = 'background:var(--card);border-radius:14px;padding:16px;width:100%;max-width:500px;margin:auto';
+  box.innerHTML =
+    '<div class="ct">✏️ 編輯車輛</div>' +
+    '<div class="frow2"><div class="frow"><div class="flbl">廠牌</div><input class="fi" id="ec-brand" value="'+(car.brand||'')+'"></div>' +
+    '<div class="frow"><div class="flbl">型號</div><input class="fi" id="ec-model" value="'+(car.model||'')+'"></div></div>' +
+    '<div class="frow2" style="margin-top:6px"><div class="frow"><div class="flbl">年份</div><input class="fi" id="ec-year" type="number" value="'+(car.year||'')+'"></div>' +
+    '<div class="frow"><div class="flbl">CC數</div><input class="fi" id="ec-cc" type="number" value="'+(car.cc||'')+'"></div></div>' +
+    '<div class="frow2" style="margin-top:6px"><div class="frow"><div class="flbl">顏色</div><input class="fi" id="ec-color" value="'+(car.color||'')+'"></div>' +
+    '<div class="frow"><div class="flbl">里程（km）</div><input class="fi" id="ec-mileage" type="number" value="'+(car.mileage||'')+'"></div></div>' +
+    '<div class="sl">價格</div>' +
+    '<div class="frow2"><div class="frow"><div class="flbl">天書</div><input class="fi" id="ec-book" type="number" value="'+(car.book_price||'')+'"></div>' +
+    '<div class="frow"><div class="flbl">權威</div><input class="fi" id="ec-auth" type="number" value="'+(car.authority_price||'')+'"></div></div>' +
+    '<div class="frow2" style="margin-top:6px"><div class="frow"><div class="flbl">可貸金額</div><input class="fi" id="ec-loan" type="number" value="'+(car.loanable_amount||'')+'"></div>' +
+    '<div class="frow"><div class="flbl">盤價</div><input class="fi" id="ec-floor" type="number" value="'+(car.floor_price||'')+'"></div></div>' +
+    '<div class="frow" style="margin-top:6px"><div class="flbl">價格空間</div><input class="fi" id="ec-space" type="number" value="'+(car.price_space||'')+'"></div>' +
+    '<div class="frow" style="margin-top:6px"><div class="flbl">配備清單</div><input class="fi" id="ec-features" value="'+(car.features||'')+'"></div>' +
+    '<div class="frow" style="margin-top:6px"><div class="flbl">備註</div><input class="fi" id="ec-note" value="'+(car.note||'')+'"></div>' +
+    '<div style="display:flex;gap:6px;margin-top:12px">' +
+    '<button id="ec-cancel" class="btn-sm">取消</button>' +
+    '<button id="ec-save" class="btn-p" style="flex:1">儲存</button>' +
+    '</div>';
+  modal.appendChild(box);
+  document.body.appendChild(modal);
+  modal.querySelector('#ec-cancel').onclick = function(){ modal.remove(); };
+  modal.querySelector('#ec-save').onclick = function(){ saveEditCar(car.id, modal); };
+  modal.onclick = function(e){ if(e.target===modal) modal.remove(); };
+}
+
+async function saveCar() {
+  var gv = function(id){ var el=document.getElementById(id); return el?el.value.trim():''; };
+  var gi = function(id){ return parseInt(gv(id))||null; };
+  if (!gv('nc-brand') || !gv('nc-model')) { alert('請填寫廠牌和型號'); return; }
+  var payload = {
+    member_id: currentUser.id,
+    brand: gv('nc-brand'), model: gv('nc-model'),
+    year: gi('nc-year'), cc: gi('nc-cc'),
+    color: gv('nc-color'), mileage: gi('nc-mileage'),
+    book_price: gi('nc-book'), authority_price: gi('nc-auth'),
+    loanable_amount: gi('nc-loan'), floor_price: gi('nc-floor'),
+    price_space: gi('nc-space'),
+    features: gv('nc-features')||null, note: gv('nc-note')||null,
+    status: 'available', is_public: true
+  };
+  var res = await sb.from('car_inventory').insert(payload).select().single();
+  if (res.error) { alert('儲存失敗：'+res.error.message); return; }
+  carInventory.unshift(res.data);
+  buildCarDealerUI(document.getElementById('member-content'));
+}
+
+async function saveEditCar(carId, modal) {
+  var gv = function(id){ var el=document.getElementById(id); return el?el.value.trim():''; };
+  var gi = function(id){ return parseInt(gv(id))||null; };
+  var payload = {
+    brand: gv('ec-brand'), model: gv('ec-model'),
+    year: gi('ec-year'), cc: gi('ec-cc'),
+    color: gv('ec-color'), mileage: gi('ec-mileage'),
+    book_price: gi('ec-book'), authority_price: gi('ec-auth'),
+    loanable_amount: gi('ec-loan'), floor_price: gi('ec-floor'),
+    price_space: gi('ec-space'),
+    features: gv('ec-features')||null, note: gv('ec-note')||null,
+  };
+  var res = await sb.from('car_inventory').update(payload).eq('id', carId);
+  if (res.error) { alert('儲存失敗：'+res.error.message); return; }
+  carInventory = carInventory.map(function(c){ return c.id===carId ? Object.assign({},c,payload) : c; });
+  modal.remove();
+  buildCarDealerUI(document.getElementById('member-content'));
+}
+
+async function updateCarStatus(carId, status) {
+  await sb.from('car_inventory').update({status:status}).eq('id', carId);
+  carInventory = carInventory.map(function(c){ return c.id===carId ? Object.assign({},c,{status:status}) : c; });
+  buildCarDealerUI(document.getElementById('member-content'));
+}
+
+async function deleteCar(carId) {
+  if (!confirm('確定刪除此車輛？')) return;
+  await sb.from('car_inventory').delete().eq('id', carId);
+  carInventory = carInventory.filter(function(c){ return c.id!==carId; });
+  buildCarDealerUI(document.getElementById('member-content'));
+}
+
+async function sendCarConnection() {
+  var code = document.getElementById('car-connect-code') ? document.getElementById('car-connect-code').value.trim() : '';
+  if (!code) { alert('請輸入對方推廣碼或帳號 ID'); return; }
+  var resultEl = document.getElementById('car-connect-result');
+  if (resultEl) resultEl.innerHTML = '<div style="color:var(--t2);font-size:13px">🔍 查詢中...</div>';
+  // 查詢對方帳號（用 invite_code 或 member_id）
+  var res = await sb.from('members').select('id,name').or('invite_code.eq.'+code+',id.eq.'+code).single();
+  if (res.error || !res.data) {
+    if (resultEl) resultEl.innerHTML = '<div style="color:var(--red);font-size:13px">找不到此業者，請確認推廣碼或 ID</div>';
+    return;
+  }
+  var receiver = res.data;
+  // 建立申請
+  var connRes = await sb.from('business_connections').insert({
+    requester_id: currentUser.id, receiver_id: receiver.id, status:'pending'
+  });
+  if (connRes.error) {
+    if (resultEl) resultEl.innerHTML = '<div style="color:var(--red);font-size:13px">申請失敗：'+connRes.error.message+'</div>';
+    return;
+  }
+  if (resultEl) resultEl.innerHTML = '<div style="color:var(--grn);font-size:13px">✓ 已送出配合申請給「'+receiver.name+'」，等待對方確認</div>';
+}
+
+// ══════════════════════════════
+// 🚗 車貸融資方
+// ══════════════════════════════
+var carFinanceTab = 'review'; // review | template | market
+var reviewTemplates = [];
+
+// ══════════════════════════════
+// 📋 照會生成（貸款仲介版）
+// ══════════════════════════════
+async function renderReviewPage() {
+  var el = document.getElementById('member-content');
+  el.innerHTML = '';
+
+  // 載入範本
+  if (reviewTemplates.length === 0) {
+    var res = await sb.from('loan_review_templates').select('*').eq('member_id', currentUser.id).order('created_at');
+    reviewTemplates = res.data || [];
+  }
+
+  // Tab 切換
+  var tabDiv = document.createElement('div');
+  tabDiv.style.cssText = 'display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap';
+  [
+    {key:'review',   icon:'📋', label:'照會生成'},
+    {key:'template', icon:'⚙️', label:'範本設定'},
+  ].forEach(function(t) {
+    var btn = document.createElement('button');
+    var on = carFinanceTab === t.key;
+    btn.style.cssText = 'padding:7px 14px;border-radius:20px;font-size:14px;cursor:pointer;border:0.5px solid '+(on?'var(--acc)':'var(--bdr2)')+';background:'+(on?'var(--al)':'transparent')+';color:'+(on?'var(--acc)':'var(--t1)')+';font-family:var(--sans)';
+    btn.textContent = t.icon + ' ' + t.label;
+    btn.onclick = (function(k){ return function(){
+      carFinanceTab = k;
+      renderReviewPage();
+    }; })(t.key);
+    tabDiv.appendChild(btn);
+  });
+  el.appendChild(tabDiv);
+
+  if (carFinanceTab === 'template') {
+    buildTemplateTab(el);
+  } else {
+    carFinanceTab = 'review';
+    buildReviewTab(el);
+  }
+}
+
+async function renderCarFinance() {
+  var el = document.getElementById('member-content');
+  el.innerHTML = '<div style="text-align:center;padding:30px;color:var(--t2)"><div class="spinner" style="margin:0 auto 10px"></div>載入中...</div>';
+
+  var res = await sb.from('loan_review_templates').select('*').eq('member_id', currentUser.id).order('created_at');
+  reviewTemplates = res.data || [];
+
+  buildCarFinanceUI(el);
+}
+
+function buildCarFinanceUI(el) {
+  el.innerHTML = '';
+
+  var tabDiv = document.createElement('div');
+  tabDiv.style.cssText = 'display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap';
+  [
+    {key:'review',   icon:'📋', label:'照會生成'},
+    {key:'template', icon:'⚙️', label:'範本設定'},
+    {key:'market',   icon:'🚙', label:'配合車行車輛'},
+  ].forEach(function(t) {
+    var btn = document.createElement('button');
+    var on = carFinanceTab === t.key;
+    btn.style.cssText = 'padding:7px 14px;border-radius:20px;font-size:14px;cursor:pointer;border:0.5px solid '+(on?'var(--acc)':'var(--bdr2)')+';background:'+(on?'var(--al)':'transparent')+';color:'+(on?'var(--acc)':'var(--t1)')+';font-family:var(--sans)';
+    btn.textContent = t.icon + ' ' + t.label;
+    btn.onclick = (function(k){ return function(){ carFinanceTab=k; buildCarFinanceUI(document.getElementById('member-content')); }; })(t.key);
+    tabDiv.appendChild(btn);
+  });
+  el.appendChild(tabDiv);
+
+  if (carFinanceTab === 'review') buildReviewTab(el);
+  else if (carFinanceTab === 'template') buildTemplateTab(el);
+  else if (carFinanceTab === 'market') buildMarketViewTab(el);
+}
+
+function buildReviewTab(el) {
+  var tpl = reviewTemplates[0];
+  var card = document.createElement('div');
+  card.className = 'card';
+  var h = '<div class="ct">📋 照會資料生成</div>';
+  h += '<div style="font-size:13px;color:var(--t2);margin-bottom:12px">選擇客戶和車輛，一鍵生成照會內容，方便接電話時對照</div>';
+
+  // 選擇客戶
+  h += '<div class="frow"><div class="flbl">選擇客戶</div><select class="fi" id="review-lead-sel">';
+  h += '<option value="">— 選擇客戶 —</option>';
+  leads.forEach(function(l){
+    h += '<option value="'+l.id+'">'+l.name+(l.age?' ('+l.age+'歲)':'')+'</option>';
+  });
+  h += '</select></div>';
+
+  // 車輛資訊輸入
+  h += '<div style="margin-top:12px;padding:12px;background:var(--inp);border-radius:10px">';
+  h += '<div style="font-size:14px;font-weight:600;margin-bottom:8px">🚙 車輛資訊（手動填入或從車行資料帶入）</div>';
+  h += '<div class="frow2"><div class="frow"><div class="flbl">廠牌型號</div><input class="fi" id="rv-car-model" placeholder="Toyota Camry 2.5"></div>';
+  h += '<div class="frow"><div class="flbl">年份</div><input class="fi" id="rv-car-year" placeholder="2020"></div></div>';
+  h += '<div class="frow2" style="margin-top:6px"><div class="frow"><div class="flbl">車牌號碼</div><input class="fi" id="rv-plate" placeholder="ABC-1234"></div>';
+  h += '<div class="frow"><div class="flbl">里程數</div><input class="fi" id="rv-mileage" placeholder="50000 km"></div></div>';
+  h += '<div class="frow2" style="margin-top:6px"><div class="frow"><div class="flbl">申請金額（元）</div><input class="fi" id="rv-amount" type="number" inputmode="numeric" placeholder="500000"></div>';
+  h += '<div class="frow"><div class="flbl">申請期數</div><select class="fi" id="rv-term"><option>12期</option><option>24期</option><option>36期</option><option>48期</option><option>60期</option><option>72期</option></select></div></div>';
+  h += '</div>';
+
+  h += '<button id="gen-review-btn" class="btn-p" style="width:100%;margin-top:12px;font-size:15px">📋 一鍵生成照會內容</button>';
+  h += '<div id="review-output" style="margin-top:12px"></div>';
+  card.innerHTML = h;
+  el.appendChild(card);
+
+  var genBtn = card.querySelector('#gen-review-btn');
+  if (genBtn) genBtn.onclick = function(){ generateReview(); };
+}
+
+function generateReview() {
+  var leadId = document.getElementById('review-lead-sel') ? document.getElementById('review-lead-sel').value : '';
+  var lead = leads.find(function(l){ return l.id === leadId; });
+  var carModel = document.getElementById('rv-car-model') ? document.getElementById('rv-car-model').value.trim() : '';
+  var carYear  = document.getElementById('rv-car-year')  ? document.getElementById('rv-car-year').value.trim()  : '';
+  var plate    = document.getElementById('rv-plate')     ? document.getElementById('rv-plate').value.trim()     : '';
+  var mileage  = document.getElementById('rv-mileage')   ? document.getElementById('rv-mileage').value.trim()   : '';
+  var amount   = document.getElementById('rv-amount')    ? document.getElementById('rv-amount').value.trim()    : '';
+  var term     = document.getElementById('rv-term')      ? document.getElementById('rv-term').value             : '';
+
+  // 取範本欄位
+  var tpl = reviewTemplates[0];
+  var fields = tpl ? (tpl.fields || []) : getDefaultReviewFields();
+
+  // 生成文字
+  var lines = ['═══════════════════════', '📋 車貸照會資料', '═══════════════════════'];
+  if (lead) {
+    fields.forEach(function(f) {
+      if (!f.enabled) return;
+      var val = '';
+      if (f.key === 'name') val = lead.name || '—';
+      else if (f.key === 'age') val = lead.age ? lead.age+'歲' : '—';
+      else if (f.key === 'id_number') val = lead.id_number_hash ? lead.id_number_hash.substring(0,3)+'****' : '—';
+      else if (f.key === 'work') val = lead.work_type || '—';
+      else if (f.key === 'salary') val = lead.monthly_salary ? '$'+lead.monthly_salary.toLocaleString()+'/月' : '—';
+      else if (f.key === 'transfer') val = lead.has_salary_transfer ? '有薪轉' : '無薪轉';
+      else if (f.key === 'address') val = lead.address || '—';
+      else if (f.key === 'alert') val = lead.alert_status==='none'?'無':'⚠️ '+lead.alert_status;
+      else if (f.key === 'phone') val = lead.phone || '—';
+      if (val) lines.push(f.label + '：' + val);
+    });
+  }
+  lines.push('───────────────────────');
+  lines.push('🚗 車輛資訊');
+  if (carModel) lines.push('廠牌型號：' + carModel + (carYear?' ('+carYear+'年)':''));
+  if (plate) lines.push('車牌號碼：' + plate);
+  if (mileage) lines.push('里程數：' + mileage);
+  lines.push('───────────────────────');
+  lines.push('💰 貸款申請');
+  if (amount) lines.push('申請金額：$' + parseInt(amount).toLocaleString());
+  if (term) lines.push('申請期數：' + term);
+  // 月付款試算
+  if (amount && term) {
+    var months = parseInt(term);
+    var rate = 0.008; // 月利率0.8%估算
+    var pmt = Math.round(parseInt(amount) * rate * Math.pow(1+rate, months) / (Math.pow(1+rate,months)-1));
+    lines.push('月付款估算：$' + pmt.toLocaleString() + '（利率估算）');
+  }
+  lines.push('═══════════════════════');
+  lines.push('生成時間：' + new Date().toLocaleString('zh-TW'));
+
+  var text = lines.join('\n');
+  var output = document.getElementById('review-output');
+  if (output) {
+    output.innerHTML =
+      '<div style="background:var(--inp);border-radius:10px;padding:14px;font-family:monospace;font-size:13px;line-height:1.8;white-space:pre-wrap;color:var(--t1);margin-bottom:8px">' + text + '</div>' +
+      '<div style="display:flex;gap:8px">' +
+      '<button onclick="navigator.clipboard.writeText('+JSON.stringify(text)+').then(function(){alert(\'已複製！可貼到 LINE 傳送\')})" class="btn-p" style="flex:1">📋 複製照會內容</button>' +
+      '<button onclick="shareReviewToLine('+JSON.stringify(text)+')" class="btn-grn" style="flex:1">📱 分享到 LINE</button>' +
+      '</div>';
+  }
+}
+
+function shareReviewToLine(text) {
+  window.open('https://line.me/R/share?text=' + encodeURIComponent(text), '_blank');
+}
+
+function getDefaultReviewFields() {
+  return [
+    {key:'name',     label:'姓名',     enabled:true},
+    {key:'age',      label:'年齡',     enabled:true},
+    {key:'id_number',label:'身分證',   enabled:true},
+    {key:'work',     label:'工作資訊', enabled:true},
+    {key:'salary',   label:'月薪',     enabled:true},
+    {key:'transfer', label:'薪轉',     enabled:true},
+    {key:'address',  label:'居住地址', enabled:true},
+    {key:'alert',    label:'警示狀況', enabled:true},
+    {key:'phone',    label:'聯絡電話', enabled:false},
+  ];
+}
+
+function buildTemplateTab(el) {
+  var tpl = reviewTemplates[0];
+  var fields = tpl ? (tpl.fields || []) : getDefaultReviewFields();
+  var card = document.createElement('div');
+  card.className = 'card';
+  var h = '<div class="ct">⚙️ 照會範本設定</div>';
+  h += '<div style="font-size:13px;color:var(--t2);margin-bottom:12px">勾選要出現在照會內容的欄位，儲存後一鍵生成時自動套用</div>';
+  fields.forEach(function(f, fi) {
+    h += '<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:0.5px solid var(--bdr)">';
+    h += '<input type="checkbox" id="tpl-field-'+fi+'" '+(f.enabled?'checked':'')+' style="width:18px;height:18px;cursor:pointer;accent-color:var(--acc)">';
+    h += '<label for="tpl-field-'+fi+'" style="font-size:15px;cursor:pointer;flex:1">'+f.label+'</label>';
+    h += '</div>';
+  });
+  h += '<button id="save-tpl-btn" class="btn-p" style="width:100%;margin-top:12px">儲存範本</button>';
+  card.innerHTML = h;
+  el.appendChild(card);
+  var saveBtn = card.querySelector('#save-tpl-btn');
+  if (saveBtn) saveBtn.onclick = function(){ saveReviewTemplate(fields); };
+}
+
+async function saveReviewTemplate(fields) {
+  fields.forEach(function(f, fi) {
+    var cb = document.getElementById('tpl-field-'+fi);
+    if (cb) f.enabled = cb.checked;
+  });
+  if (reviewTemplates.length > 0) {
+    await sb.from('loan_review_templates').update({fields:fields}).eq('id', reviewTemplates[0].id);
+    reviewTemplates[0].fields = fields;
+  } else {
+    var res = await sb.from('loan_review_templates').insert({member_id:currentUser.id, name:'預設範本', fields:fields}).select().single();
+    if (!res.error) reviewTemplates.push(res.data);
+  }
+  alert('✓ 範本已儲存');
+}
+
+function buildMarketViewTab(el) {
+  var card = document.createElement('div');
+  card.className = 'card';
+  card.innerHTML =
+    '<div class="ct">🚙 配合車行在售車輛</div>' +
+    '<div style="font-size:13px;color:var(--t2);margin-bottom:12px">顯示配合車行上架的可售車輛，點選可帶入照會資料</div>' +
+    '<div style="text-align:center;padding:20px;color:var(--t2)">🔗 建立配合關係後即可瀏覽車行庫存<br><br><button onclick="carFinanceTab=\'review\';buildCarFinanceUI(document.getElementById(\'member-content\'))" class="btn-sm">← 返回照會生成</button></div>';
+  el.appendChild(card);
 }
 
 function renderCalc() {
