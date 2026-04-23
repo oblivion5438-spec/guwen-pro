@@ -1,0 +1,496 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>安裝顧問PRO APP</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap');
+
+  :root {
+    --org: #E8651A;
+    --org2: #FF7A2F;
+    --brn: #3D1A00;
+    --bg: #0F0F0F;
+    --card: #1A1A1A;
+    --bdr: rgba(255,255,255,.08);
+    --t1: #FFFFFF;
+    --t2: #AAAAAA;
+    --t3: #666666;
+    --grn: #2ECC71;
+    --blu: #3B9EFF;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--t1);
+    font-family: 'Noto Sans TC', -apple-system, sans-serif;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* 背景裝飾 */
+  body::before {
+    content: '';
+    position: fixed;
+    top: -200px; left: -200px;
+    width: 600px; height: 600px;
+    background: radial-gradient(circle, rgba(232,101,26,.15) 0%, transparent 70%);
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .wrap {
+    max-width: 480px;
+    margin: 0 auto;
+    padding: 0 20px 60px;
+    position: relative;
+    z-index: 1;
+  }
+
+  /* 頂部 LOGO */
+  .hero {
+    text-align: center;
+    padding: 40px 0 32px;
+  }
+
+  .logo-box {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 16px;
+  }
+
+  .logo-icon {
+    width: 56px; height: 56px;
+    border-radius: 14px;
+    overflow: hidden;
+  }
+
+  .logo-icon img {
+    width: 100%; height: 100%;
+    object-fit: cover;
+  }
+
+  .logo-text {
+    font-size: 28px;
+    font-weight: 900;
+    color: #FFF;
+  }
+
+  .logo-text span { color: var(--org); }
+
+  .hero h1 {
+    font-size: 22px;
+    font-weight: 700;
+    margin-bottom: 8px;
+    line-height: 1.4;
+  }
+
+  .hero p {
+    font-size: 14px;
+    color: var(--t2);
+    line-height: 1.6;
+  }
+
+  /* 優點卡片 */
+  .benefits {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+    margin-bottom: 32px;
+  }
+
+  .benefit-item {
+    background: var(--card);
+    border: 0.5px solid var(--bdr);
+    border-radius: 12px;
+    padding: 14px 10px;
+    text-align: center;
+  }
+
+  .benefit-item .icon { font-size: 24px; margin-bottom: 6px; }
+  .benefit-item .label { font-size: 12px; color: var(--t2); line-height: 1.4; }
+
+  /* 分頁切換 */
+  .tabs {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin-bottom: 24px;
+  }
+
+  .tab-btn {
+    padding: 14px;
+    border-radius: 12px;
+    border: 1.5px solid var(--bdr);
+    background: var(--card);
+    color: var(--t2);
+    cursor: pointer;
+    font-family: inherit;
+    font-size: 15px;
+    font-weight: 600;
+    transition: all .2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+  }
+
+  .tab-btn.active {
+    background: var(--org);
+    border-color: var(--org);
+    color: #FFF;
+  }
+
+  .tab-btn .os-icon { font-size: 20px; }
+
+  /* 步驟卡片 */
+  .steps-panel { display: none; }
+  .steps-panel.active { display: block; }
+
+  .step-card {
+    background: var(--card);
+    border: 0.5px solid var(--bdr);
+    border-radius: 16px;
+    padding: 20px;
+    margin-bottom: 12px;
+    display: flex;
+    gap: 16px;
+    align-items: flex-start;
+    animation: fadeUp .3s ease both;
+  }
+
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(12px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .step-card:nth-child(1) { animation-delay: 0s; }
+  .step-card:nth-child(2) { animation-delay: .05s; }
+  .step-card:nth-child(3) { animation-delay: .1s; }
+  .step-card:nth-child(4) { animation-delay: .15s; }
+  .step-card:nth-child(5) { animation-delay: .2s; }
+
+  .step-num {
+    width: 36px; height: 36px;
+    border-radius: 50%;
+    background: var(--org);
+    color: #FFF;
+    font-size: 16px;
+    font-weight: 800;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+
+  .step-content { flex: 1; }
+
+  .step-title {
+    font-size: 15px;
+    font-weight: 700;
+    margin-bottom: 5px;
+    color: var(--t1);
+  }
+
+  .step-desc {
+    font-size: 13px;
+    color: var(--t2);
+    line-height: 1.7;
+  }
+
+  .step-img {
+    margin-top: 10px;
+    background: rgba(255,255,255,.04);
+    border: 0.5px solid var(--bdr);
+    border-radius: 10px;
+    padding: 12px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .step-img .visual {
+    font-size: 28px;
+    flex-shrink: 0;
+  }
+
+  .step-img .caption {
+    font-size: 12px;
+    color: var(--t3);
+    line-height: 1.5;
+  }
+
+  /* 重要提示 */
+  .notice {
+    background: rgba(232,101,26,.1);
+    border: 0.5px solid rgba(232,101,26,.3);
+    border-radius: 12px;
+    padding: 14px 16px;
+    margin-bottom: 12px;
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+  }
+
+  .notice .icon { font-size: 18px; flex-shrink: 0; margin-top: 1px; }
+  .notice p { font-size: 13px; color: var(--t2); line-height: 1.6; }
+  .notice strong { color: var(--org); }
+
+  /* 成功提示 */
+  .success-box {
+    background: rgba(46,204,113,.08);
+    border: 0.5px solid rgba(46,204,113,.3);
+    border-radius: 12px;
+    padding: 16px;
+    text-align: center;
+    margin-top: 8px;
+  }
+
+  .success-box .icon { font-size: 32px; margin-bottom: 8px; }
+  .success-box h3 { font-size: 15px; font-weight: 700; color: var(--grn); margin-bottom: 4px; }
+  .success-box p { font-size: 13px; color: var(--t2); }
+
+  /* 底部連結 */
+  .bottom-link {
+    margin-top: 28px;
+    text-align: center;
+  }
+
+  .open-btn {
+    display: inline-block;
+    padding: 14px 32px;
+    background: var(--org);
+    color: #FFF;
+    border-radius: 12px;
+    font-size: 16px;
+    font-weight: 700;
+    text-decoration: none;
+    font-family: inherit;
+    transition: background .15s;
+  }
+
+  .open-btn:hover { background: var(--org2); }
+
+  .bottom-note {
+    margin-top: 12px;
+    font-size: 12px;
+    color: var(--t3);
+  }
+
+  /* 分隔線 */
+  .divider {
+    height: 0.5px;
+    background: var(--bdr);
+    margin: 24px 0;
+  }
+
+  .section-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--t3);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 12px;
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- Hero -->
+  <div class="hero">
+    <div class="logo-box">
+      <div class="logo-icon">
+        <img src="https://guwen-pro.vercel.app/icon-192.png" onerror="this.parentElement.innerHTML='<div style=\'background:#E8651A;width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:28px;font-weight:900;color:#fff\'>顧</div>'">
+      </div>
+      <div class="logo-text">顧問<span>PRO</span></div>
+    </div>
+    <h1>把顧問PRO 安裝到<br>你的手機桌面</h1>
+    <p>像 APP 一樣開啟，全螢幕使用<br>不需要 App Store，完全免費</p>
+  </div>
+
+  <!-- 優點 -->
+  <div class="benefits">
+    <div class="benefit-item">
+      <div class="icon">⚡</div>
+      <div class="label">秒速開啟<br>不用找網址</div>
+    </div>
+    <div class="benefit-item">
+      <div class="icon">📲</div>
+      <div class="label">全螢幕<br>像原生 APP</div>
+    </div>
+    <div class="benefit-item">
+      <div class="icon">🔔</div>
+      <div class="label">即時通知<br>新客戶提醒</div>
+    </div>
+  </div>
+
+  <!-- 分頁 -->
+  <div class="section-title">選擇你的手機系統</div>
+  <div class="tabs">
+    <button class="tab-btn active" onclick="switchTab('ios')">
+      <span class="os-icon">🍎</span> iPhone（iOS）
+    </button>
+    <button class="tab-btn" onclick="switchTab('android')">
+      <span class="os-icon">🤖</span> Android
+    </button>
+  </div>
+
+  <!-- iOS 步驟 -->
+  <div class="steps-panel active" id="panel-ios">
+
+    <div class="notice">
+      <span class="icon">⚠️</span>
+      <p>iPhone 必須用 <strong>Safari</strong> 瀏覽器才能安裝，Chrome 不支援。</p>
+    </div>
+
+    <div class="step-card">
+      <div class="step-num">1</div>
+      <div class="step-content">
+        <div class="step-title">用 Safari 開啟顧問PRO</div>
+        <div class="step-desc">確認是用 Safari 瀏覽器（不是 Chrome 或 LINE 的內建瀏覽器）</div>
+        <div class="step-img">
+          <div class="visual">🌐</div>
+          <div class="caption">網址列輸入：<br><strong style="color:#E8651A">guwen-pro.vercel.app</strong></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="step-card">
+      <div class="step-num">2</div>
+      <div class="step-content">
+        <div class="step-title">點底部的「分享」按鈕</div>
+        <div class="step-desc">畫面最下方中間有個方框加箭頭的圖示，點它</div>
+        <div class="step-img">
+          <div class="visual">📤</div>
+          <div class="caption">在 Safari 底部工具列<br>中間的那個按鈕</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="step-card">
+      <div class="step-num">3</div>
+      <div class="step-content">
+        <div class="step-title">往下滑找「加入主畫面」</div>
+        <div class="step-desc">在跳出的選單中往下滑，找到「加入主畫面」並點它</div>
+        <div class="step-img">
+          <div class="visual">➕</div>
+          <div class="caption">選單裡找「加入主畫面」<br>（可能需要往下捲動）</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="step-card">
+      <div class="step-num">4</div>
+      <div class="step-content">
+        <div class="step-title">點右上角「新增」</div>
+        <div class="step-desc">確認名稱為「顧問PRO」，點右上角「新增」完成安裝</div>
+        <div class="step-img">
+          <div class="visual">✅</div>
+          <div class="caption">名稱確認後點「新增」<br>桌面就會出現圖示</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="success-box">
+      <div class="icon">🎉</div>
+      <h3>安裝完成！</h3>
+      <p>回到桌面找到顧問PRO 圖示<br>點開就是全螢幕 APP 模式</p>
+    </div>
+
+  </div>
+
+  <!-- Android 步驟 -->
+  <div class="steps-panel" id="panel-android">
+
+    <div class="notice">
+      <span class="icon">✅</span>
+      <p>Android 使用 <strong>Chrome 瀏覽器</strong>，瀏覽後會自動提示安裝，也可以手動操作。</p>
+    </div>
+
+    <div class="step-card">
+      <div class="step-num">1</div>
+      <div class="step-content">
+        <div class="step-title">用 Chrome 開啟顧問PRO</div>
+        <div class="step-desc">確認是 Chrome 瀏覽器，不是其他內建瀏覽器</div>
+        <div class="step-img">
+          <div class="visual">🌐</div>
+          <div class="caption">網址列輸入：<br><strong style="color:#E8651A">guwen-pro.vercel.app</strong></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="step-card">
+      <div class="step-num">2</div>
+      <div class="step-content">
+        <div class="step-title">等待安裝提示橫幅</div>
+        <div class="step-desc">登入後畫面下方會自動出現「安裝顧問PRO」橫幅，點「安裝」即可</div>
+        <div class="step-img">
+          <div class="visual">📲</div>
+          <div class="caption">下方橫幅出現後<br>直接點「安裝」</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="step-card">
+      <div class="step-num" style="background:#3B9EFF">或</div>
+      <div class="step-content">
+        <div class="step-title">手動安裝（沒看到橫幅時）</div>
+        <div class="step-desc">點右上角三個點 → 往下找「加入主畫面」或「安裝應用程式」→ 點確認</div>
+        <div class="step-img">
+          <div class="visual">⋮</div>
+          <div class="caption">右上角「⋮」→<br>「加入主畫面」</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="step-card">
+      <div class="step-num">3</div>
+      <div class="step-content">
+        <div class="step-title">點「安裝」確認</div>
+        <div class="step-desc">跳出確認框後點「安裝」，桌面就會出現顧問PRO 的圖示</div>
+        <div class="step-img">
+          <div class="visual">✅</div>
+          <div class="caption">確認安裝後<br>桌面出現 APP 圖示</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="success-box">
+      <div class="icon">🎉</div>
+      <h3>安裝完成！</h3>
+      <p>從桌面點開顧問PRO<br>全螢幕 APP 模式，沒有網址列</p>
+    </div>
+
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- 底部開啟按鈕 -->
+  <div class="bottom-link">
+    <a href="https://guwen-pro.vercel.app/app.html" class="open-btn">
+      🚀 立即開啟顧問PRO
+    </a>
+    <div class="bottom-note">安裝後從桌面圖示開啟效果更好</div>
+  </div>
+
+</div>
+
+<script>
+function switchTab(os) {
+  document.querySelectorAll('.tab-btn').forEach(function(btn) {
+    btn.classList.remove('active');
+  });
+  document.querySelectorAll('.steps-panel').forEach(function(panel) {
+    panel.classList.remove('active');
+  });
+  event.currentTarget.classList.add('active');
+  document.getElementById('panel-' + os).classList.add('active');
+}
+</script>
+</body>
+</html>
