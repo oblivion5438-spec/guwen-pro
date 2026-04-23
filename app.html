@@ -365,6 +365,7 @@ select.fi{-webkit-appearance:auto;appearance:auto;display:block;max-width:100%;w
       <div style="font-size:15px;color:var(--t2)" id="dt-title">儀表板</div>
       <div style="display:flex;align-items:center;gap:10px">
         <button onclick="showGlobalSearch()" style="display:flex;align-items:center;gap:6px;padding:6px 14px;background:var(--inp);border:0.5px solid var(--bdr2);border-radius:20px;color:var(--t2);cursor:pointer;font-size:14px;font-family:var(--sans)">🔍 搜尋客戶</button>
+        <button id="lang-btn" onclick="toggleLang()" style="padding:5px 12px;background:var(--inp);border:0.5px solid var(--bdr2);border-radius:20px;color:var(--t2);cursor:pointer;font-size:13px;font-family:var(--sans)">🌐 EN</button>
         <span class="badge b-acc" id="dt-plan-badge">進階版</span>
         <div style="display:flex;align-items:center;gap:8px;cursor:pointer" onclick="navTo('settings',null)">
           <div style="width:32px;height:32px;border-radius:50%;background:var(--al);color:var(--acc);display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700" id="dt-avatar">顧</div>
@@ -501,6 +502,33 @@ var BASE_URL = (window.location.protocol === 'file:' || !window.location.host)
   ? 'https://guwen-pro.vercel.app'
   : window.location.origin;
 
+// ── 多語言 ──
+var LANG = localStorage.getItem('guwen_lang') || 'zh';
+var I18N = {
+  zh: {
+    dash:'儀表板', leads:'客戶名單', addLead:'新增客戶資料',
+    broker:'貸款仲介', carDealer:'中古車商', carFinance:'融資車貸', pawn:'民間借款',
+    newLead:'新名單', invited:'邀約', submitting:'送件中', approved:'核准', closed:'結案',
+    pendingGuarantor:'待補保人', rejected:'無法承作', lost:'失聯',
+    monthlyLeads:'本月名單', monthlyClose:'本月成交', pendingFollow:'待跟進',
+  },
+  en: {
+    dash:'Dashboard', leads:'Clients', addLead:'Add Client',
+    broker:'Loan Broker', carDealer:'Car Dealer', carFinance:'Car Finance', pawn:'Private Lending',
+    newLead:'New', invited:'Contacted', submitting:'Submitted', approved:'Approved', closed:'Closed',
+    pendingGuarantor:'Need Guarantor', rejected:'Rejected', lost:'Lost',
+    monthlyLeads:'Monthly Leads', monthlyClose:'Monthly Closed', pendingFollow:'Follow Up',
+  }
+};
+function t(key) { return (I18N[LANG]&&I18N[LANG][key]) || (I18N.zh[key]) || key; }
+function toggleLang() {
+  LANG = LANG==='zh'?'en':'zh';
+  localStorage.setItem('guwen_lang', LANG);
+  var lb = document.getElementById('lang-btn');
+  if (lb) lb.textContent = LANG==='zh'?'🌐 EN':'🌐 中';
+  if (typeof currentNav!=='undefined'&&currentNav) navTo(currentNav,null);
+}
+
 // ══════════════════════════════
 // 狀態
 // ══════════════════════════════
@@ -509,6 +537,58 @@ let currentMember = null;
 let currentNav = 'dash';
 let leads = [];
 let termsAgreed = true;
+
+// ══════════════════════════════
+// 🌐 多語言系統
+// ══════════════════════════════
+var currentLang = localStorage.getItem('guwen_lang') || 'zh';
+var i18n = {
+  zh: {
+    dashboard: '儀表板', customers: '客戶名單', addCustomer: '新增客戶資料',
+    broker: '貸款仲介', carDealer: '中古車商', carFinance: '融資車貸', pawn: '民間借款',
+    review: '照會生成', connections: '對接管理', notifications: '通知中心',
+    calendar: '行事曆', finance: '收支理財工具', team: '團隊管理',
+    calc: '貸款試算', antifraud: '詐騙辨識', settings: '帳號設定',
+    newLead: '新名單', invited: '邀約', submitting: '送件中', approved: '核准',
+    closed: '結案', rejected: '無法承作', lost: '失聯',
+    save: '儲存', cancel: '取消', confirm: '確認', delete: '刪除',
+    search: '搜尋客戶', exportCSV: '匯出 CSV', addClient: '+ 新增客戶',
+    monthlyIncome: '月收入', salary: '月薪', workType: '工作狀況',
+    bankCredit: '銀行信貸', carLoan: '汽車貸款', bikeLoan: '機車貸款',
+    phoneLoan: '手機商品貸', pawnLoan: '當鋪出款', propertyLoan: '不動產抵押',
+  },
+  en: {
+    dashboard: 'Dashboard', customers: 'Customers', addCustomer: 'Add Customer',
+    broker: 'Loan Broker', carDealer: 'Car Dealer', carFinance: 'Car Finance', pawn: 'Private Lending',
+    review: 'Referral Form', connections: 'Connections', notifications: 'Notifications',
+    calendar: 'Calendar', finance: 'Finance', team: 'Team',
+    calc: 'Loan Calculator', antifraud: 'Fraud Detection', settings: 'Settings',
+    newLead: 'New', invited: 'Invited', submitting: 'Submitting', approved: 'Approved',
+    closed: 'Closed', rejected: 'Rejected', lost: 'Lost',
+    save: 'Save', cancel: 'Cancel', confirm: 'Confirm', delete: 'Delete',
+    search: 'Search clients', exportCSV: 'Export CSV', addClient: '+ Add Client',
+    monthlyIncome: 'Monthly Income', salary: 'Salary', workType: 'Employment',
+    bankCredit: 'Bank Credit', carLoan: 'Car Loan', bikeLoan: 'Bike Loan',
+    phoneLoan: 'Phone Loan', pawnLoan: 'Pawn Loan', propertyLoan: 'Property Loan',
+  }
+};
+function t(key) { return (i18n[currentLang] && i18n[currentLang][key]) || (i18n.zh[key]) || key; }
+function setLang(lang) {
+  currentLang = lang;
+  localStorage.setItem('guwen_lang', lang);
+  // 更新側欄標籤
+  updateSidebarLang();
+  // 重新渲染當前頁
+  navTo(currentNav, null);
+}
+function updateSidebarLang() {
+  var isEn = currentLang === 'en';
+  document.querySelectorAll('.ds-lbl').forEach(function(el, i) {
+    var labels_zh = ['客戶管理','業務模組','行程與財務','其他工具','系統設定'];
+    var labels_en = ['Clients','Business','Schedule & Finance','Tools','System'];
+    if (labels_zh[i]) el.textContent = isEn ? labels_en[i] : labels_zh[i];
+  });
+}
 
 // 評分規則（可自訂）
 let scoreRules = {
@@ -1688,15 +1768,43 @@ async function renderLeads() {
     var r = await sb.from('leads').select('*').eq('member_id', currentUser.id).order('created_at', { ascending: false });
     leads = r.data || [];
   }
-  var html = '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">';
+  var html = '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px">';
   html += '<div style="font-size:16px;font-weight:600">客戶名單 <span class="badge b-gray">' + leads.length + '筆</span></div>';
-  html += '<button class="btn-sm" onclick="navTo(\'add-lead\',null)">+ 新增客戶</button></div>';
+  html += '<div style="display:flex;gap:6px">';
+  html += '<button onclick="exportLeadsCSV()" style="padding:6px 12px;border-radius:7px;border:0.5px solid var(--bdr2);background:transparent;color:var(--t1);cursor:pointer;font-family:var(--sans);font-size:13px">📊 匯出 CSV</button>';
+  html += '<button class="btn-sm" onclick="navTo(\'add-lead\',null)">+ 新增客戶</button>';
+  html += '</div></div>';
   if (leads.length === 0) {
     html += '<div class="card" style="text-align:center;padding:30px;color:var(--t2)"><div style="font-size:30px;margin-bottom:10px">👥</div>還沒有客戶名單</div>';
   } else {
     leads.forEach(function(l) { html += buildLeadItem(l, true); });
   }
   el.innerHTML = html;
+}
+
+function exportLeadsCSV() {
+  var headers = ['姓名','電話','年齡','工作','月薪','薪轉','信用卡','銀行婉拒','融資婉拒','遲繳天數','警示狀況','居住地址','居住狀況','需求資金','資金用途','案件進度','建立時間'];
+  var housingMap = {self_own:'自有',self_live:'自住',family:'親屬',rent:'租屋',other:'其他'};
+  var rows = leads.map(function(l) {
+    return [
+      l.name||'', l.phone||'', l.age||'', l.work_type||'',
+      l.monthly_salary||'', l.has_salary_transfer?'有':'無',
+      l.credit_card_age||'', l.bank_reject_count||0, l.fin_reject_count||0,
+      l.late_pay_days||0, l.alert_status==='none'?'無':l.alert_status||'',
+      (l.address||'').replace(/,/g,'，'), housingMap[l.housing_status]||'',
+      l.required_amount||'', l.fund_purpose||'',
+      statusText(l.status),
+      l.created_at?new Date(l.created_at).toLocaleDateString('zh-TW'):''
+    ].map(function(v){ return '"'+String(v).replace(/"/g,'""')+'"'; }).join(',');
+  });
+  var csv = '\uFEFF' + headers.map(function(h){ return '"'+h+'"'; }).join(',') + '\n' + rows.join('\n');
+  var blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement('a');
+  a.href = url;
+  a.download = '客戶名單_' + new Date().toLocaleDateString('zh-TW').replace(/\//g,'-') + '.csv';
+  a.click();
+  URL.revokeObjectURL(url);
 }
 
 // ══════════════════════════════
@@ -1997,6 +2105,7 @@ function showLeadDetail(id) {
   html += '<span style="font-size:16px;font-weight:600">' + lead.name + ' · 完整資料</span>';
   html += '<div style="margin-left:auto;display:flex;gap:6px;flex-wrap:wrap">';
   html += '<button id="referral-btn-' + id + '" class="btn-sm" style="border-color:var(--blu);color:var(--blu)">🤝 轉介</button>';
+  html += '<button onclick="shareScoreToLine(\'' + id + '\')" class="btn-sm" style="border-color:#06C755;color:#06C755">📊 分享評估</button>';
   html += '<button class="btn-sm" onclick="shareLeadLine(\'' + id + '\')">LINE</button>';
   html += '<button class="btn-grn" onclick="exportLeadPDF(\'' + id + '\')">📄 PDF</button>';
   html += '</div></div>';
@@ -3509,8 +3618,8 @@ function renderFinance() {
     return '<span style="color:'+(v>=0?'var(--grn)':'var(--red)')+'\">'+(v>=0?'▲':'▼')+Math.abs(v)+'%</span>';
   }
 
-  var tabs = ['overview','business','expenses','income','remind'].map(function(t) {
-    var label = {overview:'📊 本月總覽', business:'💼 業務收入', expenses:'💸 支出管理', income:'💰 收入設定', remind:'🔔 繳款提醒'}[t];
+  var tabs = ['overview','business','expenses','income','billing','remind'].map(function(t) {
+    var label = {overview:'📊 本月總覽', business:'💼 業務收入', expenses:'💸 支出管理', income:'💰 收入設定', billing:'🧾 帳單記錄', remind:'🔔 繳款提醒'}[t];
     var on = financeTab===t;
     return '<button onclick="financeTab=\'' + t + '\';renderFinance()" style="padding:7px 14px;border-radius:20px;font-size:14px;cursor:pointer;border:0.5px solid '+(on?'var(--acc)':'var(--bdr2)')+';background:'+(on?'var(--al)':'transparent')+';color:'+(on?'var(--acc)':'var(--t1)')+';font-family:var(--sans)">' + label + '</button>';
   }).join('');
@@ -4020,6 +4129,69 @@ function renderFinance() {
     content += '</div></div>';
 
   // ──────────────────────────────────
+  } else if (financeTab === 'billing') {
+
+    // 帳單/收費記錄
+    var billings = JSON.parse(localStorage.getItem('guwen_billings') || '[]');
+    content += '<div class="card">';
+    content += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:6px">';
+    content += '<div class="ct" style="margin-bottom:0">🧾 帳單記錄</div>';
+    content += '<div style="display:flex;gap:6px">';
+    content += '<button id="export-billing-btn" style="padding:5px 10px;border-radius:7px;border:0.5px solid var(--bdr2);background:transparent;color:var(--t1);cursor:pointer;font-family:var(--sans);font-size:12px">📊 匯出</button>';
+    content += '<button id="line-billing-btn" style="padding:5px 10px;border-radius:7px;border:none;background:#06C755;color:#FFF;cursor:pointer;font-family:var(--sans);font-size:12px;font-weight:600">📱 LINE</button>';
+    content += '<button class="btn-p" id="add-billing-btn" style="font-size:13px;padding:6px 14px">+ 新增帳單</button>';
+    content += '</div></div>';
+
+    // 新增帳單表單
+    content += '<div id="billing-form" style="display:none;background:var(--inp);border-radius:10px;padding:14px;margin-bottom:12px">';
+    content += '<div style="font-size:14px;font-weight:600;margin-bottom:10px">新增帳單</div>';
+    content += '<div class="frow"><div class="flbl">客戶姓名</div>';
+    content += '<select class="fi" id="billing-lead">';
+    content += '<option value="">— 選擇客戶（可空白）—</option>';
+    leads.forEach(function(l){ content += '<option value="'+l.id+'" data-name="'+(l.name||'')+'">'+(l.name||'—')+'</option>'; });
+    content += '</select></div>';
+    content += '<div class="frow2" style="margin-top:6px"><div class="frow"><div class="flbl">服務項目</div><input class="fi" id="billing-item" placeholder="貸款仲介服務費"></div>';
+    content += '<div class="frow"><div class="flbl">金額（元）</div><input class="fi" id="billing-amt" type="number" placeholder="0"></div></div>';
+    content += '<div class="frow2" style="margin-top:6px"><div class="frow"><div class="flbl">日期</div><input class="fi" id="billing-date" type="date" value="'+new Date().toISOString().split('T')[0]+'"></div>';
+    content += '<div class="frow"><div class="flbl">狀態</div><select class="fi" id="billing-status"><option value="paid">已收款</option><option value="pending">待收款</option><option value="cancelled">取消</option></select></div></div>';
+    content += '<div class="frow" style="margin-top:6px"><div class="flbl">備註</div><input class="fi" id="billing-note" placeholder="其他說明"></div>';
+    content += '<div style="display:flex;gap:8px;margin-top:10px">';
+    content += '<button class="btn-sm" id="billing-cancel">取消</button>';
+    content += '<button class="btn-p" id="billing-save" style="flex:1">儲存</button>';
+    content += '</div></div>';
+
+    // 統計
+    var totalPaid = billings.filter(function(b){return b.status==='paid';}).reduce(function(s,b){return s+(b.amount||0);},0);
+    var totalPending = billings.filter(function(b){return b.status==='pending';}).reduce(function(s,b){return s+(b.amount||0);},0);
+    content += '<div style="display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:12px">';
+    content += '<div style="background:var(--gl);border-radius:8px;padding:10px;text-align:center"><div style="font-size:12px;color:var(--t2)">已收款合計</div><div style="font-size:18px;font-weight:700;color:var(--grn)">$'+totalPaid.toLocaleString()+'</div></div>';
+    content += '<div style="background:var(--yl);border-radius:8px;padding:10px;text-align:center"><div style="font-size:12px;color:var(--t2)">待收款合計</div><div style="font-size:18px;font-weight:700;color:var(--yel)">$'+totalPending.toLocaleString()+'</div></div>';
+    content += '</div>';
+
+    // 帳單列表
+    if (billings.length === 0) {
+      content += '<div style="text-align:center;padding:16px;color:var(--t2)">尚無帳單記錄</div>';
+    } else {
+      var statusLabel = {paid:'✅ 已收款', pending:'⏳ 待收款', cancelled:'❌ 取消'};
+      var statusCol = {paid:'var(--grn)', pending:'var(--yel)', cancelled:'var(--t3)'};
+      billings.slice().reverse().forEach(function(b, ri) {
+        var realIdx = billings.length - 1 - ri;
+        content += '<div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:0.5px solid var(--bdr)">';
+        content += '<div style="flex:1">';
+        content += '<div style="font-size:14px;font-weight:500">'+(b.leadName?b.leadName+' · ':'')+b.item+'</div>';
+        content += '<div style="font-size:12px;color:var(--t2)">'+b.date+(b.note?' · '+b.note:'')+'</div>';
+        content += '</div>';
+        content += '<div style="text-align:right">';
+        content += '<div style="font-size:15px;font-weight:600;color:'+(statusCol[b.status]||'var(--t1)')+'">$'+(b.amount||0).toLocaleString()+'</div>';
+        content += '<div style="font-size:12px;color:'+(statusCol[b.status]||'var(--t2)')+'">'+statusLabel[b.status]+'</div>';
+        content += '</div>';
+        content += '<button id="del-billing-'+realIdx+'" style="font-size:12px;padding:3px 7px;border-radius:5px;border:0.5px solid rgba(192,64,48,.3);background:transparent;color:var(--red);cursor:pointer;font-family:var(--sans)">✕</button>';
+        content += '</div>';
+      });
+    }
+    content += '</div>';
+
+  // ──────────────────────────────────
   } else { // remind
 
     // 固定費用提醒
@@ -4099,6 +4271,78 @@ function renderFinance() {
   var contentDiv = document.createElement('div');
   contentDiv.innerHTML = content;
   el.appendChild(contentDiv);
+
+  // 帳單 Tab 的按鈕綁定
+  if (financeTab === 'billing') {
+    var addBillingBtn = document.getElementById('add-billing-btn');
+    var billingForm = document.getElementById('billing-form');
+    var billingCancel = document.getElementById('billing-cancel');
+    var billingSave = document.getElementById('billing-save');
+    if (addBillingBtn) addBillingBtn.onclick = function(){ if(billingForm) billingForm.style.display = billingForm.style.display==='none'?'block':'none'; };
+    if (billingCancel) billingCancel.onclick = function(){ if(billingForm) billingForm.style.display='none'; };
+    if (billingSave) billingSave.onclick = function() {
+      var leadSel = document.getElementById('billing-lead');
+      var leadName = leadSel && leadSel.value ? (leadSel.options[leadSel.selectedIndex].dataset.name||'') : '';
+      var item = document.getElementById('billing-item') ? document.getElementById('billing-item').value.trim() : '';
+      var amt = parseInt(document.getElementById('billing-amt') ? document.getElementById('billing-amt').value : 0) || 0;
+      var date = document.getElementById('billing-date') ? document.getElementById('billing-date').value : '';
+      var status = document.getElementById('billing-status') ? document.getElementById('billing-status').value : 'paid';
+      var note = document.getElementById('billing-note') ? document.getElementById('billing-note').value.trim() : '';
+      if (!item) { alert('請填寫服務項目'); return; }
+      var billings = JSON.parse(localStorage.getItem('guwen_billings') || '[]');
+      billings.push({ leadName: leadName, item: item, amount: amt, date: date, status: status, note: note, id: Date.now() });
+      localStorage.setItem('guwen_billings', JSON.stringify(billings));
+      renderFinance();
+    };
+    // 刪除帳單按鈕
+    var billings2 = JSON.parse(localStorage.getItem('guwen_billings') || '[]');
+    billings2.forEach(function(b, idx) {
+      var delBtn = document.getElementById('del-billing-' + idx);
+      if (delBtn) delBtn.onclick = function() {
+        if (!confirm('確定刪除此帳單？')) return;
+        var bs = JSON.parse(localStorage.getItem('guwen_billings') || '[]');
+        bs.splice(idx, 1);
+        localStorage.setItem('guwen_billings', JSON.stringify(bs));
+        renderFinance();
+      };
+    });
+    // 匯出 CSV
+    var exportBillingBtn = document.getElementById('export-billing-btn');
+    if (exportBillingBtn) exportBillingBtn.onclick = function() {
+      var bs = JSON.parse(localStorage.getItem('guwen_billings') || '[]');
+      if (bs.length === 0) { alert('尚無帳單可匯出'); return; }
+      var headers = ['客戶', '服務項目', '金額', '日期', '狀態', '備註'];
+      var statusMap = {paid:'已收款', pending:'待收款', cancelled:'取消'};
+      var rows = bs.map(function(b) {
+        return [b.leadName||'', b.item||'', b.amount||0, b.date||'', statusMap[b.status]||b.status, b.note||'']
+          .map(function(v){ return '"'+String(v).replace(/"/g,'""')+'"'; }).join(',');
+      });
+      var csv = '\uFEFF' + headers.map(function(h){ return '"'+h+'"'; }).join(',') + '\n' + rows.join('\n');
+      var blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement('a');
+      a.href = url; a.download = '帳單記錄_'+new Date().toLocaleDateString('zh-TW').replace(/\//g,'-')+'.csv';
+      a.click(); URL.revokeObjectURL(url);
+    };
+    // LINE 分享帳單
+    var lineBillingBtn = document.getElementById('line-billing-btn');
+    if (lineBillingBtn) lineBillingBtn.onclick = function() {
+      var bs = JSON.parse(localStorage.getItem('guwen_billings') || '[]');
+      var pending = bs.filter(function(b){ return b.status==='pending'; });
+      if (pending.length === 0) { alert('目前沒有待收款的帳單'); return; }
+      var lines = ['═══════════════════', '🧾 帳單通知', '═══════════════════'];
+      pending.forEach(function(b) {
+        lines.push((b.leadName?b.leadName+' · ':'')+b.item);
+        lines.push('金額：$'+(b.amount||0).toLocaleString()+'  日期：'+b.date);
+        if (b.note) lines.push('備註：'+b.note);
+        lines.push('');
+      });
+      var total = pending.reduce(function(s,b){return s+(b.amount||0);},0);
+      lines.push('待收款合計：$'+total.toLocaleString());
+      lines.push('═══════════════════');
+      window.open('https://line.me/R/share?text='+encodeURIComponent(lines.join('\n')),'_blank');
+    };
+  }
 }
 
 var finSettings = { revenuePerDeal: 20000 };
@@ -5771,6 +6015,37 @@ function renderSettings() {
   html += '<div id="qr-container" style="display:none;margin-top:12px;text-align:center"></div>';
   html += '</div>';
 
+  // 語言設定
+  html += '<div class="card">';
+  html += '<div class="ct">🌐 語言設定</div>';
+  html += '<div style="display:flex;gap:8px">';
+  html += '<button onclick="setLang(\'zh\')" style="flex:1;padding:10px;border-radius:9px;font-size:14px;font-family:var(--sans);cursor:pointer;border:0.5px solid '+(currentLang==='zh'?'var(--acc)':'var(--bdr2)')+';background:'+(currentLang==='zh'?'var(--al)':'transparent')+';color:'+(currentLang==='zh'?'var(--acc)':'var(--t1)')+'">🇹🇼 繁體中文</button>';
+  html += '<button onclick="setLang(\'en\')" style="flex:1;padding:10px;border-radius:9px;font-size:14px;font-family:var(--sans);cursor:pointer;border:0.5px solid '+(currentLang==='en'?'var(--acc)':'var(--bdr2)')+';background:'+(currentLang==='en'?'var(--al)':'transparent')+';color:'+(currentLang==='en'?'var(--acc)':'var(--t1)')+'">🇺🇸 English</button>';
+  html += '</div></div>';
+
+  // 業務身份
+  var myRoles = (currentMember && currentMember.business_roles) || [];
+  var roleDefs = [
+    {key:'broker',     label:'💼 貸款仲介', desc:'協助客戶媒合貸款方案'},
+    {key:'car-dealer', label:'🚙 中古車商', desc:'銷售中古車輛'},
+    {key:'car-finance',label:'🚗 融資車貸', desc:'車輛貸款融資業務'},
+    {key:'pawn',       label:'🏛 民間借款', desc:'民間借貸/當鋪業務'},
+  ];
+  html += '<div class="card">';
+  html += '<div class="ct">業務身份設定</div>';
+  html += '<div style="font-size:13px;color:var(--t2);margin-bottom:10px">選擇您的業務類型，側欄會優先顯示相關模組</div>';
+  html += '<div style="display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:12px">';
+  roleDefs.forEach(function(r) {
+    var on = myRoles.indexOf(r.key) >= 0;
+    html += '<label style="display:flex;align-items:flex-start;gap:8px;padding:10px;background:'+(on?'var(--al)':'var(--inp)')+';border:0.5px solid '+(on?'var(--acc)':'var(--bdr2)')+';border-radius:10px;cursor:pointer">';
+    html += '<input type="checkbox" data-role="'+r.key+'" '+(on?'checked':'')+' style="accent-color:var(--acc);margin-top:2px;width:16px;height:16px">';
+    html += '<div><div style="font-size:14px;font-weight:600">'+r.label+'</div><div style="font-size:12px;color:var(--t2)">'+r.desc+'</div></div>';
+    html += '</label>';
+  });
+  html += '</div>';
+  html += '<button id="save-roles-btn" class="btn-p">儲存業務身份</button>';
+  html += '</div>';
+
   // 帳號資訊
   html += '<div class="card">';
   html += '<div class="ct">帳號資訊</div>';
@@ -5849,9 +6124,18 @@ function renderSettings() {
   html += '</div>';
 
   el.innerHTML = html;
-}
 
-var currentBilling = 'monthly';
+  // 業務身份儲存
+  var saveRolesBtn = el.querySelector('#save-roles-btn');
+  if (saveRolesBtn) saveRolesBtn.onclick = async function() {
+    var newRoles = [];
+    el.querySelectorAll('[data-role]:checked').forEach(function(cb){ newRoles.push(cb.dataset.role); });
+    await sb.from('members').update({business_roles: newRoles}).eq('id', currentUser.id);
+    if (currentMember) currentMember.business_roles = newRoles;
+    this.textContent = '✓ 已儲存';
+    setTimeout(function(){ if(saveRolesBtn) saveRolesBtn.textContent = '儲存業務身份'; }, 2000);
+  };
+}
 function setBilling(type) {
   currentBilling = type;
   var isYear = type === 'yearly';
@@ -8630,6 +8914,38 @@ function shareReviewToLine(text) {
 // ══════════════════════════════
 // 📄 PDF 輸出
 // ══════════════════════════════
+function shareScoreToLine(leadId) {
+  var lead = leads.find(function(l){ return l.id === leadId; });
+  if (!lead) return;
+  var scores = calcScores(lead);
+  var scoreItems = [
+    ['銀行信貸', scores.bank, scores.bankBlocked],
+    ['汽車貸款', scores.car, scores.carBlocked],
+    ['機車貸款', scores.bike, false],
+    ['手機商品貸', scores.phone, false],
+  ];
+  var lines = [
+    '═══════════════════════',
+    '📊 AI 貸款評估報告',
+    '═══════════════════════',
+    '姓名：' + (lead.name||'—'),
+    '需求資金：' + (lead.required_amount?'$'+lead.required_amount.toLocaleString():'未填'),
+    '資金用途：' + (lead.fund_purpose||'未填'),
+    '───────────────────────',
+    '評估機率',
+  ];
+  scoreItems.forEach(function(s) {
+    var bar = s[2] ? '■■■■■ 封鎖' : '█'.repeat(Math.round(s[1]/10)) + '░'.repeat(10-Math.round(s[1]/10)) + ' ' + s[1] + '%';
+    lines.push(s[0] + '：' + bar);
+  });
+  lines.push('───────────────────────');
+  if (lead.monthly_salary) lines.push('月薪：$' + lead.monthly_salary.toLocaleString() + (lead.has_salary_transfer?' （有薪轉）':' （無薪轉）'));
+  if (lead.credit_card_age) lines.push('信用卡：' + lead.credit_card_age);
+  lines.push('═══════════════════════');
+  lines.push('由 顧問PRO 系統產生 · ' + new Date().toLocaleDateString('zh-TW'));
+  window.open('https://line.me/R/share?text=' + encodeURIComponent(lines.join('\n')), '_blank');
+}
+
 function exportLeadPDF(leadId) {
   var lead = leads.find(function(l){ return l.id === leadId; });
   if (!lead) return;
@@ -8985,6 +9301,40 @@ function renderCalc() {
   html += '<div style="font-size:15px;color:var(--t2);margin-bottom:6px">每月應繳</div>';
   html += '<div style="font-size:36px;font-weight:700;color:var(--acc)" id="calc-monthly">—</div></div>';
   html += '<div id="calc-detail" style="margin-top:12px"></div></div>';
+
+  // 多家銀行利率比較
+  var banks = [
+    {name:'玉山銀行', minRate:2.88, maxRate:15.0, type:'信貸'},
+    {name:'國泰世華', minRate:3.26, maxRate:14.99, type:'信貸'},
+    {name:'台新銀行', minRate:3.49, maxRate:15.0, type:'信貸'},
+    {name:'中信銀行', minRate:2.99, maxRate:14.99, type:'信貸'},
+    {name:'滙豐銀行', minRate:4.2, maxRate:12.0, type:'信貸'},
+    {name:'和潤企業', minRate:4.5, maxRate:20.0, type:'車貸'},
+    {name:'裕融企業', minRate:5.0, maxRate:20.0, type:'車貸'},
+    {name:'中租', minRate:5.5, maxRate:20.0, type:'車貸'},
+  ];
+  html += '<div class="card"><div class="ct">📊 各銀行利率比較</div>';
+  html += '<div style="font-size:12px;color:var(--t2);margin-bottom:10px">⚠️ 利率僅供參考，實際依各銀行核定為準</div>';
+  html += '<table style="width:100%;border-collapse:collapse;font-size:13px">';
+  html += '<tr style="color:var(--t3);font-size:12px;border-bottom:0.5px solid var(--bdr)">';
+  ['機構', '類型', '利率區間', '月付（3年/50萬）'].forEach(function(h2) {
+    html += '<th style="padding:6px 4px;text-align:left;font-weight:400">'+h2+'</th>';
+  });
+  html += '</tr>';
+  banks.forEach(function(b) {
+    var mr = b.minRate/100/12;
+    var n = 36;
+    var pmt = Math.round(500000 * mr * Math.pow(1+mr,n) / (Math.pow(1+mr,n)-1));
+    var col = b.type==='信貸'?'var(--blu)':'var(--acc)';
+    html += '<tr style="border-bottom:0.5px solid var(--bdr)">';
+    html += '<td style="padding:8px 4px;font-weight:500">'+b.name+'</td>';
+    html += '<td style="padding:8px 4px"><span style="font-size:11px;padding:2px 6px;border-radius:10px;background:var(--inp);color:'+col+'">'+b.type+'</span></td>';
+    html += '<td style="padding:8px 4px">'+b.minRate+'%~'+b.maxRate+'%</td>';
+    html += '<td style="padding:8px 4px;font-weight:600;color:var(--grn)">$'+pmt.toLocaleString()+'</td>';
+    html += '</tr>';
+  });
+  html += '</table></div>';
+
   el.innerHTML = html;
   calcLoan();
 }
