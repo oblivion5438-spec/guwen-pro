@@ -1423,7 +1423,35 @@ function navTo(key, el) {
     'monthly-report': renderMonthlyReport,
     'upgrade': renderUpgrade
   };
-  if (renders[key]) renders[key]();
+  if (renders[key]) {
+    try {
+      var result = renders[key]();
+      // 如果是 Promise（async function），加入錯誤處理
+      if (result && typeof result.catch === 'function') {
+        result.catch(function(err) {
+          var el = document.getElementById('member-content');
+          if (el && el.innerHTML.indexOf('載入') >= 0) {
+            el.innerHTML =
+              '<div style="text-align:center;padding:40px;color:var(--t2)">' +
+              '<div style="font-size:36px;margin-bottom:10px">⚠️</div>' +
+              '<div style="font-size:15px;color:var(--t1);margin-bottom:8px">載入失敗</div>' +
+              '<div style="font-size:12px;color:var(--t3);margin-bottom:14px">' + (err.message||'請檢查網路連線') + '</div>' +
+              '<button onclick="navTo(\''+key+'\',null)" style="padding:9px 20px;background:var(--acc);color:#FFF;border:none;border-radius:8px;cursor:pointer;font-family:var(--sans);font-size:14px">🔄 重新載入</button>' +
+              '</div>';
+          }
+        });
+      }
+    } catch(err) {
+      var el2 = document.getElementById('member-content');
+      if (el2) el2.innerHTML =
+        '<div style="text-align:center;padding:40px;color:var(--t2)">' +
+        '<div style="font-size:36px;margin-bottom:10px">⚠️</div>' +
+        '<div style="font-size:15px;color:var(--t1);margin-bottom:8px">頁面錯誤</div>' +
+        '<div style="font-size:12px;color:var(--t3);margin-bottom:14px">' + (err.message||'') + '</div>' +
+        '<button onclick="navTo(\''+key+'\',null)" style="padding:9px 20px;background:var(--acc);color:#FFF;border:none;border-radius:8px;cursor:pointer;font-family:var(--sans);font-size:14px">🔄 重新載入</button>' +
+        '</div>';
+    }
+  }
 }
 
 function showMoreMenu() {
@@ -1750,22 +1778,27 @@ async function renderDash() {
 // ══════════════════════════════
 async function renderLeads() {
   var el = document.getElementById('member-content');
-  if (leads.length === 0) {
-    var r = await sb.from('leads').select('*').eq('member_id', currentUser.id).order('created_at', { ascending: false });
-    leads = r.data || [];
+  try {
+    if (leads.length === 0) {
+      var r = await sb.from('leads').select('*').eq('member_id', currentUser.id).order('created_at', { ascending: false });
+      if (r.error) throw new Error(r.error.message);
+      leads = r.data || [];
+    }
+    var html = '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px">';
+    html += '<div style="font-size:16px;font-weight:600">客戶名單 <span class="badge b-gray">' + leads.length + '筆</span></div>';
+    html += '<div style="display:flex;gap:6px">';
+    html += '<button onclick="exportLeadsCSV()" style="padding:6px 12px;border-radius:7px;border:0.5px solid var(--bdr2);background:transparent;color:var(--t1);cursor:pointer;font-family:var(--sans);font-size:13px">📊 匯出 CSV</button>';
+    html += '<button class="btn-sm" onclick="navTo(\'add-lead\',null)">+ 新增客戶</button>';
+    html += '</div></div>';
+    if (leads.length === 0) {
+      html += '<div class="card" style="text-align:center;padding:30px;color:var(--t2)"><div style="font-size:30px;margin-bottom:10px">👥</div>還沒有客戶名單</div>';
+    } else {
+      leads.forEach(function(l) { html += buildLeadItem(l, true); });
+    }
+    el.innerHTML = html;
+  } catch(err) {
+    el.innerHTML = '<div style="text-align:center;padding:40px;color:var(--t2)"><div style="font-size:36px;margin-bottom:10px">⚠️</div><div style="font-size:15px;color:var(--t1);margin-bottom:8px">載入失敗</div><div style="font-size:12px;color:var(--t3);margin-bottom:14px">'+err.message+'</div><button onclick="leads=[];renderLeads()" style="padding:9px 20px;background:var(--acc);color:#FFF;border:none;border-radius:8px;cursor:pointer;font-family:var(--sans)">🔄 重試</button></div>';
   }
-  var html = '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px">';
-  html += '<div style="font-size:16px;font-weight:600">客戶名單 <span class="badge b-gray">' + leads.length + '筆</span></div>';
-  html += '<div style="display:flex;gap:6px">';
-  html += '<button onclick="exportLeadsCSV()" style="padding:6px 12px;border-radius:7px;border:0.5px solid var(--bdr2);background:transparent;color:var(--t1);cursor:pointer;font-family:var(--sans);font-size:13px">📊 匯出 CSV</button>';
-  html += '<button class="btn-sm" onclick="navTo(\'add-lead\',null)">+ 新增客戶</button>';
-  html += '</div></div>';
-  if (leads.length === 0) {
-    html += '<div class="card" style="text-align:center;padding:30px;color:var(--t2)"><div style="font-size:30px;margin-bottom:10px">👥</div>還沒有客戶名單</div>';
-  } else {
-    leads.forEach(function(l) { html += buildLeadItem(l, true); });
-  }
-  el.innerHTML = html;
 }
 
 function exportLeadsCSV() {
@@ -6407,6 +6440,23 @@ function generateMonthlyReport(year, month) {
 // PayPal 設定
 // ══════════════════════════════
 var PAYPAL_CLIENT_ID = 'AcefH-W4SjcpaZRJiqb2iKN0xPRpMTU-lbaRUTxw6YdPeoToIRtTu14UuTkPlkrsgyaYqzjSq1xj3R8r';
+
+// ── 全域錯誤攔截：避免頁面卡在「載入中」──
+window.addEventListener('unhandledrejection', function(e) {
+  var el = document.getElementById('member-content');
+  if (!el) return;
+  // 只有在顯示「載入中」時才覆蓋
+  if (el.innerHTML.indexOf('載入中') >= 0) {
+    var msg = e.reason && e.reason.message ? e.reason.message : '未知錯誤';
+    el.innerHTML =
+      '<div style="text-align:center;padding:40px;color:var(--t2)">' +
+      '<div style="font-size:40px;margin-bottom:12px">⚠️</div>' +
+      '<div style="font-size:16px;font-weight:600;margin-bottom:8px;color:var(--t1)">載入失敗</div>' +
+      '<div style="font-size:13px;color:var(--t3);margin-bottom:16px">' + msg + '</div>' +
+      '<button onclick="navTo(currentNav,null)" style="padding:10px 24px;background:var(--acc);color:#FFF;border:none;border-radius:9px;font-size:14px;cursor:pointer;font-family:var(--sans)">🔄 重新載入</button>' +
+      '</div>';
+  }
+});
 var PAYPAL_PLANS = {
   pro:  'P-1UC818766X061423KNHVDPKQ',
   team: 'P-11E9793232082793SNHVDUUY'
