@@ -1945,7 +1945,16 @@ function showLeadDetail(id) {
 
   // 新增結案項目按鈕
   var addClosingBtn = document.getElementById('add-closing-btn-' + id);
-  if (addClosingBtn) addClosingBtn.onclick = function(){ showAddClosingModal(id); };
+  if (addClosingBtn) addClosingBtn.onclick = function() {
+    this.textContent = '⏳ 開啟中...';
+    this.disabled = true;
+    var self = this;
+    setTimeout(function(){
+      showAddClosingModal(id);
+      self.textContent = '+ 新增結案項目';
+      self.disabled = false;
+    }, 0);
+  };
 
   // 載入並渲染結案項目
   loadAndRenderClosings(id);
@@ -2279,6 +2288,9 @@ function renderClosingList(leadId) {
       if (totalLoan) {
         var space = item.prop_valuation ? item.prop_valuation - totalLoan : 0;
         h += '<div style="font-size:13px;color:var(--t2);margin-bottom:3px">胎貸合計：$'+totalLoan.toLocaleString() + (space>0?' · 剩餘空間：<span style="color:var(--grn)">$'+space.toLocaleString()+'</span>':'') + '</div>';
+        if (item.prop_loan1 && item.prop_loan1_who) h += '<div style="font-size:12px;color:var(--t3)">一胎：'+item.prop_loan1_who+' $'+item.prop_loan1.toLocaleString()+'</div>';
+        if (item.prop_loan2 && item.prop_loan2_who) h += '<div style="font-size:12px;color:var(--t3)">二胎：'+item.prop_loan2_who+' $'+item.prop_loan2.toLocaleString()+'</div>';
+        if (item.prop_loan3 && item.prop_loan3_who) h += '<div style="font-size:12px;color:var(--t3)">三胎：'+item.prop_loan3_who+' $'+item.prop_loan3.toLocaleString()+'</div>';
       }
       var regs = item.prop_other_reg || [];
       if (regs.length > 0) h += '<div style="font-size:12px;color:var(--yel);margin-bottom:3px">⚠️ ' + regs.map(function(r){return (r.type==='pretitle'?'預告登記':'信託')+(r.name?' ('+r.name+')':'');}).join('、') + '</div>';
@@ -2421,10 +2433,21 @@ function showAddClosingModal(leadId, editItem) {
   h += '<div class="sl">不動產估價</div>';
   h += '<div class="frow"><div class="flbl">不動產估價（元）</div><input class="fi" id="cl-prop-val" type="number" value="'+(item.prop_valuation||'')+'" placeholder="0" oninput="updatePropCalc()"></div>';
   h += '<div class="sl">各胎結清金額</div>';
-  h += '<div class="frow2"><div class="frow"><div class="flbl">一胎結清（元）</div><input class="fi" id="cl-prop-l1" type="number" value="'+(item.prop_loan1||'')+'" placeholder="0" oninput="updatePropCalc()"></div>';
-  h += '<div class="frow"><div class="flbl">二胎結清（元）</div><input class="fi" id="cl-prop-l2" type="number" value="'+(item.prop_loan2||'')+'" placeholder="0" oninput="updatePropCalc()"></div></div>';
-  h += '<div class="frow2" style="margin-top:6px"><div class="frow"><div class="flbl">三胎結清（元）</div><input class="fi" id="cl-prop-l3" type="number" value="'+(item.prop_loan3||'')+'" placeholder="0" oninput="updatePropCalc()"></div>';
-  h += '<div class="frow"></div></div>';
+  h += '<div style="background:var(--inp);border-radius:8px;padding:10px;margin-bottom:6px">';
+  h += '<div style="font-size:13px;font-weight:500;color:var(--t2);margin-bottom:6px">一胎</div>';
+  h += '<div class="frow2"><div class="frow"><div class="flbl">借款方</div><input class="fi" id="cl-prop-l1-who" value="'+(item.prop_loan1_who||'')+'" placeholder="銀行/個人名稱"></div>';
+  h += '<div class="frow"><div class="flbl">結清金額（元）</div><input class="fi" id="cl-prop-l1" type="number" value="'+(item.prop_loan1||'')+'" placeholder="0" oninput="updatePropCalc()"></div></div>';
+  h += '</div>';
+  h += '<div style="background:var(--inp);border-radius:8px;padding:10px;margin-bottom:6px">';
+  h += '<div style="font-size:13px;font-weight:500;color:var(--t2);margin-bottom:6px">二胎</div>';
+  h += '<div class="frow2"><div class="frow"><div class="flbl">借款方</div><input class="fi" id="cl-prop-l2-who" value="'+(item.prop_loan2_who||'')+'" placeholder="銀行/個人名稱"></div>';
+  h += '<div class="frow"><div class="flbl">結清金額（元）</div><input class="fi" id="cl-prop-l2" type="number" value="'+(item.prop_loan2||'')+'" placeholder="0" oninput="updatePropCalc()"></div></div>';
+  h += '</div>';
+  h += '<div style="background:var(--inp);border-radius:8px;padding:10px;margin-bottom:6px">';
+  h += '<div style="font-size:13px;font-weight:500;color:var(--t2);margin-bottom:6px">三胎</div>';
+  h += '<div class="frow2"><div class="frow"><div class="flbl">借款方</div><input class="fi" id="cl-prop-l3-who" value="'+(item.prop_loan3_who||'')+'" placeholder="銀行/個人名稱"></div>';
+  h += '<div class="frow"><div class="flbl">結清金額（元）</div><input class="fi" id="cl-prop-l3" type="number" value="'+(item.prop_loan3||'')+'" placeholder="0" oninput="updatePropCalc()"></div></div>';
+  h += '</div>';
   // 自動計算剩餘空間
   h += '<div id="cl-prop-space-hint" style="font-size:13px;padding:8px 10px;background:var(--inp);border-radius:8px;margin-top:6px;margin-bottom:2px"></div>';
 
@@ -2660,9 +2683,17 @@ function showAddClosingModal(leadId, editItem) {
 
   // 初始計算
   if (isProperty) {
-    updatePropCalc();
-    updatePropLoanCalc();
+    setTimeout(function(){
+      updatePropCalc();
+      updatePropLoanCalc();
+    }, 50);
   }
+
+  // 不動產區塊：金額月息欄位補加 oninput 動態綁定
+  var amtEl2 = box.querySelector('#cl-amount');
+  var rateEl2 = box.querySelector('#cl-pawn-rate');
+  if (amtEl2) amtEl2.addEventListener('input', function(){ if(typeof updatePropLoanCalc==='function') updatePropLoanCalc(); });
+  if (rateEl2) rateEl2.addEventListener('input', function(){ if(typeof updatePropLoanCalc==='function') updatePropLoanCalc(); });
 
   // 利息計算更新
   window.updatePawnInterestCalc = function() {
@@ -2911,8 +2942,11 @@ async function saveClosingItem(leadId, editId, modal, box) {
     // 不動產專用
     prop_valuation: isProp ? gf('cl-prop-val') : null,
     prop_loan1: isProp ? gf('cl-prop-l1') : null,
+    prop_loan1_who: isProp ? gv('cl-prop-l1-who')||null : null,
     prop_loan2: isProp ? gf('cl-prop-l2') : null,
+    prop_loan2_who: isProp ? gv('cl-prop-l2-who')||null : null,
     prop_loan3: isProp ? gf('cl-prop-l3') : null,
+    prop_loan3_who: isProp ? gv('cl-prop-l3-who')||null : null,
     prop_other_reg: isProp ? propRegs : [],
     pawn_prepay_months: isProp ? gi('cl-prepay-months') : null,
     pawn_lock_months: isProp ? gi('cl-lock-months') : null,
