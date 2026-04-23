@@ -6403,6 +6403,24 @@ function generateMonthlyReport(year, month) {
 // ══════════════════════════════
 // ⭐ 升級方案
 // ══════════════════════════════
+// ══════════════════════════════
+// PayPal 設定
+// ══════════════════════════════
+var PAYPAL_CLIENT_ID = 'AcefH-W4SjcpaZRJiqb2iKN0xPRpMTU-lbaRUTxw6YdPeoToIRtTu14UuTkPlkrsgyaYqzjSq1xj3R8r';
+var PAYPAL_PLANS = {
+  pro:  'P-1UC818766X061423KNHVDPKQ',
+  team: 'P-11E9793232082793SNHVDUUY'
+};
+
+function loadPayPalSDK(callback) {
+  if (window.paypal) { callback(); return; }
+  var script = document.createElement('script');
+  script.src = 'https://www.paypal.com/sdk/js?client-id='+PAYPAL_CLIENT_ID+'&vault=true&intent=subscription&currency=TWD';
+  script.setAttribute('data-sdk-integration-source', 'button-factory');
+  script.onload = callback;
+  document.head.appendChild(script);
+}
+
 function renderUpgrade() {
   var el = document.getElementById('member-content');
   var m = currentMember || {};
@@ -6411,21 +6429,23 @@ function renderUpgrade() {
   var daysLeft = trialEnd ? Math.max(0, Math.ceil((trialEnd-new Date())/(1000*60*60*24))) : 0;
 
   var html = '<div style="font-size:18px;font-weight:700;margin-bottom:4px">⭐ 升級方案</div>';
-  html += '<div style="font-size:13px;color:var(--t2);margin-bottom:14px">選擇適合您的訂閱方案</div>';
+  html += '<div style="font-size:13px;color:var(--t2);margin-bottom:14px">選擇適合您的訂閱方案，信用卡或 PayPal 付款，7天免費試用</div>';
 
   if (plan === 'trial') {
     html += '<div style="background:var(--yl);border:0.5px solid rgba(184,128,32,.4);border-radius:12px;padding:14px;margin-bottom:14px;text-align:center">';
     html += '<div style="font-size:16px;font-weight:700;color:var(--yel);margin-bottom:4px">⏳ 試用期中</div>';
     html += '<div style="font-size:14px;color:var(--t1)">還有 <strong>'+daysLeft+' 天</strong>試用期</div>';
-    html += '<div style="font-size:13px;color:var(--t2);margin-top:4px">升級後可繼續使用所有功能</div>';
+    html += '<div style="font-size:13px;color:var(--t2);margin-top:4px">升級後可繼續使用所有功能，不會重複計費</div>';
     html += '</div>';
   }
 
   var plans = [
-    { key:'pro', label:'專業版', price:'$799', period:'/月', yearPrice:'$7,990/年（省 $1,598）',
-      color:'var(--acc)', features:['無限客戶名單','所有業務模組','文件上傳儲存','AI 評估報告','月報匯出 PDF','顧問名片','推播通知','優先客服支援'] },
-    { key:'team', label:'團隊版', price:'$1,599', period:'/月（最多5人）', yearPrice:'$15,990/年（省 $3,198）',
-      color:'#2D7AB8', features:['包含專業版全部功能','團隊成員管理','員工薪資與業績統計','收入拆分設定','業績排行榜','專屬客服'] },
+    { key:'pro', label:'專業版', price:'$799', period:'/月',
+      yearPrice:'$7,990/年（省 $1,598）', color:'var(--acc)',
+      features:['無限客戶名單','所有業務模組','文件上傳儲存','AI 評估報告','月報匯出 PDF','顧問名片','推播通知','優先客服支援'] },
+    { key:'team', label:'團隊版', price:'$999', period:'/月（最多5人）',
+      yearPrice:'$9,990/年（省 $1,998）', color:'#2D7AB8',
+      features:['包含專業版全部功能','團隊成員管理','員工薪資與業績統計','收入拆分設定','業績排行榜','專屬客服'] },
   ];
 
   html += '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px;margin-bottom:16px">';
@@ -6438,16 +6458,23 @@ function renderUpgrade() {
     html += '<div style="font-size:13px;color:var(--t2);margin-bottom:14px">'+p.yearPrice+'</div>';
     p.features.forEach(function(f){ html += '<div style="font-size:13px;padding:4px 0;border-bottom:0.5px solid var(--bdr)">✅ '+f+'</div>'; });
     if (!isCurrent) {
-      html += '<button onclick="showPaymentInfo(\''+p.key+'\')" style="width:100%;margin-top:14px;padding:12px;border-radius:9px;background:'+p.color+';color:#FFF;border:none;cursor:pointer;font-family:var(--sans);font-size:15px;font-weight:700">立即升級</button>';
+      html += '<div style="margin-top:14px"><div id="paypal-btn-'+p.key+'" style="min-height:45px"></div></div>';
     }
     html += '</div>';
   });
   html += '</div>';
 
-  // 付款說明區塊
-  html += '<div class="card" id="payment-info" style="display:none">';
-  html += '<div class="ct">💳 付款方式</div>';
-  html += '<div id="payment-content"></div>';
+  // 付款說明
+  html += '<div style="background:var(--inp);border-radius:10px;padding:12px;margin-bottom:12px;font-size:13px;color:var(--t2);text-align:center">';
+  html += '🔒 付款由 PayPal 安全處理，支援信用卡、金融卡及 PayPal 帳戶<br>';
+  html += '7天免費試用，試用期結束後才開始計費，可隨時取消';
+  html += '</div>';
+
+  // 付款完成提示區
+  html += '<div id="payment-success" style="display:none;background:var(--gl);border:0.5px solid rgba(45,138,78,.4);border-radius:12px;padding:16px;text-align:center;margin-bottom:12px">';
+  html += '<div style="font-size:24px;margin-bottom:8px">🎉</div>';
+  html += '<div style="font-size:16px;font-weight:700;color:var(--grn);margin-bottom:4px">訂閱成功！</div>';
+  html += '<div style="font-size:13px;color:var(--t2)">感謝您升級顧問PRO，正在開通您的帳號...</div>';
   html += '</div>';
 
   // 企業方案
@@ -6457,39 +6484,56 @@ function renderUpgrade() {
   html += '</div>';
 
   el.innerHTML = html;
-}
 
-function showPaymentInfo(planKey) {
-  var el = document.getElementById('payment-info');
-  var content = document.getElementById('payment-content');
-  if (!el || !content) return;
-  el.style.display = 'block';
-  var planLabel = planKey === 'pro' ? '專業版 $799/月' : '團隊版 $1,599/月';
-  var h = '<div style="background:var(--al);border-radius:9px;padding:14px;margin-bottom:12px">';
-  h += '<div style="font-size:15px;font-weight:600;margin-bottom:4px">選擇方案：'+planLabel+'</div>';
-  h += '<div style="font-size:13px;color:var(--t2)">付款完成後請傳送截圖給顧問PRO客服，即可開通</div>';
-  h += '</div>';
-  h += '<div style="font-size:14px;font-weight:600;margin-bottom:10px">付款方式</div>';
-  var methods = [
-    { icon:'🏦', label:'銀行轉帳', desc:'匯款後截圖傳給客服', detail:'帳戶名稱：顧問PRO\n銀行：玉山銀行（808）\n帳號：0123-456-789-000\n金額：依選擇方案' },
-    { icon:'💳', label:'信用卡', desc:'透過綠界科技安全付款', detail:'點下方按鈕跳轉付款頁面（即將上線）' },
-    { icon:'📱', label:'LINE Pay', desc:'掃描 QR Code 付款', detail:'開啟 LINE Pay → 掃描 QR Code（即將上線）' },
-  ];
-  methods.forEach(function(mt, i) {
-    h += '<div style="border:0.5px solid var(--bdr2);border-radius:9px;padding:12px;margin-bottom:8px">';
-    h += '<div style="display:flex;align-items:center;gap:10px;cursor:pointer" onclick="var d=document.getElementById(\'pay-detail-'+i+'\');d.style.display=d.style.display===\'none\'?\'block\':\'none\'">';
-    h += '<span style="font-size:24px">'+mt.icon+'</span>';
-    h += '<div><div style="font-size:15px;font-weight:600">'+mt.label+'</div>';
-    h += '<div style="font-size:13px;color:var(--t2)">'+mt.desc+'</div></div>';
-    h += '<span style="margin-left:auto;color:var(--t3)">▼</span></div>';
-    h += '<div id="pay-detail-'+i+'" style="display:none;margin-top:10px;padding:10px;background:var(--inp);border-radius:7px;font-size:13px;color:var(--t2);white-space:pre-line">'+mt.detail+'</div>';
-    h += '</div>';
+  // 載入 PayPal SDK 並渲染按鈕
+  loadPayPalSDK(function() {
+    plans.forEach(function(p) {
+      if (plan === p.key) return; // 已是此方案不顯示
+      var container = document.getElementById('paypal-btn-'+p.key);
+      if (!container || !window.paypal) return;
+      window.paypal.Buttons({
+        style: {
+          shape: 'pill',
+          color: p.key === 'pro' ? 'gold' : 'blue',
+          layout: 'vertical',
+          label: 'subscribe'
+        },
+        createSubscription: function(data, actions) {
+          return actions.subscription.create({ plan_id: PAYPAL_PLANS[p.key] });
+        },
+        onApprove: async function(data, actions) {
+          // 付款成功 — 更新帳號方案
+          var successEl = document.getElementById('payment-success');
+          if (successEl) successEl.style.display = 'block';
+          // 更新 Supabase 會員方案
+          await sb.from('members').update({
+            plan: p.key,
+            trial_end: null,
+            paypal_subscription_id: data.subscriptionID
+          }).eq('id', currentUser.id);
+          // 更新本地
+          if (currentMember) currentMember.plan = p.key;
+          // 發送通知
+          await sb.from('notifications').insert({
+            member_id: currentUser.id,
+            type: 'upgrade',
+            title: '⭐ 升級成功！',
+            body: '您已成功升級為'+p.label+'，感謝您的支持！',
+            is_read: false, data: { plan: p.key, subscriptionId: data.subscriptionID }
+          });
+          loadNotifCount();
+          setTimeout(function(){ navTo('dash', null); }, 2000);
+        },
+        onError: function(err) {
+          console.error('PayPal error:', err);
+          alert('付款過程發生錯誤，請重試或聯繫客服');
+        },
+        onCancel: function() {
+          console.log('PayPal 付款取消');
+        }
+      }).render('#paypal-btn-'+p.key);
+    });
   });
-  h += '<div style="margin-top:12px;text-align:center">';
-  h += '<a href="https://line.me/ti/p/~guwen_pro_service" target="_blank" style="display:inline-block;padding:10px 24px;background:#06C755;color:#FFF;border-radius:9px;font-size:14px;font-weight:600;text-decoration:none">💬 LINE 客服確認付款</a>';
-  h += '</div>';
-  content.innerHTML = h;
-  el.scrollIntoView({ behavior:'smooth' });
 }
 
 function renderReport() {
