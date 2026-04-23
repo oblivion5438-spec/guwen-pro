@@ -1638,11 +1638,14 @@ function showLeadDetail(id) {
   var scores = calcScores(lead);
   var el = document.getElementById('member-content');
 
-  var html = '<div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">';
+  var html = '<div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;flex-wrap:wrap">';
   html += '<button class="btn-sm" onclick="navTo(\'leads\',null)">← 返回</button>';
   html += '<span style="font-size:16px;font-weight:600">' + lead.name + ' · 完整資料</span>';
-  html += '<div style="margin-left:auto;display:flex;gap:6px"><button class="btn-sm" onclick="shareLeadLine(\'' + id + '\')">LINE</button>';
-  html += '<button class="btn-grn" onclick="alert(\'PDF下載即將上線\')">PDF</button></div></div>';
+  html += '<div style="margin-left:auto;display:flex;gap:6px;flex-wrap:wrap">';
+  html += '<button id="referral-btn-' + id + '" class="btn-sm" style="border-color:var(--blu);color:var(--blu)">🤝 轉介</button>';
+  html += '<button class="btn-sm" onclick="shareLeadLine(\'' + id + '\')">LINE</button>';
+  html += '<button class="btn-grn" onclick="alert(\'PDF下載即將上線\')">PDF</button>';
+  html += '</div></div>';
 
   html += '<div class="card"><div class="ct">AI 評估機率</div>';
   html += buildProbCards(scores);
@@ -1951,7 +1954,7 @@ function showLeadDetail(id) {
 
   el.innerHTML = html;
 
-  // DOM 綁定所有按鈕（避免 inline onclick 在 overflow 容器裡失效）
+  // DOM 綁定所有按鈕
   var editBtn = document.getElementById('edit-btn-' + id);
   if (editBtn) editBtn.onclick = function(e) { e.stopPropagation(); toggleLeadEdit(id); };
 
@@ -1960,6 +1963,9 @@ function showLeadDetail(id) {
 
   var saveBtn = document.getElementById('save-edit-btn-' + id);
   if (saveBtn) saveBtn.onclick = function(e) { e.stopPropagation(); saveLeadEdit(id); };
+
+  var referralBtn = document.getElementById('referral-btn-' + id);
+  if (referralBtn) referralBtn.onclick = function(e) { e.stopPropagation(); showReferralModal(id); };
 
   loadDocuments(id);
 }
@@ -5069,6 +5075,303 @@ function scheduleNotifications(loanAlerts) {
 // ══════════════════════════════
 // ══════════════════════════════
 // ══════════════════════════════
+// ══════════════════════════════
+// 🔀 轉介功能
+// ══════════════════════════════
+var referralFields = [
+  // 基本資料
+  {key:'name',        label:'姓名',         group:'basic', enabled:true},
+  {key:'age',         label:'年齡',         group:'basic', enabled:true},
+  {key:'id_number',   label:'身分證字號',   group:'basic', enabled:false},
+  {key:'phone',       label:'聯絡電話',     group:'basic', enabled:true},
+  {key:'work',        label:'工作單位/職位',group:'basic', enabled:true},
+  {key:'salary',      label:'月薪',         group:'basic', enabled:true},
+  {key:'transfer',    label:'薪轉',         group:'basic', enabled:true},
+  {key:'address',     label:'居住地址',     group:'basic', enabled:true},
+  {key:'housing',     label:'居住狀況',     group:'basic', enabled:true},
+  {key:'alert',       label:'警示協商狀況', group:'basic', enabled:true},
+  {key:'car_lic',     label:'汽車駕照',     group:'basic', enabled:false},
+  {key:'bike_lic',    label:'機車駕照',     group:'basic', enabled:false},
+  {key:'required_amt',label:'需求資金',     group:'basic', enabled:true},
+  {key:'fund_purpose',label:'資金用途',     group:'basic', enabled:true},
+  // 財務信用
+  {key:'cc_age',      label:'信用卡持卡時間', group:'credit', enabled:true},
+  {key:'bank_rej',    label:'銀行婉拒次數',   group:'credit', enabled:true},
+  {key:'fin_rej',     label:'融資婉拒次數',   group:'credit', enabled:true},
+  {key:'late_pay',    label:'遲繳天數',       group:'credit', enabled:true},
+  {key:'has_property',label:'名下不動產',     group:'credit', enabled:false},
+  {key:'debt_ratio',  label:'負債比',         group:'credit', enabled:false},
+  // 查詢資料
+  {key:'doc_asset',   label:'動產擔保截圖',   group:'docs', enabled:false},
+  {key:'doc_verdict', label:'司法院裁判書截圖',group:'docs', enabled:false},
+  {key:'doc_traffic', label:'監理網違規截圖',  group:'docs', enabled:false},
+  {key:'doc_license', label:'技術士證照截圖',  group:'docs', enabled:false},
+  // 照會內容
+  {key:'review',      label:'生成照會內容',   group:'review', enabled:false},
+];
+
+async function showReferralModal(leadId) {
+  var lead = leads.find(function(l){ return l.id === leadId; });
+  if (!lead) return;
+
+  // 載入配合業者
+  var connRes = await sb.from('business_connections')
+    .select('*, requester:requester_id(id,name,email), receiver:receiver_id(id,name,email)')
+    .or('requester_id.eq.'+currentUser.id+',receiver_id.eq.'+currentUser.id)
+    .eq('status','accepted');
+  var partners = (connRes.data || []).map(function(c) {
+    return c.requester_id === currentUser.id ? c.receiver : c.requester;
+  }).filter(Boolean);
+
+  var modal = document.createElement('div');
+  modal.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.75);z-index:9999;display:flex;align-items:flex-start;justify-content:center;padding:16px;overflow-y:auto';
+
+  var box = document.createElement('div');
+  box.style.cssText = 'background:var(--card);border-radius:16px;padding:18px;width:100%;max-width:560px;margin:auto';
+
+  var housingLabels = {self_own:'本人名下',self_live:'自住',family:'親屬房子',rent:'租屋',other:'其他'};
+
+  var h = '<div style="font-size:18px;font-weight:700;margin-bottom:4px">🔀 轉介客戶資料</div>';
+  h += '<div style="font-size:13px;color:var(--t2);margin-bottom:14px">' + lead.name + ' · 選擇要分享的資料和傳送方式</div>';
+
+  // 選擇業者
+  h += '<div style="margin-bottom:14px">';
+  h += '<div style="font-size:14px;font-weight:600;margin-bottom:8px">① 選擇配合業者</div>';
+  if (partners.length === 0) {
+    h += '<div style="font-size:13px;color:var(--t2);padding:10px;background:var(--inp);border-radius:8px">尚無配合業者，請先到「對接管理」建立配合關係</div>';
+  } else {
+    h += '<div style="display:flex;flex-wrap:wrap;gap:6px">';
+    partners.forEach(function(p, pi) {
+      h += '<label style="display:flex;align-items:center;gap:6px;padding:7px 12px;border-radius:20px;border:0.5px solid var(--bdr2);cursor:pointer;font-size:13px">';
+      h += '<input type="checkbox" name="ref-partner" value="'+p.id+'" data-name="'+(p.name||p.email||'').replace(/"/g,'')+'"> ' + (p.name||p.email||'—');
+      h += '</label>';
+    });
+    h += '</div>';
+  }
+  h += '</div>';
+
+  // 勾選資料
+  h += '<div style="margin-bottom:14px">';
+  h += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">';
+  h += '<div style="font-size:14px;font-weight:600">② 選擇要分享的資料</div>';
+  h += '<button onclick="toggleAllReferralFields(true)" style="font-size:12px;padding:3px 8px;border-radius:5px;border:0.5px solid var(--bdr2);background:transparent;color:var(--t2);cursor:pointer;font-family:var(--sans)">全選</button>';
+  h += '</div>';
+
+  // 基本資料
+  h += '<div style="margin-bottom:8px"><div style="font-size:12px;color:var(--t3);font-weight:600;margin-bottom:4px;text-transform:uppercase;letter-spacing:0.5px">📋 基本資料</div>';
+  h += '<div style="display:flex;flex-wrap:wrap;gap:4px">';
+  referralFields.filter(function(f){return f.group==='basic';}).forEach(function(f) {
+    h += '<label style="display:flex;align-items:center;gap:4px;padding:5px 10px;border-radius:15px;border:0.5px solid var(--bdr2);cursor:pointer;font-size:13px;background:'+(f.enabled?'var(--al)':'transparent')+'">';
+    h += '<input type="checkbox" class="ref-field" data-key="'+f.key+'" '+(f.enabled?'checked':'')+' style="accent-color:var(--acc)"> ' + f.label;
+    h += '</label>';
+  });
+  h += '</div></div>';
+
+  // 財務信用
+  h += '<div style="margin-bottom:8px"><div style="font-size:12px;color:var(--t3);font-weight:600;margin-bottom:4px;text-transform:uppercase;letter-spacing:0.5px">💳 財務信用</div>';
+  h += '<div style="display:flex;flex-wrap:wrap;gap:4px">';
+  referralFields.filter(function(f){return f.group==='credit';}).forEach(function(f) {
+    h += '<label style="display:flex;align-items:center;gap:4px;padding:5px 10px;border-radius:15px;border:0.5px solid var(--bdr2);cursor:pointer;font-size:13px;background:'+(f.enabled?'var(--al)':'transparent')+'">';
+    h += '<input type="checkbox" class="ref-field" data-key="'+f.key+'" '+(f.enabled?'checked':'')+' style="accent-color:var(--acc)"> ' + f.label;
+    h += '</label>';
+  });
+  h += '</div></div>';
+
+  // 查詢資料截圖
+  var docs = leadDocuments[leadId] || {};
+  h += '<div style="margin-bottom:8px"><div style="font-size:12px;color:var(--t3);font-weight:600;margin-bottom:4px;text-transform:uppercase;letter-spacing:0.5px">📷 查詢資料截圖</div>';
+  h += '<div style="display:flex;flex-wrap:wrap;gap:4px">';
+  referralFields.filter(function(f){return f.group==='docs';}).forEach(function(f) {
+    var docType = f.key.replace('doc_','');
+    var hasDocs = docs[docType] && docs[docType].length > 0;
+    h += '<label style="display:flex;align-items:center;gap:4px;padding:5px 10px;border-radius:15px;border:0.5px solid var(--bdr2);cursor:pointer;font-size:13px;opacity:'+(hasDocs?'1':'0.5')+'">';
+    h += '<input type="checkbox" class="ref-field" data-key="'+f.key+'" '+(hasDocs&&f.enabled?'checked':'')+' '+(hasDocs?'':'disabled')+' style="accent-color:var(--acc)"> ' + f.label + (hasDocs?' ('+docs[docType].length+'張)':'（無）');
+    h += '</label>';
+  });
+  h += '</div></div>';
+
+  // 照會內容
+  h += '<div><div style="font-size:12px;color:var(--t3);font-weight:600;margin-bottom:4px;text-transform:uppercase;letter-spacing:0.5px">📋 照會</div>';
+  h += '<div style="display:flex;flex-wrap:wrap;gap:4px">';
+  h += '<label style="display:flex;align-items:center;gap:4px;padding:5px 10px;border-radius:15px;border:0.5px solid var(--bdr2);cursor:pointer;font-size:13px">';
+  h += '<input type="checkbox" class="ref-field" data-key="review" style="accent-color:var(--acc)"> 附上照會內容（車貸用）';
+  h += '</label>';
+  h += '</div></div>';
+  h += '</div>';
+
+  // 操作按鈕
+  h += '<div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap">';
+  h += '<button id="ref-cancel" class="btn-sm" style="flex-shrink:0">取消</button>';
+  h += '<button id="ref-notify" class="btn-p" style="flex:1">🔔 軟體內通知業者</button>';
+  h += '<button id="ref-line" style="flex:1;padding:11px;background:#06C755;color:#FFF;border:none;border-radius:9px;cursor:pointer;font-family:var(--sans);font-size:14px;font-weight:600">📱 生成 LINE 傳送</button>';
+  h += '</div>';
+
+  box.innerHTML = h;
+  modal.appendChild(box);
+  document.body.appendChild(modal);
+
+  // 全選函數
+  window.toggleAllReferralFields = function(val) {
+    box.querySelectorAll('.ref-field:not([disabled])').forEach(function(cb){ cb.checked = val; });
+  };
+
+  // 取消
+  box.querySelector('#ref-cancel').onclick = function(){ modal.remove(); };
+  modal.onclick = function(e){ if(e.target===modal) modal.remove(); };
+
+  // 軟體內通知
+  box.querySelector('#ref-notify').onclick = function(){
+    sendReferralNotification(leadId, lead, box, modal);
+  };
+
+  // 生成 LINE 傳送
+  box.querySelector('#ref-line').onclick = function(){
+    generateReferralLine(leadId, lead, box, modal);
+  };
+}
+
+function collectReferralData(leadId, lead, box) {
+  var selectedKeys = {};
+  box.querySelectorAll('.ref-field:checked').forEach(function(cb){
+    selectedKeys[cb.dataset.key] = true;
+  });
+
+  var housingLabels = {self_own:'本人名下（自有）',self_live:'自住（非本人名下）',family:'親屬/家人房子',rent:'租屋',other:'其他'};
+  var lines = [];
+
+  if (selectedKeys.name) lines.push('姓名：' + (lead.name||'—'));
+  if (selectedKeys.age && lead.age) lines.push('年齡：' + lead.age + '歲');
+  if (selectedKeys.id_number && lead.id_number_hash) lines.push('身分證：' + lead.id_number_hash);
+  if (selectedKeys.phone && lead.phone) lines.push('電話：' + lead.phone);
+  if (selectedKeys.work && lead.work_type) lines.push('工作：' + lead.work_type);
+  if (selectedKeys.salary && lead.monthly_salary) lines.push('月薪：$' + lead.monthly_salary.toLocaleString());
+  if (selectedKeys.transfer) lines.push('薪轉：' + (lead.has_salary_transfer?'有':'無'));
+  if (selectedKeys.address && lead.address) lines.push('居住地址：' + lead.address);
+  if (selectedKeys.housing && lead.housing_status && lead.housing_status!=='none') lines.push('居住狀況：' + (housingLabels[lead.housing_status]||lead.housing_status));
+  if (selectedKeys.alert) lines.push('警示協商：' + (lead.alert_status==='none'?'無':'⚠️ '+lead.alert_status));
+  if (selectedKeys.car_lic) lines.push('汽車駕照：' + (lead.has_car_license?'有':'無'));
+  if (selectedKeys.bike_lic) lines.push('機車駕照：' + (lead.has_bike_license?'有':'無'));
+  if (selectedKeys.required_amt && lead.required_amount) lines.push('需求資金：$' + lead.required_amount.toLocaleString());
+  if (selectedKeys.fund_purpose && lead.fund_purpose) lines.push('資金用途：' + lead.fund_purpose);
+
+  if (selectedKeys.cc_age && lead.credit_card_age) lines.push('信用卡：' + lead.credit_card_age);
+  if (selectedKeys.bank_rej && lead.bank_reject_count) lines.push('銀行婉拒：' + lead.bank_reject_count + '次');
+  if (selectedKeys.fin_rej && lead.fin_reject_count) lines.push('融資婉拒：' + lead.fin_reject_count + '次');
+  if (selectedKeys.late_pay && lead.late_pay_days) lines.push('最長遲繳：' + lead.late_pay_days + '天');
+  if (selectedKeys.has_property) lines.push('名下不動產：' + (lead.has_property?'有':'無'));
+  if (selectedKeys.debt_ratio && lead.debt_ratio) lines.push('負債比：' + lead.debt_ratio + '%');
+
+  return { selectedKeys: selectedKeys, lines: lines };
+}
+
+async function sendReferralNotification(leadId, lead, box, modal) {
+  var selected = box.querySelectorAll('input[name="ref-partner"]:checked');
+  if (selected.length === 0) { alert('請選擇至少一位業者'); return; }
+  var { selectedKeys, lines } = collectReferralData(leadId, lead, box);
+
+  var promises = [];
+  selected.forEach(function(cb) {
+    var receiverId = cb.value;
+    var receiverName = cb.dataset.name;
+    // 建立 referral 記錄
+    promises.push(
+      sb.from('referrals').insert({
+        sender_id: currentUser.id,
+        receiver_id: receiverId,
+        lead_id: leadId,
+        selected_fields: Object.keys(selectedKeys),
+        status: 'pending'
+      }).then(function(res) {
+        if (!res.error) {
+          // 發送通知
+          return sb.from('notifications').insert({
+            member_id: receiverId,
+            type: 'referral_received',
+            title: '收到客戶轉介',
+            body: (currentUser.user_metadata&&currentUser.user_metadata.name||'業者') + ' 轉介了客戶「' + lead.name + '」請查看',
+            data: { lead_name: lead.name, referral_id: res.data&&res.data[0]&&res.data[0].id, fields: lines.join('\n') }
+          });
+        }
+      })
+    );
+  });
+  await Promise.all(promises);
+  modal.remove();
+  alert('✓ 已成功通知 ' + selected.length + ' 位業者，對方可在通知中心查看客戶資料');
+}
+
+function generateReferralLine(leadId, lead, box, modal) {
+  var { selectedKeys, lines } = collectReferralData(leadId, lead, box);
+  var docs = leadDocuments[leadId] || {};
+
+  var text = ['═══════════════════════', '📋 客戶轉介資料', '════════════════════════'];
+  text = text.concat(lines);
+
+  // 附上截圖連結
+  var docTypes = {asset:'動產擔保', verdict:'司法裁判書', traffic:'監理違規', license:'技術士證照'};
+  Object.keys(docTypes).forEach(function(type) {
+    if (selectedKeys['doc_'+type] && docs[type] && docs[type].length > 0) {
+      text.push('');
+      text.push('【' + docTypes[type] + ' 截圖】');
+      docs[type].forEach(function(doc, i) {
+        text.push('截圖' + (i+1) + '：' + doc.url);
+      });
+    }
+  });
+
+  // 附上照會內容
+  if (selectedKeys.review) {
+    var tpl = reviewTemplates[0];
+    var fields = tpl ? (tpl.fields||[]) : getDefaultReviewFields();
+    text.push('');
+    text.push('【照會資料】');
+    fields.forEach(function(f) {
+      if (!f.enabled) return;
+      var val = '';
+      if (f.key==='name') val = lead.name||'—';
+      else if (f.key==='age') val = lead.age?lead.age+'歲':'—';
+      else if (f.key==='id_number') val = lead.id_number_hash?lead.id_number_hash.substring(0,3)+'****':'—';
+      else if (f.key==='work') val = lead.work_type||'—';
+      else if (f.key==='salary') val = lead.monthly_salary?'$'+lead.monthly_salary.toLocaleString()+'/月':'—';
+      else if (f.key==='transfer') val = lead.has_salary_transfer?'有薪轉':'無薪轉';
+      else if (f.key==='address') val = lead.address||'—';
+      else if (f.key==='alert') val = lead.alert_status==='none'?'無':'⚠️ '+lead.alert_status;
+      if (val) text.push(f.label+'：'+val);
+    });
+  }
+
+  text.push('');
+  text.push('傳送時間：' + new Date().toLocaleString('zh-TW'));
+  text.push('═══════════════════════');
+
+  var finalText = text.join('\n');
+  modal.remove();
+
+  // 顯示預覽 + LINE 按鈕
+  var previewModal = document.createElement('div');
+  previewModal.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.75);z-index:9999;display:flex;align-items:flex-start;justify-content:center;padding:16px;overflow-y:auto';
+  var previewBox = document.createElement('div');
+  previewBox.style.cssText = 'background:var(--card);border-radius:16px;padding:18px;width:100%;max-width:560px;margin:auto';
+  previewBox.innerHTML =
+    '<div style="font-size:16px;font-weight:700;margin-bottom:10px">📋 轉介內容預覽</div>' +
+    '<div style="background:var(--inp);border-radius:10px;padding:14px;font-family:monospace;font-size:13px;line-height:1.8;white-space:pre-wrap;color:var(--t1);margin-bottom:12px;max-height:50vh;overflow-y:auto">' + finalText + '</div>' +
+    '<div style="display:flex;gap:8px">' +
+    '<button id="preview-close" class="btn-sm">關閉</button>' +
+    '<button id="preview-copy" class="btn-p" style="flex:1">📋 複製</button>' +
+    '<button id="preview-line" style="flex:1;padding:11px;background:#06C755;color:#FFF;border:none;border-radius:9px;cursor:pointer;font-family:var(--sans);font-size:14px;font-weight:600">📱 開啟 LINE 傳送</button>' +
+    '</div>';
+  previewModal.appendChild(previewBox);
+  document.body.appendChild(previewModal);
+  previewBox.querySelector('#preview-close').onclick = function(){ previewModal.remove(); };
+  previewModal.onclick = function(e){ if(e.target===previewModal) previewModal.remove(); };
+  previewBox.querySelector('#preview-copy').onclick = function(){
+    navigator.clipboard.writeText(finalText).then(function(){ alert('已複製！可貼到 LINE 傳送'); });
+  };
+  previewBox.querySelector('#preview-line').onclick = function(){
+    window.open('https://line.me/R/share?text=' + encodeURIComponent(finalText), '_blank');
+  };
+}
+
 // 🤝 對接管理 & 🔔 通知中心
 // ══════════════════════════════
 var myConnections = []; // 已建立的配合關係
@@ -5286,7 +5589,7 @@ async function renderNotifications() {
     card.innerHTML = '<div class="ct">🔔 通知中心</div><div style="text-align:center;padding:20px;color:var(--t2)">目前沒有通知</div>';
   } else {
     var h = '<div class="ct">🔔 通知中心</div>';
-    var typeIcons = { connection_request:'🤝', connection_accepted:'✅', pawn_due:'🏛', car_reserved:'🚙', default:'📢' };
+    var typeIcons = { connection_request:'🤝', connection_accepted:'✅', pawn_due:'🏛', car_reserved:'🚙', referral_received:'🔀', default:'📢' };
     notifs.forEach(function(n) {
       var isNew = !n.is_read;
       var icon = typeIcons[n.type] || typeIcons.default;
