@@ -2220,6 +2220,7 @@ var closingTypes = [
   {key:'bike_loan',   label:'🛵 機車貸款'},
   {key:'phone_loan',  label:'📱 手機商品貸'},
   {key:'pawn',        label:'🏛 當鋪出款'},
+  {key:'property',    label:'🏠 不動產抵押借款'},
   {key:'other',       label:'📝 其他'},
 ];
 
@@ -2271,6 +2272,21 @@ function renderClosingList(leadId) {
       if (item.pawn_pay_day) h += '<div style="font-size:12px;color:var(--t2);margin-bottom:3px">💳 每月 '+item.pawn_pay_day+' 號還款</div>';
       if (item.pawn_repay_type === 'installment') h += '<div style="font-size:12px;color:var(--t2)">本利攤還 ' + (item.pawn_installments||0) + ' 期</div>';
       else h += '<div style="font-size:12px;color:var(--t2)">純利息繳還</div>';
+    } else if (item.closing_type === 'property') {
+      var monthlyInt2 = item.pawn_monthly_rate ? Math.round((item.closed_amount||0) * item.pawn_monthly_rate / 100) : 0;
+      if (item.prop_valuation) h += '<div style="font-size:13px;color:var(--t2);margin-bottom:3px">🏠 估價：$'+item.prop_valuation.toLocaleString()+'</div>';
+      var totalLoan = (item.prop_loan1||0)+(item.prop_loan2||0)+(item.prop_loan3||0);
+      if (totalLoan) {
+        var space = item.prop_valuation ? item.prop_valuation - totalLoan : 0;
+        h += '<div style="font-size:13px;color:var(--t2);margin-bottom:3px">胎貸合計：$'+totalLoan.toLocaleString() + (space>0?' · 剩餘空間：<span style="color:var(--grn)">$'+space.toLocaleString()+'</span>':'') + '</div>';
+      }
+      var regs = item.prop_other_reg || [];
+      if (regs.length > 0) h += '<div style="font-size:12px;color:var(--yel);margin-bottom:3px">⚠️ ' + regs.map(function(r){return (r.type==='pretitle'?'預告登記':'信託')+(r.name?' ('+r.name+')':'');}).join('、') + '</div>';
+      if (item.closed_amount) h += '<div style="font-size:13px;margin-bottom:3px">借款：<span style="font-weight:600;color:var(--acc)">$'+item.closed_amount.toLocaleString()+'</span> · '+item.pawn_monthly_rate+'% 月息 · <span style="color:var(--grn)">每月 $'+monthlyInt2.toLocaleString()+'</span></div>';
+      if (item.pawn_prepay_months) h += '<div style="font-size:12px;color:var(--t2)">預扣 '+item.pawn_prepay_months+' 個月利息 · 實撥 $'+(item.closed_amount-monthlyInt2*item.pawn_prepay_months-(item.closed_amount*(item.pawn_service_rate||0)/100)).toLocaleString()+'</div>';
+      if (item.pawn_service_rate) h += '<div style="font-size:12px;color:var(--acc)">服務費 '+item.pawn_service_rate+'% = $'+Math.round((item.closed_amount||0)*item.pawn_service_rate/100).toLocaleString()+'</div>';
+      if (item.pawn_lock_months) h += '<div style="font-size:12px;color:var(--t2)">綁約 '+item.pawn_lock_months+' 個月</div>';
+      if (item.pawn_penalty_rate) h += '<div style="font-size:12px;color:var(--red)">解約金 '+item.pawn_penalty_rate+'% = $'+Math.round((item.closed_amount||0)*item.pawn_penalty_rate/100).toLocaleString()+'</div>';
     } else {
       if (item.institution) h += '<div style="font-size:13px;color:var(--t2);margin-bottom:3px">機構：' + item.institution + '</div>';
       if (item.closed_amount) h += '<div style="font-size:13px;margin-bottom:3px">成交金額：<span style="font-weight:600;color:var(--acc)">$' + item.closed_amount.toLocaleString() + '</span></div>';
@@ -2370,9 +2386,61 @@ function showAddClosingModal(leadId, editItem) {
   h += '</div>';
 
   // 貸款類型欄位
-  h += '<div id="cl-loan-section" style="display:'+(isPawn?'none':'block')+'">';
+  var isProperty = curType === 'property';
+  h += '<div id="cl-loan-section" style="display:'+(isPawn||isProperty?'none':'block')+'">';
   h += '<div class="frow"><div class="flbl">放款機構</div><input class="fi" id="cl-institution" value="'+(item.institution||'')+'" placeholder="台灣銀行、和潤..."></div>';
-  h += '<div class="frow" style="margin-top:6px"><div class="flbl">成交金額（元）</div><input class="fi" id="cl-loan-amount" type="number" value="'+(isPawn?'':(item.closed_amount||''))+'" placeholder="0"></div>';
+  h += '<div class="frow" style="margin-top:6px"><div class="flbl">成交金額（元）</div><input class="fi" id="cl-loan-amount" type="number" value="'+(isPawn||isProperty?'':(item.closed_amount||''))+'" placeholder="0"></div>';
+  h += '</div>';
+
+  // 不動產抵押借款欄位
+  h += '<div id="cl-property-section" style="display:'+(isProperty?'block':'none')+'">';
+  h += '<div class="sl">不動產估價</div>';
+  h += '<div class="frow"><div class="flbl">不動產估價（元）</div><input class="fi" id="cl-prop-val" type="number" value="'+(item.prop_valuation||'')+'" placeholder="0" oninput="updatePropCalc()"></div>';
+  h += '<div class="sl">各胎結清金額</div>';
+  h += '<div class="frow2"><div class="frow"><div class="flbl">一胎結清（元）</div><input class="fi" id="cl-prop-l1" type="number" value="'+(item.prop_loan1||'')+'" placeholder="0" oninput="updatePropCalc()"></div>';
+  h += '<div class="frow"><div class="flbl">二胎結清（元）</div><input class="fi" id="cl-prop-l2" type="number" value="'+(item.prop_loan2||'')+'" placeholder="0" oninput="updatePropCalc()"></div></div>';
+  h += '<div class="frow2" style="margin-top:6px"><div class="frow"><div class="flbl">三胎結清（元）</div><input class="fi" id="cl-prop-l3" type="number" value="'+(item.prop_loan3||'')+'" placeholder="0" oninput="updatePropCalc()"></div>';
+  h += '<div class="frow"></div></div>';
+  // 自動計算剩餘空間
+  h += '<div id="cl-prop-space-hint" style="font-size:13px;padding:8px 10px;background:var(--inp);border-radius:8px;margin-top:6px;margin-bottom:2px"></div>';
+
+  // 其他登記事項
+  h += '<div class="sl">其他登記事項</div>';
+  var propRegs = item.prop_other_reg || [];
+  var hasPretitle = propRegs.find(function(r){return r.type==='pretitle';});
+  var hasTrust = propRegs.find(function(r){return r.type==='trust';});
+  h += '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px">';
+  h += '<label style="display:flex;align-items:center;gap:6px;padding:6px 12px;border-radius:20px;border:0.5px solid var(--bdr2);cursor:pointer;font-size:13px"><input type="checkbox" id="cl-reg-pretitle" '+(hasPretitle?'checked':'')+' style="accent-color:var(--acc)" onchange="updatePropRegs()"> 預告登記</label>';
+  h += '<label style="display:flex;align-items:center;gap:6px;padding:6px 12px;border-radius:20px;border:0.5px solid var(--bdr2);cursor:pointer;font-size:13px"><input type="checkbox" id="cl-reg-trust" '+(hasTrust?'checked':'')+' style="accent-color:var(--acc)" onchange="updatePropRegs()"> 信託</label>';
+  h += '</div>';
+  // 預告登記展開
+  h += '<div id="cl-pretitle-section" style="display:'+(hasPretitle?'block':'none')+';background:var(--inp);border-radius:8px;padding:10px;margin-bottom:8px">';
+  h += '<div style="font-size:13px;font-weight:600;margin-bottom:6px">預告登記資訊</div>';
+  h += '<div class="frow2"><div class="frow"><div class="flbl">登記人名</div><input class="fi" id="cl-pretitle-name" value="'+(hasPretitle?hasPretitle.name||'':'')+'" placeholder="登記人姓名"></div>';
+  h += '<div class="frow"><div class="flbl">登記金額（元）</div><input class="fi" id="cl-pretitle-amt" type="number" value="'+(hasPretitle?hasPretitle.amount||'':'')+'" placeholder="0"></div></div>';
+  h += '</div>';
+  // 信託展開
+  h += '<div id="cl-trust-section" style="display:'+(hasTrust?'block':'none')+';background:var(--inp);border-radius:8px;padding:10px;margin-bottom:8px">';
+  h += '<div style="font-size:13px;font-weight:600;margin-bottom:6px">信託資訊</div>';
+  h += '<div class="frow2"><div class="frow"><div class="flbl">信託人名</div><input class="fi" id="cl-trust-name" value="'+(hasTrust?hasTrust.name||'':'')+'" placeholder="信託人姓名"></div>';
+  h += '<div class="frow"><div class="flbl">信託金額（元）</div><input class="fi" id="cl-trust-amt" type="number" value="'+(hasTrust?hasTrust.amount||'':'')+'" placeholder="0"></div></div>';
+  h += '</div>';
+
+  // 借款條件
+  h += '<div class="sl">借款條件</div>';
+  h += '<div class="frow2"><div class="frow"><div class="flbl">實際借款金額（元）</div><input class="fi" id="cl-amount" type="number" value="'+(item.closed_amount||'')+'" placeholder="0" oninput="updatePropLoanCalc()"></div>';
+  h += '<div class="frow"><div class="flbl">月息（%）</div><input class="fi" id="cl-pawn-rate" type="number" step="0.01" value="'+(item.pawn_monthly_rate||'')+'" placeholder="2.0" oninput="updatePropLoanCalc()"></div></div>';
+  // 每月利息自動計算
+  h += '<div id="cl-prop-interest-hint" style="font-size:13px;color:var(--grn);margin-top:4px;padding:4px 0"></div>';
+  h += '<div class="frow2" style="margin-top:6px"><div class="frow"><div class="flbl">預扣利息（月）</div><input class="fi" id="cl-prepay-months" type="number" value="'+(item.pawn_prepay_months||'')+'" placeholder="0" oninput="updatePropLoanCalc()"></div>';
+  h += '<div class="frow"><div class="flbl">綁約期（月）</div><input class="fi" id="cl-lock-months" type="number" value="'+(item.pawn_lock_months||'')+'" placeholder="0"></div></div>';
+  // 解約金
+  h += '<div class="frow2" style="margin-top:6px"><div class="frow"><div class="flbl">解約金（%）</div><input class="fi" id="cl-penalty-rate" type="number" step="0.01" value="'+(item.pawn_penalty_rate||'')+'" placeholder="0" oninput="updatePropLoanCalc()"></div>';
+  h += '<div class="frow"><div class="flbl">解約金金額（自動）</div><input class="fi" id="cl-penalty-amt" type="number" readonly placeholder="自動計算" style="background:var(--bg2);color:var(--grn);font-weight:600"></div></div>';
+  h += '<div class="frow2" style="margin-top:6px"><div class="frow"><div class="flbl">服務費（%）</div><input class="fi" id="cl-service-rate" type="number" step="0.01" value="'+(item.pawn_service_rate||'')+'" placeholder="0" oninput="updatePropLoanCalc()"></div>';
+  h += '<div class="frow"><div class="flbl">服務費金額（自動）</div><input class="fi" id="cl-service-amt" type="number" readonly placeholder="自動計算" style="background:var(--bg2);color:var(--acc);font-weight:600"></div></div>';
+  // 摘要
+  h += '<div id="cl-prop-summary" style="margin-top:8px;display:none;background:var(--gl);border:0.5px solid rgba(45,138,78,.3);border-radius:8px;padding:10px;font-size:13px;line-height:1.8"></div>';
   h += '</div>';
 
   // 分潤
@@ -2443,8 +2511,10 @@ function showAddClosingModal(leadId, editItem) {
   window.setClosingType = function(type, btn) {
     document.getElementById('cl-type').value = type;
     var isPawn2 = type === 'pawn';
+    var isProp2 = type === 'property';
     document.getElementById('cl-pawn-section').style.display = isPawn2 ? 'block' : 'none';
-    document.getElementById('cl-loan-section').style.display = isPawn2 ? 'none' : 'block';
+    document.getElementById('cl-loan-section').style.display = (!isPawn2 && !isProp2) ? 'block' : 'none';
+    document.getElementById('cl-property-section').style.display = isProp2 ? 'block' : 'none';
     box.querySelectorAll('[id^="ct-btn-"]').forEach(function(b) {
       var on = b.id === 'ct-btn-' + type;
       b.style.border = on ? '0.5px solid var(--acc)' : '0.5px solid var(--bdr2)';
@@ -2452,6 +2522,86 @@ function showAddClosingModal(leadId, editItem) {
       b.style.color = on ? 'var(--acc)' : 'var(--t2)';
     });
   };
+
+  // 預告登記/信託切換
+  window.updatePropRegs = function() {
+    var pretitle = box.querySelector('#cl-reg-pretitle');
+    var trust = box.querySelector('#cl-reg-trust');
+    var ps = box.querySelector('#cl-pretitle-section');
+    var ts = box.querySelector('#cl-trust-section');
+    if (ps) ps.style.display = pretitle && pretitle.checked ? 'block' : 'none';
+    if (ts) ts.style.display = trust && trust.checked ? 'block' : 'none';
+  };
+
+  // 不動產空間計算
+  window.updatePropCalc = function() {
+    var propVal = parseFloat(box.querySelector('#cl-prop-val') ? box.querySelector('#cl-prop-val').value : 0) || 0;
+    var l1 = parseFloat(box.querySelector('#cl-prop-l1') ? box.querySelector('#cl-prop-l1').value : 0) || 0;
+    var l2 = parseFloat(box.querySelector('#cl-prop-l2') ? box.querySelector('#cl-prop-l2').value : 0) || 0;
+    var l3 = parseFloat(box.querySelector('#cl-prop-l3') ? box.querySelector('#cl-prop-l3').value : 0) || 0;
+    var hint = box.querySelector('#cl-prop-space-hint');
+    if (!hint) return;
+    if (propVal > 0) {
+      var totalLoans = l1 + l2 + l3;
+      var space = propVal - totalLoans;
+      var ratio = parseFloat((totalLoans / propVal * 100).toFixed(1));
+      var spaceRatio = parseFloat((space / propVal * 100).toFixed(1));
+      var col = ratio <= 60 ? 'grn' : ratio <= 80 ? 'yel' : 'red';
+      hint.innerHTML =
+        '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px">' +
+        '<div style="background:var(--bg2);border-radius:6px;padding:6px;text-align:center"><div style="font-size:10px;color:var(--t3)">各胎合計</div><div style="font-size:13px;font-weight:600">$'+totalLoans.toLocaleString()+'</div></div>' +
+        '<div style="background:var(--bg2);border-radius:6px;padding:6px;text-align:center"><div style="font-size:10px;color:var(--t3)">使用成數</div><div style="font-size:13px;font-weight:600;color:var(--'+col+')">'+ratio+'%</div></div>' +
+        '<div style="background:var(--gl);border-radius:6px;padding:6px;text-align:center"><div style="font-size:10px;color:var(--t3)">剩餘空間</div><div style="font-size:13px;font-weight:700;color:var(--grn)">$'+space.toLocaleString()+'</div></div>' +
+        '</div>' +
+        '<div style="font-size:12px;color:var(--t2);margin-top:4px">剩餘可用成數：<strong style="color:var(--grn)">' + spaceRatio + '%</strong>（$'+space.toLocaleString()+'）</div>';
+    } else {
+      hint.innerHTML = '';
+    }
+  };
+
+  // 借款條件計算（不動產用）
+  window.updatePropLoanCalc = function() {
+    var amount = parseFloat(box.querySelector('#cl-amount') ? box.querySelector('#cl-amount').value : 0) || 0;
+    var rate = parseFloat(box.querySelector('#cl-pawn-rate') ? box.querySelector('#cl-pawn-rate').value : 0) || 0;
+    var prepay = parseInt(box.querySelector('#cl-prepay-months') ? box.querySelector('#cl-prepay-months').value : 0) || 0;
+    var penaltyRate = parseFloat(box.querySelector('#cl-penalty-rate') ? box.querySelector('#cl-penalty-rate').value : 0) || 0;
+    var serviceRate = parseFloat(box.querySelector('#cl-service-rate') ? box.querySelector('#cl-service-rate').value : 0) || 0;
+    var interestHint = box.querySelector('#cl-prop-interest-hint');
+    var penaltyAmtEl = box.querySelector('#cl-penalty-amt');
+    var serviceAmtEl = box.querySelector('#cl-service-amt');
+    var summary = box.querySelector('#cl-prop-summary');
+    var monthlyInterest = amount > 0 && rate > 0 ? Math.round(amount * rate / 100) : 0;
+    var penaltyAmt = amount > 0 && penaltyRate > 0 ? Math.round(amount * penaltyRate / 100) : 0;
+    var serviceAmt = amount > 0 && serviceRate > 0 ? Math.round(amount * serviceRate / 100) : 0;
+    var prepayTotal = monthlyInterest * prepay;
+    var actualDisburse = amount - prepayTotal - serviceAmt;
+    if (interestHint) {
+      interestHint.textContent = monthlyInterest > 0 ? '每月利息：$' + monthlyInterest.toLocaleString() + '（借款 $' + amount.toLocaleString() + ' × ' + rate + '%）' : '';
+    }
+    if (penaltyAmtEl) penaltyAmtEl.value = penaltyAmt > 0 ? penaltyAmt : '';
+    if (serviceAmtEl) serviceAmtEl.value = serviceAmt > 0 ? serviceAmt : '';
+    if (summary) {
+      if (amount > 0) {
+        summary.style.display = 'block';
+        var lines = [];
+        lines.push('借款本金：$' + amount.toLocaleString());
+        if (monthlyInterest) lines.push('每月利息：$' + monthlyInterest.toLocaleString());
+        if (prepay) lines.push('預扣利息 ' + prepay + ' 個月：$' + prepayTotal.toLocaleString());
+        if (serviceAmt) lines.push('服務費 ' + serviceRate + '%：$' + serviceAmt.toLocaleString());
+        if (prepay || serviceAmt) lines.push('<strong style="color:var(--grn)">實際撥款：$' + actualDisburse.toLocaleString() + '</strong>');
+        if (penaltyAmt) lines.push('解約金 ' + penaltyRate + '%：$' + penaltyAmt.toLocaleString());
+        summary.innerHTML = '💰 <strong>借款摘要</strong><br>' + lines.join('<br>');
+      } else {
+        summary.style.display = 'none';
+      }
+    }
+  };
+
+  // 初始計算
+  if (isProperty) {
+    updatePropCalc();
+    updatePropLoanCalc();
+  }
 
   // 利息計算更新
   window.updatePawnInterestCalc = function() {
@@ -2615,6 +2765,7 @@ async function saveClosingItem(leadId, editId, modal, box) {
 
   var type = gv('cl-type') || 'car_loan';
   var isPawn = type === 'pawn';
+  var isProp = type === 'property';
   var splitType = gv('cl-split-type') || 'self';
 
   // 收集合作人員
@@ -2632,16 +2783,29 @@ async function saveClosingItem(leadId, editId, modal, box) {
     if (name && name.value.trim()) fees.push({name: name.value.trim(), amount: parseInt(amt?amt.value:0)||0});
   });
 
+  // 收集不動產其他登記
+  var propRegs = [];
+  if (isProp) {
+    var pretitleCb = box.querySelector('#cl-reg-pretitle');
+    var trustCb = box.querySelector('#cl-reg-trust');
+    if (pretitleCb && pretitleCb.checked) {
+      propRegs.push({type:'pretitle', name:gv('cl-pretitle-name'), amount:gi('cl-pretitle-amt')});
+    }
+    if (trustCb && trustCb.checked) {
+      propRegs.push({type:'trust', name:gv('cl-trust-name'), amount:gi('cl-trust-amt')});
+    }
+  }
+
   var payload = {
     lead_id: leadId, member_id: currentUser.id,
     closing_type: type,
-    closed_amount: isPawn ? gi('cl-amount') : gi('cl-loan-amount'),
-    institution: isPawn ? null : gv('cl-institution'),
+    closed_amount: (isPawn || isProp) ? gi('cl-amount') : gi('cl-loan-amount'),
+    institution: (isPawn || isProp) ? null : gv('cl-institution'),
     pawn_item_name: isPawn ? gv('cl-pawn-item') : null,
     pawn_item_type: isPawn ? gv('cl-pawn-type') : null,
     pawn_appraised_value: isPawn ? gi('cl-pawn-appraise') : null,
     pawn_location: isPawn ? gv('cl-pawn-loc') : null,
-    pawn_monthly_rate: isPawn ? gf('cl-pawn-rate') : null,
+    pawn_monthly_rate: (isPawn || isProp) ? gf('cl-pawn-rate') : null,
     pawn_loan_date: isPawn ? gv('cl-pawn-start') || null : null,
     pawn_due_date: isPawn ? gv('cl-pawn-due') || null : null,
     pawn_pay_day: isPawn ? (parseInt(gv('cl-pay-day'))||null) : null,
@@ -2652,6 +2816,16 @@ async function saveClosingItem(leadId, editId, modal, box) {
     vehicle_model: isPawn && gv('cl-pawn-type')==='汽機車' ? gv('cl-v-model')||null : null,
     vehicle_year: isPawn && gv('cl-pawn-type')==='汽機車' ? gi('cl-v-year') : null,
     vehicle_mileage: isPawn && gv('cl-pawn-type')==='汽機車' ? gi('cl-v-mileage') : null,
+    // 不動產專用
+    prop_valuation: isProp ? gf('cl-prop-val') : null,
+    prop_loan1: isProp ? gf('cl-prop-l1') : null,
+    prop_loan2: isProp ? gf('cl-prop-l2') : null,
+    prop_loan3: isProp ? gf('cl-prop-l3') : null,
+    prop_other_reg: isProp ? propRegs : [],
+    pawn_prepay_months: isProp ? gi('cl-prepay-months') : null,
+    pawn_lock_months: isProp ? gi('cl-lock-months') : null,
+    pawn_penalty_rate: isProp ? gf('cl-penalty-rate') : null,
+    pawn_service_rate: isProp ? gf('cl-service-rate') : null,
     split_type: 'custom',
     my_rate: gf('cl-my-rate') || 0,
     company_rate: gf('cl-company-rate') || 0,
