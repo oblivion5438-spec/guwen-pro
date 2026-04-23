@@ -322,10 +322,6 @@ select.fi{-webkit-appearance:auto;appearance:auto;display:block;max-width:100%;w
       <button class="ds-ni" onclick="navTo('team',this)">🏢 團隊管理</button>
       <button class="ds-ni" onclick="navTo('connections',this)">🤝 對接管理 <span id="conn-badge" style="display:none;background:var(--red);color:#FFF;font-size:11px;padding:1px 6px;border-radius:10px;margin-left:4px">0</span></button>
       <button class="ds-ni" onclick="navTo('notifications',this)">🔔 通知中心 <span id="notif-badge" style="display:none;background:var(--red);color:#FFF;font-size:11px;padding:1px 6px;border-radius:10px;margin-left:4px">0</span></button>
-      <div class="ds-lbl">其他業務</div>
-      <button class="ds-ni" onclick="navTo('car-dealer',this)">🚙 車行管理</button>
-      <button class="ds-ni" onclick="navTo('car-finance',this)">🚗 車貸融資方</button>
-      <button class="ds-ni" onclick="navTo('pawn',this)">🏛 當鋪管理</button>
       <button class="ds-ni" onclick="navTo('invite',this)">🎁 邀請碼 / 折扣</button>
       <button class="ds-ni" onclick="navTo('calc',this)">🧮 貸款試算</button>
       <button class="ds-ni" onclick="navTo('review',this)">📋 照會生成</button>
@@ -354,7 +350,12 @@ select.fi{-webkit-appearance:auto;appearance:auto;display:block;max-width:100%;w
     <!-- 桌機 topbar -->
     <div id="desktop-topbar" style="display:none;align-items:center;justify-content:space-between;padding:12px 20px;border-bottom:0.5px solid var(--bdr);background:var(--bg);flex-shrink:0">
       <div style="font-size:15px;color:var(--t2)" id="dt-title">儀表板</div>
-      <div style="display:flex;align-items:center;gap:10px">
+      <div style="display:flex;align-items:center;gap:8px">
+        <!-- 業務快捷按鈕 -->
+        <button onclick="navTo('car-dealer',null)" id="topbar-car-dealer" style="padding:5px 12px;border-radius:20px;font-size:13px;font-family:var(--sans);cursor:pointer;border:0.5px solid var(--bdr2);background:transparent;color:var(--t2)">🚙 中古車商</button>
+        <button onclick="navTo('car-finance',null)" id="topbar-car-finance" style="padding:5px 12px;border-radius:20px;font-size:13px;font-family:var(--sans);cursor:pointer;border:0.5px solid var(--bdr2);background:transparent;color:var(--t2)">🚗 融資車貸</button>
+        <button onclick="navTo('pawn',null)" id="topbar-pawn" style="padding:5px 12px;border-radius:20px;font-size:13px;font-family:var(--sans);cursor:pointer;border:0.5px solid var(--bdr2);background:transparent;color:var(--t2)">🏛 民間借款</button>
+        <div style="width:0.5px;height:20px;background:var(--bdr2)"></div>
         <span class="badge b-acc" id="dt-plan-badge">進階版</span>
         <div style="display:flex;align-items:center;gap:8px;cursor:pointer" onclick="navTo('settings',null)">
           <div style="width:32px;height:32px;border-radius:50%;background:var(--al);color:var(--acc);display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700" id="dt-avatar">顧</div>
@@ -1097,8 +1098,17 @@ function navTo(key, el) {
   document.querySelectorAll('.bn-item').forEach(function(n) { n.classList.remove('on'); });
   var bn = document.getElementById('bn-' + key);
   if (bn) bn.classList.add('on');
+  // 右上角業務按鈕高亮
+  ['car-dealer','car-finance','pawn'].forEach(function(k) {
+    var btn = document.getElementById('topbar-' + k);
+    if (!btn) return;
+    var on = k === key;
+    btn.style.border = on ? '0.5px solid var(--acc)' : '0.5px solid var(--bdr2)';
+    btn.style.background = on ? 'var(--al)' : 'transparent';
+    btn.style.color = on ? 'var(--acc)' : 'var(--t2)';
+  });
   // 更新桌機 topbar 標題
-  var titles = {'dash':'儀表板','leads':'客戶名單','add-lead':'新增客戶資料','calendar':'行事曆','finance':'收支理財工具','team':'團隊管理','connections':'🤝 對接管理','notifications':'🔔 通知中心','invite':'邀請碼 / 折扣','calc':'貸款試算','review':'照會生成','antifraud':'詐騙辨識','score-rules':'評分規則','prop-thresholds':'貸款項目設定','appearance':'外觀設定','settings':'帳號設定','report':'問題回報','car-dealer':'🚙 車行管理','car-finance':'🚗 車貸融資方','pawn':'🏛 當鋪管理'};
+  var titles = {'dash':'儀表板','leads':'客戶名單','add-lead':'新增客戶資料','calendar':'行事曆','finance':'收支理財工具','team':'團隊管理','connections':'🤝 對接管理','notifications':'🔔 通知中心','invite':'邀請碼 / 折扣','calc':'貸款試算','review':'照會生成','antifraud':'詐騙辨識','score-rules':'評分規則','prop-thresholds':'貸款項目設定','appearance':'外觀設定','settings':'帳號設定','report':'問題回報','car-dealer':'🚙 中古車商','car-finance':'🚗 融資車貸','pawn':'🏛 民間借款'};
   var dt = document.getElementById('dt-title'); if (dt) dt.textContent = titles[key] || '';
   var renders = {
     'dash': renderDash, 'leads': renderLeads, 'add-lead': renderAddLead,
@@ -2168,7 +2178,14 @@ function renderClosingList(leadId) {
   var totalMyIncome = 0;
   items.forEach(function(item) {
     var typeLabel = (closingTypes.find(function(t){return t.key===item.closing_type;})||{label:'其他'}).label;
-    var myIncome = item.closed_amount ? Math.round(item.closed_amount * (item.my_rate||100) / 100) : 0;
+    var myIncome = 0;
+    if (item.closing_type === 'pawn' && item.closed_amount && item.pawn_monthly_rate) {
+      // 當鋪：分潤基礎是每月利息
+      var monthlyInterest = Math.round(item.closed_amount * item.pawn_monthly_rate / 100);
+      myIncome = Math.round(monthlyInterest * (item.my_rate||100) / 100);
+    } else {
+      myIncome = item.closed_amount ? Math.round(item.closed_amount * (item.my_rate||100) / 100) : 0;
+    }
     totalMyIncome += myIncome;
     var div = document.createElement('div');
     div.style.cssText = 'border:0.5px solid rgba(45,138,78,.3);border-radius:8px;padding:10px;margin-bottom:8px;background:rgba(45,138,78,.05)';
@@ -2181,8 +2198,13 @@ function renderClosingList(leadId) {
     // 當鋪顯示
     if (item.closing_type === 'pawn') {
       if (item.pawn_item_name) h += '<div style="font-size:13px;color:var(--t2);margin-bottom:3px">📦 抵押品：' + item.pawn_item_name + (item.pawn_item_type?' ('+item.pawn_item_type+')':'') + '</div>';
+      if (item.vehicle_brand) h += '<div style="font-size:13px;color:var(--t2);margin-bottom:3px">🚗 ' + (item.vehicle_brand||'') + ' ' + (item.vehicle_model||'') + (item.vehicle_year?' '+item.vehicle_year+'年':'') + (item.vehicle_mileage?' · '+item.vehicle_mileage.toLocaleString()+'km':'') + '</div>';
       if (item.pawn_location) h += '<div style="font-size:13px;color:var(--t2);margin-bottom:3px">📍 存放：' + item.pawn_location + '</div>';
-      if (item.closed_amount) h += '<div style="font-size:13px;margin-bottom:3px">借款：<span style="font-weight:600;color:var(--acc)">$' + item.closed_amount.toLocaleString() + '</span> · ' + (item.pawn_monthly_rate||0) + '% 月利率</div>';
+      if (item.closed_amount) {
+        var monthlyInt = item.pawn_monthly_rate ? Math.round(item.closed_amount * item.pawn_monthly_rate / 100) : 0;
+        h += '<div style="font-size:13px;margin-bottom:3px">借款：<span style="font-weight:600;color:var(--acc)">$' + item.closed_amount.toLocaleString() + '</span> · ' + (item.pawn_monthly_rate||0) + '% 月利率 · <span style="color:var(--grn)">每月利息 $' + monthlyInt.toLocaleString() + '</span></div>';
+      }
+      if (item.pawn_pay_day) h += '<div style="font-size:12px;color:var(--t2);margin-bottom:3px">💳 每月 '+item.pawn_pay_day+' 號還款</div>';
       if (item.pawn_repay_type === 'installment') h += '<div style="font-size:12px;color:var(--t2)">本利攤還 ' + (item.pawn_installments||0) + ' 期</div>';
       else h += '<div style="font-size:12px;color:var(--t2)">純利息繳還</div>';
     } else {
@@ -2190,7 +2212,7 @@ function renderClosingList(leadId) {
       if (item.closed_amount) h += '<div style="font-size:13px;margin-bottom:3px">成交金額：<span style="font-weight:600;color:var(--acc)">$' + item.closed_amount.toLocaleString() + '</span></div>';
     }
     // 分潤
-    h += '<div style="font-size:12px;color:var(--grn);font-weight:500">我的收入：$' + myIncome.toLocaleString() + ' (' + (item.my_rate||100) + '%)</div>';
+    h += '<div style="font-size:12px;color:var(--grn);font-weight:500">我的收入：$' + myIncome.toLocaleString() + ' (' + (item.my_rate||100) + '%)' + (item.closing_type==='pawn'?' 月利息分潤':'') + '</div>';
     if (item.note) h += '<div style="font-size:12px;color:var(--t3);margin-top:3px">📝 ' + item.note + '</div>';
     h += '';
     div.innerHTML = h;
@@ -2243,11 +2265,30 @@ function showAddClosingModal(leadId, editItem) {
   h += '<div class="frow"><div class="flbl">類型</div><select class="fi" id="cl-pawn-type">' + pawnTypes.map(function(t){return '<option'+(item.pawn_item_type===t?' selected':'')+'>'+t+'</option>';}).join('') + '</select></div></div>';
   h += '<div class="frow2" style="margin-top:6px"><div class="frow"><div class="flbl">估價金額（元）</div><input class="fi" id="cl-pawn-appraise" type="number" value="'+(item.pawn_appraised_value||'')+'" placeholder="0"></div>';
   h += '<div class="frow"><div class="flbl">存放地點</div><input class="fi" id="cl-pawn-loc" value="'+(item.pawn_location||'')+'" placeholder="台北店"></div></div>';
+
+  // 抵押品為汽機車時的額外欄位
+  h += '<div id="cl-vehicle-section" style="display:none;margin-top:8px;padding:10px;background:var(--inp);border-radius:8px">';
+  h += '<div style="font-size:13px;font-weight:600;color:var(--t2);margin-bottom:6px">🚗 車輛資訊</div>';
+  h += '<div class="frow2"><div class="frow"><div class="flbl">廠牌</div><input class="fi" id="cl-v-brand" value="'+(item.vehicle_brand||'')+'" placeholder="Toyota"></div>';
+  h += '<div class="frow"><div class="flbl">車型</div><input class="fi" id="cl-v-model" value="'+(item.vehicle_model||'')+'" placeholder="Camry"></div></div>';
+  h += '<div class="frow2" style="margin-top:6px"><div class="frow"><div class="flbl">年份</div><input class="fi" id="cl-v-year" type="number" value="'+(item.vehicle_year||'')+'" placeholder="2018"></div>';
+  h += '<div class="frow"><div class="flbl">里程數（km）</div><input class="fi" id="cl-v-mileage" type="number" value="'+(item.vehicle_mileage||'')+'" placeholder="80000"></div></div>';
+  h += '</div>';
+
   h += '<div class="sl">借款條件</div>';
-  h += '<div class="frow2"><div class="frow"><div class="flbl">借款金額（元）</div><input class="fi" id="cl-amount" type="number" value="'+(item.closed_amount||'')+'" placeholder="0"></div>';
-  h += '<div class="frow"><div class="flbl">月利率（%）</div><input class="fi" id="cl-pawn-rate" type="number" step="0.1" value="'+(item.pawn_monthly_rate||'')+'" placeholder="3.0"></div></div>';
+  h += '<div class="frow2"><div class="frow"><div class="flbl">借款金額（元）</div><input class="fi" id="cl-amount" type="number" value="'+(item.closed_amount||'')+'" placeholder="0" oninput="updatePawnInterestCalc()"></div>';
+  h += '<div class="frow"><div class="flbl">月利率（%）</div><input class="fi" id="cl-pawn-rate" type="number" step="0.1" value="'+(item.pawn_monthly_rate||'')+'" placeholder="3.0" oninput="updatePawnInterestCalc()"></div></div>';
+  // 利息自動計算提示
+  h += '<div id="cl-interest-hint" style="font-size:13px;color:var(--grn);margin-top:4px;padding:4px 0"></div>';
   h += '<div class="frow2" style="margin-top:6px"><div class="frow"><div class="flbl">借款日期</div><input class="fi" id="cl-pawn-start" type="date" value="'+(item.pawn_loan_date||'')+'">';
   h += '</div><div class="frow"><div class="flbl">到期日</div><input class="fi" id="cl-pawn-due" type="date" value="'+(item.pawn_due_date||'')+'"></div></div>';
+  h += '<div class="frow" style="margin-top:6px"><div class="flbl">每月還款日（幾號）</div><select class="fi" id="cl-pay-day">';
+  var payDay = item.pawn_pay_day || '';
+  h += '<option value="">— 選擇 —</option>';
+  for (var d = 1; d <= 31; d++) {
+    h += '<option value="'+d+'"'+(payDay==d?' selected':'')+'>每月 '+d+' 號</option>';
+  }
+  h += '</select></div>';
   h += '<div class="sl">還款方式</div>';
   h += '<div style="display:flex;gap:8px;margin-bottom:8px">';
   h += '<button id="repay-interest" onclick="setRepayType(\'interest_only\')" style="flex:1;padding:8px;border-radius:8px;font-family:var(--sans);font-size:13px;cursor:pointer;border:0.5px solid '+((!item.pawn_repay_type||item.pawn_repay_type==='interest_only')?'var(--acc)':'var(--bdr2)')+';background:'+((!item.pawn_repay_type||item.pawn_repay_type==='interest_only')?'var(--al)':'transparent')+';color:'+((!item.pawn_repay_type||item.pawn_repay_type==='interest_only')?'var(--acc)':'var(--t2)')+'">純利息繳還</button>';
@@ -2271,27 +2312,45 @@ function showAddClosingModal(leadId, editItem) {
   h += '</div>';
 
   // 分潤
-  h += '<div class="sl">收入分潤</div>';
-  h += '<div style="display:flex;gap:6px;margin-bottom:8px">';
-  h += '<button id="split-self-btn" onclick="setClosingSplitType(\'self\')" style="padding:6px 14px;border-radius:20px;font-size:13px;font-family:var(--sans);cursor:pointer;border:0.5px solid '+(splitType==='self'?'var(--acc)':'var(--bdr2)')+';background:'+(splitType==='self'?'var(--al)':'transparent')+';color:'+(splitType==='self'?'var(--acc)':'var(--t2)')+'">個人</button>';
-  h += '<button id="split-company-btn" onclick="setClosingSplitType(\'company\')" style="padding:6px 14px;border-radius:20px;font-size:13px;font-family:var(--sans);cursor:pointer;border:0.5px solid '+(splitType==='company'?'var(--acc)':'var(--bdr2)')+';background:'+(splitType==='company'?'var(--al)':'transparent')+';color:'+(splitType==='company'?'var(--acc)':'var(--t2)')+'">公司員工</button>';
+  var rateHint = item.pawn_monthly_rate ? item.pawn_monthly_rate + '%' : '月利率%';
+  h += '<div class="sl">收入分潤設定</div>';
+  h += '<div style="font-size:13px;color:var(--t2);margin-bottom:10px;padding:8px 10px;background:var(--inp);border-radius:8px;line-height:1.8">';
+  h += '💡 <strong>填寫方式：</strong>各方分潤 % 加總需等於月利率 <strong style="color:var(--acc)">' + rateHint + '</strong><br>';
+  h += '例：月利率 7.5% → 公司填 5%、業務填 2.5%，合計 = 7.5%<br>';
+  h += '<span style="color:var(--grn)">系統自動計算各方每月實際收入金額</span>';
   h += '</div>';
-  h += '<input type="hidden" id="cl-split-type" value="'+splitType+'">';
-  h += '<div id="cl-company-rate-row" style="display:'+(splitType==='company'?'flex':'none')+'">';
-  h += '<div class="frow" style="flex:1"><div class="flbl">公司抽成（%）</div><input class="fi" id="cl-company-rate" type="number" min="0" max="100" value="'+(item.company_rate||'')+'" placeholder="40"></div></div>';
-  h += '<div class="frow"><div class="flbl">我的分潤（%）</div><input class="fi" id="cl-my-rate" type="number" min="0" max="100" value="'+(item.my_rate!==undefined?item.my_rate:100)+'" placeholder="100"></div>';
-
+  // 公司分潤
+  h += '<div style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--inp);border-radius:7px;margin-bottom:6px">';
+  h += '<span style="font-size:13px;color:var(--t2);flex:1">🏢 公司</span>';
+  h += '<input type="number" step="0.01" min="0" id="cl-company-rate" value="'+(item.company_rate||'')+'" placeholder="0.00" oninput="updatePawnSplitCalc()" style="width:75px;padding:6px 8px;background:var(--bg2);border:0.5px solid var(--bdr2);border-radius:7px;color:var(--inpt);font-size:14px;font-weight:600;font-family:var(--sans);text-align:center">';
+  h += '<span style="font-size:13px;color:var(--t2)">%</span>';
+  h += '<span id="cl-company-income" style="font-size:13px;color:var(--t2);min-width:85px;text-align:right"></span>';
+  h += '</div>';
+  // 我的分潤
+  h += '<div style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:rgba(45,138,78,.1);border:0.5px solid rgba(45,138,78,.3);border-radius:7px;margin-bottom:6px">';
+  h += '<span style="font-size:13px;font-weight:600;color:var(--grn);flex:1">👤 我（業務）</span>';
+  h += '<input type="number" step="0.01" min="0" id="cl-my-rate" value="'+(item.my_rate!==undefined&&item.my_rate!==null?item.my_rate:'')+'" placeholder="0.00" oninput="updatePawnSplitCalc()" style="width:75px;padding:6px 8px;background:var(--bg2);border:0.5px solid rgba(45,138,78,.4);border-radius:7px;color:var(--inpt);font-size:14px;font-weight:700;font-family:var(--sans);text-align:center">';
+  h += '<span style="font-size:13px;color:var(--grn)">%</span>';
+  h += '<span id="cl-my-income" style="font-size:14px;font-weight:700;color:var(--grn);min-width:85px;text-align:right"></span>';
+  h += '</div>';
   // 合作人員
-  h += '<div id="cl-partners-list" style="margin-top:6px">';
-  partners.forEach(function(p, pi) {
-    h += '<div class="cl-partner-row" style="display:flex;gap:6px;align-items:center;margin-top:6px">';
-    h += '<input placeholder="姓名" class="cl-p-name" value="'+(p.name||'')+'" style="flex:2;padding:8px;background:var(--bg2);border:0.5px solid var(--bdr2);border-radius:7px;color:var(--inpt);font-family:var(--sans);font-size:14px">';
-    h += '<input placeholder="%" type="number" class="cl-p-rate" value="'+(p.rate||'')+'" style="width:65px;padding:8px;background:var(--bg2);border:0.5px solid var(--bdr2);border-radius:7px;color:var(--inpt);font-family:var(--sans);font-size:14px;text-align:center">';
-    h += '<button onclick="this.closest(\'.cl-partner-row\').remove()" style="padding:4px 8px;border-radius:5px;border:0.5px solid rgba(192,64,48,.3);background:transparent;color:var(--red);cursor:pointer;font-family:var(--sans)">✕</button>';
+  h += '<div id="cl-partners-list">';
+  partners.forEach(function(p) {
+    h += '<div class="cl-partner-row" style="display:flex;align-items:center;gap:8px;padding:6px 10px;background:var(--inp);border-radius:7px;margin-bottom:6px">';
+    h += '<input placeholder="姓名" class="cl-p-name" value="'+(p.name||'')+'" style="flex:2;padding:6px 8px;background:var(--bg2);border:0.5px solid var(--bdr2);border-radius:7px;color:var(--inpt);font-family:var(--sans);font-size:13px">';
+    h += '<input placeholder="%" type="number" step="0.01" class="cl-p-rate" value="'+(p.rate||'')+'" oninput="updatePawnSplitCalc()" style="width:75px;padding:6px 8px;background:var(--bg2);border:0.5px solid var(--bdr2);border-radius:7px;color:var(--inpt);font-family:var(--sans);font-size:14px;text-align:center">';
+    h += '<span style="font-size:13px;color:var(--t2)">%</span>';
+    h += '<span class="cl-p-income" style="font-size:13px;color:var(--t2);min-width:85px;text-align:right"></span>';
+    h += '<button onclick="this.closest(\'.cl-partner-row\').remove();updatePawnSplitCalc()" style="padding:4px 8px;border-radius:5px;border:0.5px solid rgba(192,64,48,.3);background:transparent;color:var(--red);cursor:pointer;font-family:var(--sans)">✕</button>';
     h += '</div>';
   });
   h += '</div>';
-  h += '<button id="cl-add-partner" style="font-size:13px;padding:5px 12px;border-radius:6px;border:0.5px solid var(--bdr2);background:transparent;color:var(--t1);cursor:pointer;font-family:var(--sans);margin-top:6px">+ 合作人員</button>';
+  h += '<button id="cl-add-partner" style="font-size:13px;padding:5px 12px;border-radius:6px;border:0.5px solid var(--bdr2);background:transparent;color:var(--t1);cursor:pointer;font-family:var(--sans);margin-bottom:8px">+ 合作人員</button>';
+  // 合計
+  h += '<div id="cl-split-total" style="display:flex;justify-content:space-between;align-items:center;padding:8px 10px;border-radius:7px;background:var(--inp);margin-top:2px;margin-bottom:6px">';
+  h += '<span style="font-size:13px;color:var(--t2)">合計比率</span>';
+  h += '<span id="cl-total-pct" style="font-size:14px;font-weight:700;color:var(--t1)">0%</span>';
+  h += '</div>';
 
   // 額外收費
   h += '<div class="sl">額外收費</div>';
@@ -2329,6 +2388,94 @@ function showAddClosingModal(leadId, editItem) {
       b.style.color = on ? 'var(--acc)' : 'var(--t2)';
     });
   };
+
+  // 利息計算更新
+  window.updatePawnInterestCalc = function() {
+    var amt = parseFloat(box.querySelector('#cl-amount') ? box.querySelector('#cl-amount').value : 0) || 0;
+    var rate = parseFloat(box.querySelector('#cl-pawn-rate') ? box.querySelector('#cl-pawn-rate').value : 0) || 0;
+    var hint = box.querySelector('#cl-interest-hint');
+    if (amt > 0 && rate > 0) {
+      var monthly = Math.round(amt * rate / 100);
+      if (hint) hint.textContent = '每月利息：$' + monthly.toLocaleString() + '（= 借款 $' + amt.toLocaleString() + ' × ' + rate + '%）';
+    } else {
+      if (hint) hint.textContent = '';
+    }
+    updatePawnSplitCalc();
+  };
+
+  // 分潤計算（各方%直接對應利率%）
+  window.updatePawnSplitCalc = function() {
+    var amt = parseFloat(box.querySelector('#cl-amount') ? box.querySelector('#cl-amount').value : 0) || 0;
+    var rate = parseFloat(box.querySelector('#cl-pawn-rate') ? box.querySelector('#cl-pawn-rate').value : 0) || 0;
+    var loanAmt = box.querySelector('#cl-loan-amount') ? parseFloat(box.querySelector('#cl-loan-amount').value)||0 : 0;
+    var baseAmt = isPawn ? amt : loanAmt; // 分潤基礎金額
+
+    var coRate = parseFloat(box.querySelector('#cl-company-rate') ? box.querySelector('#cl-company-rate').value : 0) || 0;
+    var myRate2 = parseFloat(box.querySelector('#cl-my-rate') ? box.querySelector('#cl-my-rate').value : 0) || 0;
+    var total = coRate + myRate2;
+
+    // 合作人員
+    var partnerRows = box.querySelectorAll('.cl-partner-row');
+    partnerRows.forEach(function(row) {
+      var pr = row.querySelector('.cl-p-rate');
+      var pi = row.querySelector('.cl-p-income');
+      var pRate = pr ? parseFloat(pr.value)||0 : 0;
+      total += pRate;
+      if (pi) {
+        if (isPawn && amt > 0) {
+          pi.textContent = '$' + Math.round(amt * pRate / 100).toLocaleString() + '/月';
+        } else if (!isPawn && baseAmt > 0) {
+          pi.textContent = '$' + Math.round(baseAmt * pRate / 100).toLocaleString();
+        } else { pi.textContent = ''; }
+      }
+    });
+
+    // 更新金額顯示
+    var coIncome = box.querySelector('#cl-company-income');
+    var myIncome2 = box.querySelector('#cl-my-income');
+    if (isPawn && amt > 0) {
+      if (coIncome) coIncome.textContent = '$' + Math.round(amt * coRate / 100).toLocaleString() + '/月';
+      if (myIncome2) myIncome2.textContent = '$' + Math.round(amt * myRate2 / 100).toLocaleString() + '/月';
+    } else if (!isPawn && baseAmt > 0) {
+      if (coIncome) coIncome.textContent = '$' + Math.round(baseAmt * coRate / 100).toLocaleString();
+      if (myIncome2) myIncome2.textContent = '$' + Math.round(baseAmt * myRate2 / 100).toLocaleString();
+    } else {
+      if (coIncome) coIncome.textContent = '';
+      if (myIncome2) myIncome2.textContent = '';
+    }
+
+    // 合計比率
+    var totalEl = box.querySelector('#cl-total-pct');
+    if (totalEl) {
+      var target = isPawn ? rate : 100;
+      var ok = isPawn ? Math.abs(total - target) < 0.01 : Math.round(total) === 100;
+      totalEl.textContent = total.toFixed(2) + '%' + (isPawn ? ' / 月利率 ' + rate + '%' : '');
+      totalEl.style.color = ok ? 'var(--grn)' : (total > target ? 'var(--red)' : 'var(--yel)');
+      var totalDiv = box.querySelector('#cl-split-total');
+      if (totalDiv) totalDiv.style.background = ok ? 'rgba(45,138,78,.1)' : (total > target ? 'var(--rl)' : 'var(--yl)');
+    }
+  };
+
+  // 抵押品類型切換汽機車
+  var pawnTypeEl = box.querySelector('#cl-pawn-type');
+  if (pawnTypeEl) {
+    var checkVehicle = function() {
+      var isVehicle = ['汽機車'].indexOf(pawnTypeEl.value) >= 0;
+      var vs = box.querySelector('#cl-vehicle-section');
+      if (vs) vs.style.display = isVehicle ? 'block' : 'none';
+    };
+    pawnTypeEl.onchange = checkVehicle;
+    checkVehicle(); // 初始檢查
+  }
+
+  // 如果初始就有汽機車顯示
+  if (item.pawn_item_type === '汽機車') {
+    var vs2 = box.querySelector('#cl-vehicle-section');
+    if (vs2) vs2.style.display = 'block';
+  }
+
+  // 初始計算
+  if (item.closed_amount && item.pawn_monthly_rate) updatePawnInterestCalc();
   window.setRepayType = function(type) {
     document.getElementById('cl-repay-type').value = type;
     document.getElementById('cl-installments-row').style.display = type === 'installment' ? 'block' : 'none';
@@ -2370,11 +2517,13 @@ function showAddClosingModal(leadId, editItem) {
     var list = box.querySelector('#cl-partners-list');
     var row = document.createElement('div');
     row.className = 'cl-partner-row';
-    row.style.cssText = 'display:flex;gap:6px;align-items:center;margin-top:6px';
+    row.style.cssText = 'display:flex;align-items:center;gap:8px;padding:6px 10px;background:var(--inp);border-radius:7px;margin-bottom:6px';
     row.innerHTML =
-      '<input placeholder="姓名" class="cl-p-name" style="flex:2;padding:8px;background:var(--bg2);border:0.5px solid var(--bdr2);border-radius:7px;color:var(--inpt);font-family:var(--sans);font-size:14px">' +
-      '<input placeholder="%" type="number" class="cl-p-rate" style="width:65px;padding:8px;background:var(--bg2);border:0.5px solid var(--bdr2);border-radius:7px;color:var(--inpt);font-family:var(--sans);font-size:14px;text-align:center">' +
-      '<button onclick="this.closest(\'.cl-partner-row\').remove()" style="padding:4px 8px;border-radius:5px;border:0.5px solid rgba(192,64,48,.3);background:transparent;color:var(--red);cursor:pointer;font-family:var(--sans)">✕</button>';
+      '<input placeholder="姓名" class="cl-p-name" style="flex:2;padding:6px 8px;background:var(--bg2);border:0.5px solid var(--bdr2);border-radius:7px;color:var(--inpt);font-family:var(--sans);font-size:13px">' +
+      '<input placeholder="%" type="number" step="0.01" class="cl-p-rate" oninput="updatePawnSplitCalc()" style="width:75px;padding:6px 8px;background:var(--bg2);border:0.5px solid var(--bdr2);border-radius:7px;color:var(--inpt);font-family:var(--sans);font-size:14px;text-align:center">' +
+      '<span style="font-size:13px;color:var(--t2)">%</span>' +
+      '<span class="cl-p-income" style="font-size:13px;color:var(--t2);min-width:85px;text-align:right"></span>' +
+      '<button onclick="this.closest(\'.cl-partner-row\').remove();updatePawnSplitCalc()" style="padding:4px 8px;border-radius:5px;border:0.5px solid rgba(192,64,48,.3);background:transparent;color:var(--red);cursor:pointer;font-family:var(--sans)">✕</button>';
     list.appendChild(row);
   };
   // 額外收費
@@ -2431,12 +2580,17 @@ async function saveClosingItem(leadId, editId, modal, box) {
     pawn_monthly_rate: isPawn ? gf('cl-pawn-rate') : null,
     pawn_loan_date: isPawn ? gv('cl-pawn-start') || null : null,
     pawn_due_date: isPawn ? gv('cl-pawn-due') || null : null,
+    pawn_pay_day: isPawn ? (parseInt(gv('cl-pay-day'))||null) : null,
     pawn_repay_type: isPawn ? gv('cl-repay-type') : null,
     pawn_installments: isPawn && gv('cl-repay-type')==='installment' ? gi('cl-installments') : null,
     pawn_lending_type: isPawn ? gv('cl-lend-type') : null,
-    split_type: splitType,
-    my_rate: gf('cl-my-rate') || 100,
-    company_rate: splitType==='company' ? (gf('cl-company-rate')||0) : 0,
+    vehicle_brand: isPawn && gv('cl-pawn-type')==='汽機車' ? gv('cl-v-brand')||null : null,
+    vehicle_model: isPawn && gv('cl-pawn-type')==='汽機車' ? gv('cl-v-model')||null : null,
+    vehicle_year: isPawn && gv('cl-pawn-type')==='汽機車' ? gi('cl-v-year') : null,
+    vehicle_mileage: isPawn && gv('cl-pawn-type')==='汽機車' ? gi('cl-v-mileage') : null,
+    split_type: 'custom',
+    my_rate: gf('cl-my-rate') || 0,
+    company_rate: gf('cl-company-rate') || 0,
     partners: partners,
     extra_fees: fees,
     note: gv('cl-note') || null
