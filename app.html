@@ -21,7 +21,26 @@
   --blu:#2A6AB8;--bl:rgba(42,106,184,.12);
   --serif:'Georgia',serif;--sans:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
 }
-html,body{height:100%;background:var(--bg);color:var(--t0);font-family:var(--sans);font-size:16px}
+html,body{height:100%;background:var(--bg);color:var(--t0);font-family:var(--sans);font-size:17px}
+/* ── 全站字體放大 ── */
+.card,.form-section{font-size:15px}
+.stat-card .stat-v{font-size:inherit}
+.stat-l{font-size:14px}
+.stat-s{font-size:13px}
+.badge{font-size:12px}
+.btn-sm{font-size:13px}
+.btn-p{font-size:16px}
+.ct{font-size:17px}
+.flbl{font-size:15px}
+.fi{font-size:16px}
+.ds-ni{font-size:15px}
+.ri .rl{font-size:14px}
+.ri .rv{font-size:14px}
+/* 修正小字體 inline style 影響 — 用 CSS 覆蓋常見組合 */
+[style*="font-size:12px"]{font-size:13px!important}
+[style*="font-size:13px"]{font-size:14px!important}
+[style*="font-size:11px"]{font-size:12px!important}
+[style*="font-size:10px"]{font-size:11px!important}
 input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}
 input[type=number]{-moz-appearance:textfield}
 
@@ -325,12 +344,15 @@ select.fi{-webkit-appearance:auto;appearance:auto;display:block;max-width:100%;w
       <button class="ds-ni" onclick="navTo('calc',this)">🧮 貸款試算</button>
       <button class="ds-ni" onclick="navTo('antifraud',this)">🛡️ 詐騙辨識</button>
       <button class="ds-ni" onclick="navTo('invite',this)">🎁 邀請碼 / 折扣</button>
+      <button class="ds-ni" onclick="navTo('biz-card',this)">🪪 顧問名片</button>
+      <button class="ds-ni" onclick="navTo('monthly-report',this)">📋 月報匯出</button>
 
       <div class="ds-lbl">系統設定</div>
       <button class="ds-ni" onclick="navTo('score-rules',this)">🎯 評分規則</button>
-      <button class="ds-ni" onclick="navTo('prop-thresholds',this)">🏠 貸款項目設定</button>
+      <button class="ds-ni" onclick="navTo('prop-thresholds',this)">🏠 不動產評分規則</button>
       <button class="ds-ni" onclick="navTo('appearance',this)">🎨 外觀設定</button>
       <button class="ds-ni" onclick="navTo('settings',this)">⚙️ 帳號設定</button>
+      <button class="ds-ni" onclick="navTo('upgrade',this)" style="color:var(--acc);font-weight:600">⭐ 升級方案</button>
       <button class="ds-ni" onclick="navTo('report',this)">🚩 問題回報</button>
       <button class="ds-ni" onclick="doLogout()" style="color:var(--red);margin-top:4px">🚪 登出</button>
 
@@ -1381,7 +1403,7 @@ function navTo(key, el) {
   var bn = document.getElementById('bn-' + key);
   if (bn) bn.classList.add('on');
   // 更新桌機 topbar 標題
-  var titles = {'dash':'儀表板','leads':'客戶名單','add-lead':'新增客戶資料','calendar':'行事曆','finance':'收支理財工具','team':'團隊管理','connections':'🤝 對接管理','notifications':'🔔 通知中心','invite':'邀請碼 / 折扣','calc':'貸款試算','review':'照會生成','antifraud':'詐騙辨識','score-rules':'評分規則','prop-thresholds':'貸款項目設定','appearance':'外觀設定','settings':'帳號設定','report':'問題回報','car-dealer':'🚙 中古車商','car-finance':'🚗 融資車貸','pawn':'🏛 民間借款','broker':'💼 貸款仲介'};
+  var titles = {'dash':'儀表板','leads':'客戶名單','add-lead':'新增客戶資料','calendar':'行事曆','finance':'收支理財工具','team':'團隊管理','connections':'🤝 對接管理','notifications':'🔔 通知中心','invite':'邀請碼 / 折扣','calc':'貸款試算','review':'照會生成','antifraud':'詐騙辨識','score-rules':'評分規則','prop-thresholds':'不動產評分規則','appearance':'外觀設定','settings':'帳號設定','report':'問題回報','car-dealer':'🚙 中古車商','car-finance':'🚗 融資車貸','pawn':'🏛 民間借款','broker':'💼 貸款仲介','biz-card':'🪪 顧問名片','monthly-report':'📋 月報匯出','upgrade':'⭐ 升級方案'};
   var dt = document.getElementById('dt-title'); if (dt) dt.textContent = titles[key] || '';
   var renders = {
     'dash': renderDash, 'leads': renderLeads, 'add-lead': renderAddLead,
@@ -1396,7 +1418,10 @@ function navTo(key, el) {
     'pawn': renderPawn,
     'connections': renderConnections,
     'notifications': renderNotifications,
-    'broker': renderBroker
+    'broker': renderBroker,
+    'biz-card': renderBizCard,
+    'monthly-report': renderMonthlyReport,
+    'upgrade': renderUpgrade
   };
   if (renders[key]) renders[key]();
 }
@@ -6047,7 +6072,7 @@ function resetScoreRules() {
 // ══════════════════════════════
 function renderPropThresholds() {
   var el = document.getElementById('member-content');
-  var html = '<div style="font-size:18px;font-weight:600;margin-bottom:14px">不動產估價門檻設定</div>';
+  var html = '<div style="font-size:18px;font-weight:600;margin-bottom:14px">不動產評分規則</div>';
   html += '<div class="card">';
   [['有效成交名單（≤ T1%）','pt-t1',propThresholds.t1,'ok','grn'],['有效買賣名單（T1~T2%）','pt-t2',propThresholds.t2,'warn','yel'],['空間不足（> T2%）','pt-t2b',propThresholds.t2,'bad','red']].forEach(function(row) {
     html += '<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:0.5px solid var(--bdr)">';
@@ -6087,6 +6112,386 @@ function applyTheme(bg, acc) {
 // ══════════════════════════════
 // 問題回報
 // ══════════════════════════════
+// ══════════════════════════════
+// 🪪 顧問名片
+// ══════════════════════════════
+var bizCardData = JSON.parse(localStorage.getItem('guwen_bizcard') || '{}');
+
+function renderBizCard() {
+  var el = document.getElementById('member-content');
+  var m = currentMember || {};
+  // 預設值從會員資料帶入
+  var d = bizCardData;
+  if (!d.name) d.name = m.name || '';
+  if (!d.company) d.company = m.company || '';
+
+  var previewHtml = buildCardPreview(d);
+
+  var html = '<div style="font-size:18px;font-weight:700;margin-bottom:4px">🪪 顧問名片</div>';
+  html += '<div style="font-size:13px;color:var(--t2);margin-bottom:14px">自訂名片內容，可分享或列印</div>';
+
+  // 編輯區
+  html += '<div class="card">';
+  html += '<div class="ct">✏️ 名片編輯</div>';
+  html += '<div class="frow"><div class="flbl">公司名稱</div><input class="fi" id="bc-company" placeholder="XX 貸款顧問有限公司" value="'+(d.company||'')+'"></div>';
+  html += '<div class="frow"><div class="flbl">顧問姓名</div><input class="fi" id="bc-name" placeholder="王小明" value="'+(d.name||'')+'"></div>';
+  html += '<div class="frow"><div class="flbl">職稱</div><input class="fi" id="bc-title" placeholder="資深貸款顧問" value="'+(d.title||'')+'"></div>';
+  html += '<div class="frow"><div class="flbl">手機號碼</div><input class="fi" id="bc-phone" placeholder="0912-345-678" value="'+(d.phone||m.phone||'')+'"></div>';
+  html += '<div class="frow"><div class="flbl">LINE ID</div><input class="fi" id="bc-line" placeholder="@your_line" value="'+(d.line||'')+'"></div>';
+  html += '<div class="frow"><div class="flbl">Email</div><input class="fi" id="bc-email" placeholder="your@email.com" value="'+(d.email||m.email||'')+'"></div>';
+  html += '<div class="frow"><div class="flbl">辦公室地址</div><input class="fi" id="bc-addr" placeholder="台北市信義區..." value="'+(d.addr||'')+'"></div>';
+  html += '<div class="frow"><div class="flbl">服務項目（一行一項）</div><textarea class="fi" id="bc-services" rows="3" style="resize:none" placeholder="銀行信用貸款&#10;汽車貸款&#10;不動產抵押借款">'+(d.services||'')+'</textarea></div>';
+  html += '<div class="frow"><div class="flbl">名片主色</div>';
+  html += '<div style="display:flex;gap:8px;flex-wrap:wrap">';
+  ['#C8511A','#1A5FC8','#2D8A4E','#8A1A8A','#1A8A8A','#111111'].forEach(function(col) {
+    html += '<div onclick="document.getElementById(\'bc-color\').value=\''+col+'\';updateCardPreview()" style="width:30px;height:30px;border-radius:50%;background:'+col+';cursor:pointer;border:2px solid '+(( d.color||'#C8511A')===col?'#FFF':'transparent')+'"></div>';
+  });
+  html += '<input type="color" id="bc-color" value="'+(d.color||'#C8511A')+'" onchange="updateCardPreview()" style="width:30px;height:30px;border-radius:50%;border:none;cursor:pointer;padding:0">';
+  html += '</div></div>';
+  html += '<div style="display:flex;gap:8px;margin-top:10px">';
+  html += '<button onclick="updateCardPreview()" style="flex:1;padding:10px;border-radius:8px;border:0.5px solid var(--bdr2);background:transparent;color:var(--t1);cursor:pointer;font-family:var(--sans)">🔄 預覽</button>';
+  html += '<button onclick="saveBizCard()" class="btn-p" style="flex:1">💾 儲存名片</button>';
+  html += '</div></div>';
+
+  // 名片預覽
+  html += '<div class="card">';
+  html += '<div class="ct">👁️ 名片預覽</div>';
+  html += '<div id="bc-preview">' + previewHtml + '</div>';
+  html += '<div style="display:flex;gap:8px;margin-top:12px">';
+  html += '<button onclick="exportBizCardPDF()" style="flex:1;padding:10px;border-radius:8px;background:var(--acc);color:#FFF;border:none;cursor:pointer;font-family:var(--sans);font-weight:600">📄 匯出 PDF</button>';
+  html += '<button onclick="shareBizCardLine()" style="flex:1;padding:10px;border-radius:8px;background:#06C755;color:#FFF;border:none;cursor:pointer;font-family:var(--sans);font-weight:600">📱 分享 LINE</button>';
+  html += '</div></div>';
+
+  el.innerHTML = html;
+}
+
+function buildCardPreview(d) {
+  var col = d.color || '#C8511A';
+  var services = (d.services||'').split('\n').filter(Boolean);
+  var h = '<div style="background:linear-gradient(135deg,'+col+','+col+'cc);border-radius:14px;padding:24px;color:#FFF;max-width:360px;margin:0 auto;box-shadow:0 8px 32px rgba(0,0,0,.4)">';
+  h += '<div style="font-size:11px;letter-spacing:2px;opacity:.8;margin-bottom:8px;text-transform:uppercase">'+(d.company||'顧問PRO')+'</div>';
+  h += '<div style="font-size:24px;font-weight:800;margin-bottom:4px">'+(d.name||'顧問姓名')+'</div>';
+  h += '<div style="font-size:14px;opacity:.85;margin-bottom:20px">'+(d.title||'貸款顧問')+'</div>';
+  h += '<div style="height:0.5px;background:rgba(255,255,255,.3);margin-bottom:16px"></div>';
+  if (d.phone) h += '<div style="font-size:13px;margin-bottom:6px;display:flex;align-items:center;gap:8px"><span style="font-size:16px">📞</span>'+d.phone+'</div>';
+  if (d.line) h += '<div style="font-size:13px;margin-bottom:6px;display:flex;align-items:center;gap:8px"><span style="font-size:16px">💬</span>LINE: '+d.line+'</div>';
+  if (d.email) h += '<div style="font-size:13px;margin-bottom:6px;display:flex;align-items:center;gap:8px"><span style="font-size:16px">✉️</span>'+d.email+'</div>';
+  if (d.addr) h += '<div style="font-size:13px;margin-bottom:6px;display:flex;align-items:center;gap:8px"><span style="font-size:16px">📍</span>'+d.addr+'</div>';
+  if (services.length > 0) {
+    h += '<div style="height:0.5px;background:rgba(255,255,255,.3);margin:12px 0 10px"></div>';
+    h += '<div style="font-size:11px;opacity:.7;margin-bottom:6px;letter-spacing:1px">服務項目</div>';
+    h += '<div style="display:flex;flex-wrap:wrap;gap:5px">';
+    services.forEach(function(s){ h += '<span style="padding:3px 10px;background:rgba(255,255,255,.2);border-radius:20px;font-size:12px">'+s+'</span>'; });
+    h += '</div>';
+  }
+  h += '</div>';
+  return h;
+}
+
+function updateCardPreview() {
+  var d = {
+    company: document.getElementById('bc-company') ? document.getElementById('bc-company').value : '',
+    name: document.getElementById('bc-name') ? document.getElementById('bc-name').value : '',
+    title: document.getElementById('bc-title') ? document.getElementById('bc-title').value : '',
+    phone: document.getElementById('bc-phone') ? document.getElementById('bc-phone').value : '',
+    line: document.getElementById('bc-line') ? document.getElementById('bc-line').value : '',
+    email: document.getElementById('bc-email') ? document.getElementById('bc-email').value : '',
+    addr: document.getElementById('bc-addr') ? document.getElementById('bc-addr').value : '',
+    services: document.getElementById('bc-services') ? document.getElementById('bc-services').value : '',
+    color: document.getElementById('bc-color') ? document.getElementById('bc-color').value : '#C8511A',
+  };
+  var preview = document.getElementById('bc-preview');
+  if (preview) preview.innerHTML = buildCardPreview(d);
+}
+
+function saveBizCard() {
+  bizCardData = {
+    company: document.getElementById('bc-company') ? document.getElementById('bc-company').value : '',
+    name: document.getElementById('bc-name') ? document.getElementById('bc-name').value : '',
+    title: document.getElementById('bc-title') ? document.getElementById('bc-title').value : '',
+    phone: document.getElementById('bc-phone') ? document.getElementById('bc-phone').value : '',
+    line: document.getElementById('bc-line') ? document.getElementById('bc-line').value : '',
+    email: document.getElementById('bc-email') ? document.getElementById('bc-email').value : '',
+    addr: document.getElementById('bc-addr') ? document.getElementById('bc-addr').value : '',
+    services: document.getElementById('bc-services') ? document.getElementById('bc-services').value : '',
+    color: document.getElementById('bc-color') ? document.getElementById('bc-color').value : '#C8511A',
+  };
+  localStorage.setItem('guwen_bizcard', JSON.stringify(bizCardData));
+  updateCardPreview();
+  alert('✅ 名片已儲存！');
+}
+
+function exportBizCardPDF() {
+  var d = bizCardData;
+  var col = d.color || '#C8511A';
+  var services = (d.services||'').split('\n').filter(Boolean);
+  var w = window.open('', '_blank');
+  w.document.write('<!DOCTYPE html><html><head><meta charset="UTF-8"><title>顧問名片</title>');
+  w.document.write('<style>body{background:#1a1a1a;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;font-family:-apple-system,sans-serif}');
+  w.document.write('.card{background:linear-gradient(135deg,'+col+','+col+'cc);border-radius:18px;padding:32px 36px;color:#FFF;width:340px;box-shadow:0 20px 60px rgba(0,0,0,.5)}');
+  w.document.write('@media print{body{background:white}.card{box-shadow:none}button{display:none}}');
+  w.document.write('</style></head><body>');
+  w.document.write('<div><div class="card">');
+  w.document.write('<div style="font-size:10px;letter-spacing:3px;opacity:.75;margin-bottom:10px;text-transform:uppercase">'+(d.company||'')+'</div>');
+  w.document.write('<div style="font-size:28px;font-weight:900;margin-bottom:4px">'+(d.name||'')+'</div>');
+  w.document.write('<div style="font-size:14px;opacity:.85;margin-bottom:24px">'+(d.title||'')+'</div>');
+  w.document.write('<hr style="border:none;border-top:0.5px solid rgba(255,255,255,.3);margin-bottom:18px">');
+  if (d.phone) w.document.write('<div style="font-size:14px;margin-bottom:8px">📞 '+d.phone+'</div>');
+  if (d.line) w.document.write('<div style="font-size:14px;margin-bottom:8px">💬 LINE: '+d.line+'</div>');
+  if (d.email) w.document.write('<div style="font-size:14px;margin-bottom:8px">✉️ '+d.email+'</div>');
+  if (d.addr) w.document.write('<div style="font-size:14px;margin-bottom:8px">📍 '+d.addr+'</div>');
+  if (services.length > 0) {
+    w.document.write('<hr style="border:none;border-top:0.5px solid rgba(255,255,255,.3);margin:16px 0 12px">');
+    w.document.write('<div style="display:flex;flex-wrap:wrap;gap:6px">');
+    services.forEach(function(s){ w.document.write('<span style="padding:4px 12px;background:rgba(255,255,255,.2);border-radius:20px;font-size:12px">'+s+'</span>'); });
+    w.document.write('</div>');
+  }
+  w.document.write('</div>');
+  w.document.write('<div style="text-align:center;margin-top:20px"><button onclick="window.print()" style="padding:12px 28px;background:'+col+';color:#FFF;border:none;border-radius:10px;font-size:15px;cursor:pointer;font-family:inherit;font-weight:600">🖨️ 列印 / 儲存 PDF</button></div>');
+  w.document.write('</div></body></html>');
+  w.document.close();
+}
+
+function shareBizCardLine() {
+  var d = bizCardData;
+  var services = (d.services||'').split('\n').filter(Boolean);
+  var lines = [
+    '📇 '+( d.company||''),
+    '👤 '+(d.name||'')+' '+(d.title?'· '+d.title:''),
+    '',
+  ];
+  if (d.phone) lines.push('📞 '+d.phone);
+  if (d.line) lines.push('💬 LINE: '+d.line);
+  if (d.email) lines.push('✉️ '+d.email);
+  if (d.addr) lines.push('📍 '+d.addr);
+  if (services.length > 0) { lines.push(''); lines.push('🔹 服務項目'); services.forEach(function(s){ lines.push('  · '+s); }); }
+  window.open('https://line.me/R/share?text='+encodeURIComponent(lines.join('\n')), '_blank');
+}
+
+// ══════════════════════════════
+// 📋 月報匯出
+// ══════════════════════════════
+function renderMonthlyReport() {
+  var el = document.getElementById('member-content');
+  var now = new Date();
+  var months = [];
+  for (var i = 0; i < 12; i++) {
+    var d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    months.push({ label: d.getFullYear()+'年'+(d.getMonth()+1)+'月', year: d.getFullYear(), month: d.getMonth() });
+  }
+  var html = '<div style="font-size:18px;font-weight:700;margin-bottom:4px">📋 月報匯出</div>';
+  html += '<div style="font-size:13px;color:var(--t2);margin-bottom:14px">選擇月份，匯出完整業務報告 PDF</div>';
+  html += '<div class="card">';
+  html += '<div class="ct">選擇月份</div>';
+  html += '<div style="display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:14px">';
+  months.slice(0, 6).forEach(function(m, i) {
+    html += '<button onclick="generateMonthlyReport('+m.year+','+m.month+')" style="padding:12px;border-radius:9px;border:0.5px solid var(--bdr2);background:'+(i===0?'var(--al)':'transparent')+';color:'+(i===0?'var(--acc)':'var(--t1)')+';cursor:pointer;font-family:var(--sans);font-size:14px;font-weight:'+(i===0?'600':'400')+'">';
+    html += m.label + (i===0?' （本月）':'') + '</button>';
+  });
+  html += '</div>';
+  html += '<div style="font-size:13px;color:var(--t2);margin-bottom:8px">月報內容包含：</div>';
+  html += '<div style="display:flex;flex-direction:column;gap:5px;font-size:13px;color:var(--t1)">';
+  ['📊 業績收入總覽（結案件數、總收入、淨收入）',
+   '👥 結案客戶明細（姓名、業務類型、金額）',
+   '💸 支出明細（固定支出、額外支出）',
+   '📈 vs 上月比較',
+   '🏦 各業務模組分析（信貸/車貸/當鋪/不動產）'].forEach(function(item) {
+    html += '<div>'+item+'</div>';
+  });
+  html += '</div></div>';
+  el.innerHTML = html;
+}
+
+function generateMonthlyReport(year, month) {
+  var ms = new Date(year, month, 1);
+  var me = new Date(year, month + 1, 1);
+  var monthLabel = year+'年'+(month+1)+'月';
+  var monthLeads = leads.filter(function(l){ var d=new Date(l.created_at); return d>=ms&&d<me; });
+  var closedLeads = monthLeads.filter(function(l){ return l.status==='closed'; });
+  var expense = fixedExpenses ? fixedExpenses.reduce(function(s,e){return s+e.amount;},0) : 0;
+
+  var totalIncome = closedLeads.reduce(function(s,l){
+    var items = leadClosings[l.id]||[];
+    var cTotal = items.reduce(function(cs,ci){return cs+(ci.closed_amount||0);},0);
+    var d2 = dealData[l.id]||{};
+    return s + (cTotal>0?cTotal:(d2.actualIncome||l.closed_amount||finSettings.revenuePerDeal||20000));
+  },0);
+  var netIncome = totalIncome - expense;
+
+  var typeMap = {car_loan:'汽車貸款',credit_loan:'信用貸款',bike_loan:'機車貸款',phone_loan:'手機貸',pawn:'當鋪出款',property:'不動產抵押',other:'其他'};
+  var typeStats = {};
+  closedLeads.forEach(function(l){
+    var items = leadClosings[l.id]||[];
+    items.forEach(function(ci){
+      var t = typeMap[ci.closing_type]||'其他';
+      if(!typeStats[t]) typeStats[t]={count:0,total:0};
+      typeStats[t].count++;
+      typeStats[t].total += ci.closed_amount||0;
+    });
+  });
+
+  var w = window.open('','_blank');
+  var bizD = bizCardData;
+  w.document.write('<!DOCTYPE html><html><head><meta charset="UTF-8"><title>'+monthLabel+' 業務月報</title>');
+  w.document.write('<style>body{font-family:-apple-system,sans-serif;padding:32px;color:#111;max-width:800px;margin:0 auto;background:#fff}');
+  w.document.write('h1{font-size:24px;margin-bottom:4px}h2{font-size:16px;font-weight:700;margin:24px 0 10px;padding-bottom:5px;border-bottom:2px solid #C8511A;color:#C8511A}');
+  w.document.write('table{width:100%;border-collapse:collapse;font-size:14px}td,th{padding:8px 10px;border-bottom:1px solid #eee;text-align:left}th{font-weight:600;background:#f5f5f5}');
+  w.document.write('.stat{display:inline-block;padding:12px 20px;background:#f5f5f5;border-radius:10px;margin:4px;text-align:center}');
+  w.document.write('.stat .val{font-size:24px;font-weight:800;color:#C8511A}.stat .lbl{font-size:12px;color:#666;margin-top:2px}');
+  w.document.write('.header{display:flex;justify-content:space-between;align-items:flex-start;padding-bottom:16px;border-bottom:2px solid #111;margin-bottom:24px}');
+  w.document.write('@media print{button{display:none}}');
+  w.document.write('</style></head><body>');
+  w.document.write('<div class="header">');
+  w.document.write('<div><div style="font-size:13px;color:#C8511A;font-weight:600;letter-spacing:2px">業務月報</div><h1>'+monthLabel+'</h1><div style="font-size:13px;color:#666">'+(bizD.company||'顧問PRO')+(bizD.name?' · '+bizD.name:'')+'</div></div>');
+  w.document.write('<div style="text-align:right"><div style="font-size:13px;color:#666">產生時間</div><div style="font-size:13px">'+new Date().toLocaleString('zh-TW')+'</div></div>');
+  w.document.write('</div>');
+
+  w.document.write('<h2>📊 業績總覽</h2>');
+  w.document.write('<div>');
+  [['結案件數', closedLeads.length+' 件'],['總收入', '$'+totalIncome.toLocaleString()],['固定支出', '$'+expense.toLocaleString()],['淨結餘', '$'+netIncome.toLocaleString()]].forEach(function(s){
+    w.document.write('<div class="stat"><div class="val">'+s[1]+'</div><div class="lbl">'+s[0]+'</div></div>');
+  });
+  w.document.write('</div>');
+
+  w.document.write('<h2>👥 結案客戶明細</h2>');
+  if (closedLeads.length === 0) {
+    w.document.write('<p style="color:#999">本月無結案客戶</p>');
+  } else {
+    w.document.write('<table><tr><th>客戶姓名</th><th>業務類型</th><th>機構</th><th>金額</th><th>我的收入</th></tr>');
+    closedLeads.forEach(function(l){
+      var items = leadClosings[l.id]||[];
+      if (items.length > 0) {
+        items.forEach(function(ci){
+          var d2 = dealData[l.id]||{};
+          var myInc = ci.closed_amount ? Math.round(ci.closed_amount*(d2.myRate||100)/100) : 0;
+          w.document.write('<tr><td>'+l.name+'</td><td>'+(typeMap[ci.closing_type]||'其他')+'</td><td>'+(ci.institution||'—')+'</td><td>$'+(ci.closed_amount||0).toLocaleString()+'</td><td style="color:green;font-weight:600">$'+myInc.toLocaleString()+'</td></tr>');
+        });
+      } else {
+        var inc = finSettings.revenuePerDeal||20000;
+        w.document.write('<tr><td>'+l.name+'</td><td>—</td><td>—</td><td>$'+inc.toLocaleString()+'</td><td style="color:green;font-weight:600">$'+inc.toLocaleString()+'</td></tr>');
+      }
+    });
+    w.document.write('<tr style="font-weight:700;background:#f5f5f5"><td colspan="4">合計</td><td style="color:green">$'+totalIncome.toLocaleString()+'</td></tr>');
+    w.document.write('</table>');
+  }
+
+  if (Object.keys(typeStats).length > 0) {
+    w.document.write('<h2>🏦 業務模組分析</h2>');
+    w.document.write('<table><tr><th>業務類型</th><th>件數</th><th>總金額</th></tr>');
+    Object.keys(typeStats).forEach(function(t){
+      w.document.write('<tr><td>'+t+'</td><td>'+typeStats[t].count+' 件</td><td>$'+typeStats[t].total.toLocaleString()+'</td></tr>');
+    });
+    w.document.write('</table>');
+  }
+
+  if (fixedExpenses && fixedExpenses.length > 0) {
+    w.document.write('<h2>💸 固定支出明細</h2>');
+    w.document.write('<table><tr><th>項目</th><th>金額</th></tr>');
+    fixedExpenses.forEach(function(e){
+      w.document.write('<tr><td>'+(e.icon||'')+'  '+e.name+'</td><td>$'+e.amount.toLocaleString()+'</td></tr>');
+    });
+    w.document.write('<tr style="font-weight:700;background:#f5f5f5"><td>合計</td><td>$'+expense.toLocaleString()+'</td></tr>');
+    w.document.write('</table>');
+  }
+
+  w.document.write('<div style="text-align:center;margin-top:32px">');
+  w.document.write('<button onclick="window.print()" style="padding:12px 28px;background:#C8511A;color:#FFF;border:none;border-radius:10px;font-size:15px;cursor:pointer;font-family:inherit;font-weight:600">🖨️ 列印 / 儲存 PDF</button>');
+  w.document.write('</div></body></html>');
+  w.document.close();
+}
+
+// ══════════════════════════════
+// ⭐ 升級方案
+// ══════════════════════════════
+function renderUpgrade() {
+  var el = document.getElementById('member-content');
+  var m = currentMember || {};
+  var plan = m.plan || 'trial';
+  var trialEnd = m.trial_end ? new Date(m.trial_end) : null;
+  var daysLeft = trialEnd ? Math.max(0, Math.ceil((trialEnd-new Date())/(1000*60*60*24))) : 0;
+
+  var html = '<div style="font-size:18px;font-weight:700;margin-bottom:4px">⭐ 升級方案</div>';
+  html += '<div style="font-size:13px;color:var(--t2);margin-bottom:14px">選擇適合您的訂閱方案</div>';
+
+  if (plan === 'trial') {
+    html += '<div style="background:var(--yl);border:0.5px solid rgba(184,128,32,.4);border-radius:12px;padding:14px;margin-bottom:14px;text-align:center">';
+    html += '<div style="font-size:16px;font-weight:700;color:var(--yel);margin-bottom:4px">⏳ 試用期中</div>';
+    html += '<div style="font-size:14px;color:var(--t1)">還有 <strong>'+daysLeft+' 天</strong>試用期</div>';
+    html += '<div style="font-size:13px;color:var(--t2);margin-top:4px">升級後可繼續使用所有功能</div>';
+    html += '</div>';
+  }
+
+  var plans = [
+    { key:'pro', label:'專業版', price:'$799', period:'/月', yearPrice:'$7,990/年（省 $1,598）',
+      color:'var(--acc)', features:['無限客戶名單','所有業務模組','文件上傳儲存','AI 評估報告','月報匯出 PDF','顧問名片','推播通知','優先客服支援'] },
+    { key:'team', label:'團隊版', price:'$1,599', period:'/月（最多5人）', yearPrice:'$15,990/年（省 $3,198）',
+      color:'#2D7AB8', features:['包含專業版全部功能','團隊成員管理','員工薪資與業績統計','收入拆分設定','業績排行榜','專屬客服'] },
+  ];
+
+  html += '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px;margin-bottom:16px">';
+  plans.forEach(function(p) {
+    var isCurrent = plan === p.key;
+    html += '<div style="border:2px solid '+(isCurrent?p.color:'var(--bdr2)')+';border-radius:14px;padding:20px;background:'+(isCurrent?'rgba(200,81,26,.06)':'transparent')+'">';
+    if (isCurrent) html += '<div style="font-size:11px;color:'+p.color+';font-weight:600;letter-spacing:1px;margin-bottom:8px">✓ 目前方案</div>';
+    html += '<div style="font-size:18px;font-weight:700;margin-bottom:4px">'+p.label+'</div>';
+    html += '<div style="font-size:30px;font-weight:800;color:'+p.color+';margin-bottom:2px">'+p.price+'<span style="font-size:14px;color:var(--t2)">'+p.period+'</span></div>';
+    html += '<div style="font-size:13px;color:var(--t2);margin-bottom:14px">'+p.yearPrice+'</div>';
+    p.features.forEach(function(f){ html += '<div style="font-size:13px;padding:4px 0;border-bottom:0.5px solid var(--bdr)">✅ '+f+'</div>'; });
+    if (!isCurrent) {
+      html += '<button onclick="showPaymentInfo(\''+p.key+'\')" style="width:100%;margin-top:14px;padding:12px;border-radius:9px;background:'+p.color+';color:#FFF;border:none;cursor:pointer;font-family:var(--sans);font-size:15px;font-weight:700">立即升級</button>';
+    }
+    html += '</div>';
+  });
+  html += '</div>';
+
+  // 付款說明區塊
+  html += '<div class="card" id="payment-info" style="display:none">';
+  html += '<div class="ct">💳 付款方式</div>';
+  html += '<div id="payment-content"></div>';
+  html += '</div>';
+
+  // 企業方案
+  html += '<div style="text-align:center;padding:14px;background:var(--inp);border-radius:10px;font-size:13px;color:var(--t2)">';
+  html += '需要 10 人以上團隊方案？<br>';
+  html += '<a href="mailto:contact@guwen-pro.com" style="color:var(--acc);text-decoration:none;font-weight:600">📧 聯繫我們取得企業報價</a>';
+  html += '</div>';
+
+  el.innerHTML = html;
+}
+
+function showPaymentInfo(planKey) {
+  var el = document.getElementById('payment-info');
+  var content = document.getElementById('payment-content');
+  if (!el || !content) return;
+  el.style.display = 'block';
+  var planLabel = planKey === 'pro' ? '專業版 $799/月' : '團隊版 $1,599/月';
+  var h = '<div style="background:var(--al);border-radius:9px;padding:14px;margin-bottom:12px">';
+  h += '<div style="font-size:15px;font-weight:600;margin-bottom:4px">選擇方案：'+planLabel+'</div>';
+  h += '<div style="font-size:13px;color:var(--t2)">付款完成後請傳送截圖給顧問PRO客服，即可開通</div>';
+  h += '</div>';
+  h += '<div style="font-size:14px;font-weight:600;margin-bottom:10px">付款方式</div>';
+  var methods = [
+    { icon:'🏦', label:'銀行轉帳', desc:'匯款後截圖傳給客服', detail:'帳戶名稱：顧問PRO\n銀行：玉山銀行（808）\n帳號：0123-456-789-000\n金額：依選擇方案' },
+    { icon:'💳', label:'信用卡', desc:'透過綠界科技安全付款', detail:'點下方按鈕跳轉付款頁面（即將上線）' },
+    { icon:'📱', label:'LINE Pay', desc:'掃描 QR Code 付款', detail:'開啟 LINE Pay → 掃描 QR Code（即將上線）' },
+  ];
+  methods.forEach(function(mt, i) {
+    h += '<div style="border:0.5px solid var(--bdr2);border-radius:9px;padding:12px;margin-bottom:8px">';
+    h += '<div style="display:flex;align-items:center;gap:10px;cursor:pointer" onclick="var d=document.getElementById(\'pay-detail-'+i+'\');d.style.display=d.style.display===\'none\'?\'block\':\'none\'">';
+    h += '<span style="font-size:24px">'+mt.icon+'</span>';
+    h += '<div><div style="font-size:15px;font-weight:600">'+mt.label+'</div>';
+    h += '<div style="font-size:13px;color:var(--t2)">'+mt.desc+'</div></div>';
+    h += '<span style="margin-left:auto;color:var(--t3)">▼</span></div>';
+    h += '<div id="pay-detail-'+i+'" style="display:none;margin-top:10px;padding:10px;background:var(--inp);border-radius:7px;font-size:13px;color:var(--t2);white-space:pre-line">'+mt.detail+'</div>';
+    h += '</div>';
+  });
+  h += '<div style="margin-top:12px;text-align:center">';
+  h += '<a href="https://line.me/ti/p/~guwen_pro_service" target="_blank" style="display:inline-block;padding:10px 24px;background:#06C755;color:#FFF;border-radius:9px;font-size:14px;font-weight:600;text-decoration:none">💬 LINE 客服確認付款</a>';
+  h += '</div>';
+  content.innerHTML = h;
+  el.scrollIntoView({ behavior:'smooth' });
+}
+
 function renderReport() {
   var el = document.getElementById('member-content');
   var html = '<div style="font-size:18px;font-weight:600;margin-bottom:14px">問題回報</div>';
