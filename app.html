@@ -522,6 +522,7 @@ let extraExpenses = [];
 var dealCommissions = {}; // { lead_id: rate% }
 var dealData = {}; // { lead_id: { actualIncome, partners:[{name,work,rate}] } }
 var leadDocuments = {}; // { leadId: { asset:[], verdict:[], traffic:[], license:[] } }
+var leadClosings = {}; // { lead_id: [ closing items ] }
 
 // ── 載入該客戶已有的文件 ──
 async function loadDocuments(leadId) {
@@ -1702,113 +1703,13 @@ function showLeadDetail(id) {
   html += '</div>';
 
   // 結案收入完整填寫區（選結案才顯示）
-  var d = dealData[id] || {};
-  if (!dealData[id]) dealData[id] = {};
-  var actualIncome  = d.actualIncome !== undefined ? d.actualIncome : (lead.closed_amount || '');
-  var isEmployee    = d.isEmployee || false;   // true=公司員工, false=個人接案
-  var companyRate   = d.companyRate !== undefined ? d.companyRate : '';  // 公司比率（員工模式）
-  var myRate        = d.myRate !== undefined ? d.myRate : (isEmployee ? '' : 100);
-  var partners      = d.partners || [];
-  var totalPartnerRate = partners.reduce(function(ps,p){ return ps+(parseFloat(p.rate)||0); },0);
-  var totalAllRate  = (parseFloat(myRate)||0) + totalPartnerRate + (isEmployee ? (parseFloat(companyRate)||0) : 0);
-  var myShare       = actualIncome && myRate !== '' ? Math.round(actualIncome*(parseFloat(myRate)||0)/100) : '';
-  var companyShare  = actualIncome && isEmployee && companyRate !== '' ? Math.round(actualIncome*(parseFloat(companyRate)||0)/100) : 0;
-  var rateWarn      = totalAllRate > 0 && Math.round(totalAllRate) !== 100;
-
   html += '<div id="closed-income-' + id + '" style="display:' + (lead.status==='closed'?'block':'none') + ';margin-top:10px">';
   html += '<div style="background:var(--gl);border:0.5px solid rgba(45,138,78,.3);border-radius:10px;padding:12px 14px">';
-  html += '<div style="font-size:14px;font-weight:600;color:var(--grn);margin-bottom:10px">💰 結案收入明細</div>';
-
-  // ① 實際收入
-  html += '<div style="margin-bottom:10px">';
-  html += '<div class="flbl" style="margin-bottom:5px">① 實際成交收入（元）</div>';
-  html += '<input class="fi" id="closed-amt-' + id + '" type="number" inputmode="numeric" placeholder="例：20000" value="' + actualIncome + '" ';
-  html += 'oninput="if(!dealData[\'' + id + '\'])dealData[\'' + id + '\']={}; dealData[\'' + id + '\'].actualIncome=parseInt(this.value)||0">';
+  html += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">';
+  html += '<div style="font-size:14px;font-weight:600;color:var(--grn)">💰 結案項目</div>';
+  html += '<button id="add-closing-btn-'+id+'" style="padding:5px 12px;background:var(--grn);color:#FFF;border:none;border-radius:7px;cursor:pointer;font-family:var(--sans);font-size:13px;font-weight:600">+ 新增結案項目</button>';
   html += '</div>';
-
-  // ② 接案類型切換
-  html += '<div style="display:flex;background:var(--inp);border-radius:8px;padding:3px;margin-bottom:10px">';
-  html += '<button onclick="dealData[\'' + id + '\'].isEmployee=false;dealData[\'' + id + '\'].myRate=100;showLeadDetail(\'' + id + '\')" ';
-  html += 'style="flex:1;padding:7px;border:none;border-radius:6px;font-size:13px;font-weight:500;cursor:pointer;font-family:var(--sans);transition:all .2s;';
-  html += (!isEmployee ? 'background:var(--acc);color:#FFF' : 'background:transparent;color:var(--t2)') + '">個人接案</button>';
-  html += '<button onclick="dealData[\'' + id + '\'].isEmployee=true;dealData[\'' + id + '\'].myRate=\'\';showLeadDetail(\'' + id + '\')" ';
-  html += 'style="flex:1;padding:7px;border:none;border-radius:6px;font-size:13px;font-weight:500;cursor:pointer;font-family:var(--sans);transition:all .2s;';
-  html += (isEmployee ? 'background:var(--acc);color:#FFF' : 'background:transparent;color:var(--t2)') + '">公司員工</button>';
-  html += '</div>';
-
-  // ③ 比率填寫
-  html += '<div style="margin-bottom:10px">';
-  html += '<div class="flbl" style="margin-bottom:6px">② 分潤比率（總計需 = 100%）</div>';
-
-  // 公司比率（員工模式才顯示）
-  if (isEmployee) {
-    var cShare = actualIncome && companyRate !== '' ? Math.round(actualIncome*parseFloat(companyRate)/100) : null;
-    html += '<div style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--inp);border-radius:7px;margin-bottom:6px">';
-    html += '<span style="font-size:13px;color:var(--t2);flex:1">🏢 公司</span>';
-    html += '<input type="number" min="0" max="100" placeholder="%" value="' + companyRate + '" ';
-    html += 'style="width:58px;padding:6px 8px;background:var(--bg2);border:0.5px solid var(--bdr2);border-radius:7px;color:var(--inpt);font-size:14px;font-weight:600;font-family:var(--sans);text-align:center" ';
-    html += 'oninput="dealData[\'' + id + '\'].companyRate=this.value">'; 
-    html += '<span style="font-size:13px;color:var(--t2)">%</span>';
-    if (cShare !== null) html += '<span style="font-size:13px;color:var(--t2);min-width:70px;text-align:right">$' + cShare.toLocaleString() + '</span>';
-    html += '</div>';
-  }
-
-  // 我的比率
-  html += '<div style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:rgba(45,138,78,.12);border:0.5px solid rgba(45,138,78,.3);border-radius:7px;margin-bottom:6px">';
-  html += '<span style="font-size:13px;font-weight:600;color:var(--grn);flex:1">👤 我</span>';
-  html += '<input type="number" min="0" max="100" placeholder="%" value="' + myRate + '" ';
-  html += 'style="width:58px;padding:6px 8px;background:var(--bg2);border:0.5px solid rgba(45,138,78,.5);border-radius:7px;color:var(--inpt);font-size:14px;font-weight:700;font-family:var(--sans);text-align:center" ';
-  html += 'oninput="dealData[\'' + id + '\'].myRate=this.value">'; 
-  html += '<span style="font-size:13px;color:var(--grn)">%</span>';
-  if (myShare !== '') html += '<span style="font-size:14px;font-weight:700;color:var(--grn);min-width:70px;text-align:right">$' + parseInt(myShare).toLocaleString() + '</span>';
-  html += '</div>';
-
-  // 合作人員列表
-  partners.forEach(function(p, pi) {
-    var pAmt = actualIncome ? Math.round(actualIncome*(parseFloat(p.rate)||0)/100) : null;
-    html += '<div style="background:var(--inp);border-radius:8px;padding:10px;margin-bottom:6px">';
-    html += '<div style="display:flex;align-items:center;gap:6px;margin-bottom:6px">';
-    // 姓名
-    if (typeof teamMembers !== 'undefined' && teamMembers.length > 1) {
-      html += '<select style="flex:1;padding:6px 8px;background:var(--bg2);border:0.5px solid var(--bdr2);border-radius:7px;color:var(--inpt);font-size:13px;font-family:var(--sans)" ';
-      html += 'onchange="dealData[\'' + id + '\'].partners[' + pi + '].name=this.value">';
-      html += '<option value="">— 選擇合作人員 —</option>';
-      teamMembers.forEach(function(tm) {
-        if (tm.members && tm.member_id !== currentUser.id) {
-          var sel = (p.name===tm.members.name)?' selected':'';
-          html += '<option value="'+tm.members.name+'"'+sel+'>'+tm.members.name+'</option>';
-        }
-      });
-      html += '</select>';
-    } else {
-      html += '<input type="text" placeholder="姓名" value="'+(p.name||'')+'" ';
-      html += 'style="flex:1;padding:6px 8px;background:var(--bg2);border:0.5px solid var(--bdr2);border-radius:7px;color:var(--inpt);font-size:13px;font-family:var(--sans)" ';
-      html += 'oninput="dealData[\'' + id + '\'].partners[' + pi + '].name=this.value">';
-    }
-    html += '<input type="number" min="0" max="100" placeholder="%" value="'+(p.rate||'')+'" ';
-    html += 'style="width:58px;padding:6px 8px;background:var(--bg2);border:0.5px solid var(--bdr2);border-radius:7px;color:var(--inpt);font-size:14px;font-weight:600;font-family:var(--sans);text-align:center" ';
-    html += 'oninput="dealData[\'' + id + '\'].partners[' + pi + '].rate=this.value">'; 
-    html += '<span style="font-size:13px;color:var(--t2)">%</span>';
-    if (pAmt !== null && p.rate) html += '<span style="font-size:13px;color:var(--t1);min-width:70px;text-align:right">$'+pAmt.toLocaleString()+'</span>';
-    html += '<button onclick="removePartnerLead(\'' + id + '\',' + pi + ')" style="font-size:12px;padding:3px 6px;border-radius:5px;border:0.5px solid rgba(192,64,48,.3);background:transparent;color:var(--red);cursor:pointer;font-family:var(--sans)">✕</button>';
-    html += '</div>';
-    html += '<input type="text" placeholder="工作內容（例：開發客戶）" value="'+(p.work||'')+'" ';
-    html += 'style="width:100%;padding:6px 8px;background:var(--bg2);border:0.5px solid var(--bdr2);border-radius:7px;color:var(--inpt);font-size:12px;font-family:var(--sans)" ';
-    html += 'oninput="dealData[\'' + id + '\'].partners[' + pi + '].work=this.value">';
-    html += '</div>';
-  });
-
-  // 新增合作人員按鈕
-  html += '<button onclick="addPartnerLead(\'' + id + '\')" style="width:100%;padding:7px;background:transparent;border:0.5px dashed var(--bdr2);border-radius:7px;color:var(--t2);cursor:pointer;font-family:var(--sans);font-size:13px">+ 新增合作人員</button>';
-  html += '</div>';
-
-  // ④ 合計比率提示
-  html += '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 10px;border-radius:7px;background:' + (rateWarn?'var(--rl)':'var(--inp)') + ';margin-bottom:10px">';
-  html += '<span style="font-size:13px;color:' + (rateWarn?'var(--red)':'var(--t2)') + '">合計比率：<strong>' + Math.round(totalAllRate) + '%</strong> ' + (rateWarn?'⚠️ 請調整至100%':'✓') + '</span>';
-  if (actualIncome) html += '<span style="font-size:13px;color:var(--t2)">總收入 $' + parseInt(actualIncome).toLocaleString() + '</span>';
-  html += '</div>';
-
-  html += '<button class="btn-grn" style="width:100%" onclick="saveClosedIncome(\'' + id + '\')">儲存結案收入</button>';
+  html += '<div id="closing-list-'+id+'"></div>';
   html += '</div></div>';  // 關閉 gl div + closed-income div
   html += '</div>';        // 關閉 案件進度 card
 
@@ -1966,6 +1867,13 @@ function showLeadDetail(id) {
 
   var referralBtn = document.getElementById('referral-btn-' + id);
   if (referralBtn) referralBtn.onclick = function(e) { e.stopPropagation(); showReferralModal(id); };
+
+  // 新增結案項目按鈕
+  var addClosingBtn = document.getElementById('add-closing-btn-' + id);
+  if (addClosingBtn) addClosingBtn.onclick = function(){ showAddClosingModal(id); };
+
+  // 載入並渲染結案項目
+  loadAndRenderClosings(id);
 
   loadDocuments(id);
 }
@@ -2226,6 +2134,346 @@ function refreshClosedBlock(leadId) {
   // 更新我的收入顯示
   var el = document.getElementById('my-share-' + leadId);
   if (el && myShare) el.textContent = '$' + myShare.toLocaleString();
+}
+
+// ══════════════════════════════
+// 💰 多筆結案項目
+// ══════════════════════════════
+var closingTypes = [
+  {key:'car_loan',    label:'🚗 汽車貸款'},
+  {key:'credit_loan', label:'🏦 信用貸款'},
+  {key:'bike_loan',   label:'🛵 機車貸款'},
+  {key:'phone_loan',  label:'📱 手機商品貸'},
+  {key:'pawn',        label:'🏛 當鋪出款'},
+  {key:'other',       label:'📝 其他'},
+];
+
+async function loadAndRenderClosings(leadId) {
+  if (!leadClosings[leadId]) {
+    var res = await sb.from('lead_closings').select('*').eq('lead_id', leadId).order('created_at');
+    leadClosings[leadId] = res.data || [];
+  }
+  renderClosingList(leadId);
+}
+
+function renderClosingList(leadId) {
+  var container = document.getElementById('closing-list-' + leadId);
+  if (!container) return;
+  var items = leadClosings[leadId] || [];
+  if (items.length === 0) {
+    container.innerHTML = '<div style="text-align:center;padding:12px;color:var(--t2);font-size:13px">尚無結案項目，點「+ 新增結案項目」</div>';
+    return;
+  }
+  container.innerHTML = '';
+  var totalMyIncome = 0;
+  items.forEach(function(item) {
+    var typeLabel = (closingTypes.find(function(t){return t.key===item.closing_type;})||{label:'其他'}).label;
+    var myIncome = item.closed_amount ? Math.round(item.closed_amount * (item.my_rate||100) / 100) : 0;
+    totalMyIncome += myIncome;
+    var div = document.createElement('div');
+    div.style.cssText = 'border:0.5px solid rgba(45,138,78,.3);border-radius:8px;padding:10px;margin-bottom:8px;background:rgba(45,138,78,.05)';
+    var h = '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">';
+    h += '<span style="font-size:14px;font-weight:600">' + typeLabel + '</span>';
+    h += '<div style="display:flex;gap:6px">';
+    h += '<button id="edit-closing-'+item.id+'" style="font-size:12px;padding:3px 8px;border-radius:5px;border:0.5px solid var(--bdr2);background:transparent;color:var(--t1);cursor:pointer;font-family:var(--sans)">✏️</button>';
+    h += '<button id="del-closing-'+item.id+'" style="font-size:12px;padding:3px 8px;border-radius:5px;border:0.5px solid rgba(192,64,48,.3);background:transparent;color:var(--red);cursor:pointer;font-family:var(--sans)">🗑</button>';
+    h += '</div></div>';
+    // 當鋪顯示
+    if (item.closing_type === 'pawn') {
+      if (item.pawn_item_name) h += '<div style="font-size:13px;color:var(--t2);margin-bottom:3px">📦 抵押品：' + item.pawn_item_name + (item.pawn_item_type?' ('+item.pawn_item_type+')':'') + '</div>';
+      if (item.pawn_location) h += '<div style="font-size:13px;color:var(--t2);margin-bottom:3px">📍 存放：' + item.pawn_location + '</div>';
+      if (item.closed_amount) h += '<div style="font-size:13px;margin-bottom:3px">借款：<span style="font-weight:600;color:var(--acc)">$' + item.closed_amount.toLocaleString() + '</span> · ' + (item.pawn_monthly_rate||0) + '% 月利率</div>';
+      if (item.pawn_repay_type === 'installment') h += '<div style="font-size:12px;color:var(--t2)">本利攤還 ' + (item.pawn_installments||0) + ' 期</div>';
+      else h += '<div style="font-size:12px;color:var(--t2)">純利息繳還</div>';
+    } else {
+      if (item.institution) h += '<div style="font-size:13px;color:var(--t2);margin-bottom:3px">機構：' + item.institution + '</div>';
+      if (item.closed_amount) h += '<div style="font-size:13px;margin-bottom:3px">成交金額：<span style="font-weight:600;color:var(--acc)">$' + item.closed_amount.toLocaleString() + '</span></div>';
+    }
+    // 分潤
+    h += '<div style="font-size:12px;color:var(--grn);font-weight:500">我的收入：$' + myIncome.toLocaleString() + ' (' + (item.my_rate||100) + '%)</div>';
+    if (item.note) h += '<div style="font-size:12px;color:var(--t3);margin-top:3px">📝 ' + item.note + '</div>';
+    h += '';
+    div.innerHTML = h;
+    var editBtn = div.querySelector('#edit-closing-' + item.id);
+    if (editBtn) editBtn.onclick = function(){ showAddClosingModal(leadId, item); };
+    var delBtn = div.querySelector('#del-closing-' + item.id);
+    if (delBtn) delBtn.onclick = function(){ deleteClosingItem(leadId, item.id); };
+    container.appendChild(div);
+  });
+  // 合計
+  if (items.length > 1) {
+    var total = document.createElement('div');
+    total.style.cssText = 'display:flex;justify-content:space-between;padding:8px 10px;border-radius:7px;background:rgba(45,138,78,.15);margin-top:4px';
+    total.innerHTML = '<span style="font-size:13px;font-weight:600;color:var(--grn)">總計我的收入</span><span style="font-size:15px;font-weight:700;color:var(--grn)">$' + totalMyIncome.toLocaleString() + '</span>';
+    container.appendChild(total);
+  }
+}
+
+function showAddClosingModal(leadId, editItem) {
+  var isEdit = !!editItem;
+  var item = editItem || {};
+  var modal = document.createElement('div');
+  modal.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.75);z-index:9999;display:flex;align-items:flex-start;justify-content:center;padding:16px;overflow-y:auto';
+  var box = document.createElement('div');
+  box.style.cssText = 'background:var(--card);border-radius:16px;padding:18px;width:100%;max-width:520px;margin:auto';
+
+  var curType = item.closing_type || 'car_loan';
+  var isPawn = curType === 'pawn';
+  var splitType = item.split_type || 'self';
+  var partners = item.partners || [];
+  var fees = item.extra_fees || [];
+
+  var h = '<div style="font-size:17px;font-weight:700;margin-bottom:14px">' + (isEdit?'✏️ 編輯':'+ 新增') + '結案項目</div>';
+
+  // 類型選擇
+  h += '<div style="font-size:13px;font-weight:600;color:var(--t2);margin-bottom:6px">案件類型</div>';
+  h += '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px">';
+  closingTypes.forEach(function(t) {
+    var on = curType === t.key;
+    h += '<button id="ct-btn-'+t.key+'" style="padding:6px 12px;border-radius:20px;font-size:13px;font-family:var(--sans);cursor:pointer;border:0.5px solid '+(on?'var(--acc)':'var(--bdr2)')+';background:'+(on?'var(--al)':'transparent')+';color:'+(on?'var(--acc)':'var(--t2)')+'" onclick="setClosingType(\''+t.key+'\',this)">' + t.label + '</button>';
+  });
+  h += '</div>';
+  h += '<input type="hidden" id="cl-type" value="'+curType+'">';
+
+  // 當鋪專用欄位
+  h += '<div id="cl-pawn-section" style="display:'+(isPawn?'block':'none')+'">';
+  h += '<div class="sl">抵押品</div>';
+  h += '<div class="frow2"><div class="frow"><div class="flbl">品項名稱</div><input class="fi" id="cl-pawn-item" value="'+(item.pawn_item_name||'')+'" placeholder="勞力士手錶"></div>';
+  var pawnTypes = ['黃金/珠寶','名錶','3C電子','汽機車','名牌包','其他'];
+  h += '<div class="frow"><div class="flbl">類型</div><select class="fi" id="cl-pawn-type">' + pawnTypes.map(function(t){return '<option'+(item.pawn_item_type===t?' selected':'')+'>'+t+'</option>';}).join('') + '</select></div></div>';
+  h += '<div class="frow2" style="margin-top:6px"><div class="frow"><div class="flbl">估價金額（元）</div><input class="fi" id="cl-pawn-appraise" type="number" value="'+(item.pawn_appraised_value||'')+'" placeholder="0"></div>';
+  h += '<div class="frow"><div class="flbl">存放地點</div><input class="fi" id="cl-pawn-loc" value="'+(item.pawn_location||'')+'" placeholder="台北店"></div></div>';
+  h += '<div class="sl">借款條件</div>';
+  h += '<div class="frow2"><div class="frow"><div class="flbl">借款金額（元）</div><input class="fi" id="cl-amount" type="number" value="'+(item.closed_amount||'')+'" placeholder="0"></div>';
+  h += '<div class="frow"><div class="flbl">月利率（%）</div><input class="fi" id="cl-pawn-rate" type="number" step="0.1" value="'+(item.pawn_monthly_rate||'')+'" placeholder="3.0"></div></div>';
+  h += '<div class="frow2" style="margin-top:6px"><div class="frow"><div class="flbl">借款日期</div><input class="fi" id="cl-pawn-start" type="date" value="'+(item.pawn_loan_date||'')+'">';
+  h += '</div><div class="frow"><div class="flbl">到期日</div><input class="fi" id="cl-pawn-due" type="date" value="'+(item.pawn_due_date||'')+'"></div></div>';
+  h += '<div class="sl">還款方式</div>';
+  h += '<div style="display:flex;gap:8px;margin-bottom:8px">';
+  h += '<button id="repay-interest" onclick="setRepayType(\'interest_only\')" style="flex:1;padding:8px;border-radius:8px;font-family:var(--sans);font-size:13px;cursor:pointer;border:0.5px solid '+((!item.pawn_repay_type||item.pawn_repay_type==='interest_only')?'var(--acc)':'var(--bdr2)')+';background:'+((!item.pawn_repay_type||item.pawn_repay_type==='interest_only')?'var(--al)':'transparent')+';color:'+((!item.pawn_repay_type||item.pawn_repay_type==='interest_only')?'var(--acc)':'var(--t2)')+'">純利息繳還</button>';
+  h += '<button id="repay-install" onclick="setRepayType(\'installment\')" style="flex:1;padding:8px;border-radius:8px;font-family:var(--sans);font-size:13px;cursor:pointer;border:0.5px solid '+(item.pawn_repay_type==='installment'?'var(--acc)':'var(--bdr2)')+';background:'+(item.pawn_repay_type==='installment'?'var(--al)':'transparent')+';color:'+(item.pawn_repay_type==='installment'?'var(--acc)':'var(--t2)')+'">本利攤還</button>';
+  h += '</div>';
+  h += '<input type="hidden" id="cl-repay-type" value="'+(item.pawn_repay_type||'interest_only')+'">';
+  h += '<div id="cl-installments-row" style="display:'+(item.pawn_repay_type==='installment'?'block':'none')+'">';
+  h += '<div class="frow"><div class="flbl">分幾期</div><input class="fi" id="cl-installments" type="number" value="'+(item.pawn_installments||'')+'" placeholder="12"></div></div>';
+  h += '<div class="sl">放款方式</div>';
+  h += '<div style="display:flex;gap:8px;margin-bottom:8px">';
+  h += '<button id="lend-self" onclick="setLendType(\'self\')" style="flex:1;padding:7px;border-radius:8px;font-family:var(--sans);font-size:13px;cursor:pointer;border:0.5px solid '+((item.pawn_lending_type||'self')==='self'?'var(--acc)':'var(--bdr2)')+';background:'+((item.pawn_lending_type||'self')==='self'?'var(--al)':'transparent')+';color:'+((item.pawn_lending_type||'self')==='self'?'var(--acc)':'var(--t2)')+'">👤 自己放款</button>';
+  h += '<button id="lend-company" onclick="setLendType(\'company\')" style="flex:1;padding:7px;border-radius:8px;font-family:var(--sans);font-size:13px;cursor:pointer;border:0.5px solid '+(item.pawn_lending_type==='company'?'var(--acc)':'var(--bdr2)')+';background:'+(item.pawn_lending_type==='company'?'var(--al)':'transparent')+';color:'+(item.pawn_lending_type==='company'?'var(--acc)':'var(--t2)')+'">🏢 公司放款</button>';
+  h += '</div>';
+  h += '<input type="hidden" id="cl-lend-type" value="'+(item.pawn_lending_type||'self')+'">';
+  h += '</div>';
+
+  // 貸款類型欄位
+  h += '<div id="cl-loan-section" style="display:'+(isPawn?'none':'block')+'">';
+  h += '<div class="frow"><div class="flbl">放款機構</div><input class="fi" id="cl-institution" value="'+(item.institution||'')+'" placeholder="台灣銀行、和潤..."></div>';
+  h += '<div class="frow" style="margin-top:6px"><div class="flbl">成交金額（元）</div><input class="fi" id="cl-loan-amount" type="number" value="'+(isPawn?'':(item.closed_amount||''))+'" placeholder="0"></div>';
+  h += '</div>';
+
+  // 分潤
+  h += '<div class="sl">收入分潤</div>';
+  h += '<div style="display:flex;gap:6px;margin-bottom:8px">';
+  h += '<button id="split-self-btn" onclick="setClosingSplitType(\'self\')" style="padding:6px 14px;border-radius:20px;font-size:13px;font-family:var(--sans);cursor:pointer;border:0.5px solid '+(splitType==='self'?'var(--acc)':'var(--bdr2)')+';background:'+(splitType==='self'?'var(--al)':'transparent')+';color:'+(splitType==='self'?'var(--acc)':'var(--t2)')+'">個人</button>';
+  h += '<button id="split-company-btn" onclick="setClosingSplitType(\'company\')" style="padding:6px 14px;border-radius:20px;font-size:13px;font-family:var(--sans);cursor:pointer;border:0.5px solid '+(splitType==='company'?'var(--acc)':'var(--bdr2)')+';background:'+(splitType==='company'?'var(--al)':'transparent')+';color:'+(splitType==='company'?'var(--acc)':'var(--t2)')+'">公司員工</button>';
+  h += '</div>';
+  h += '<input type="hidden" id="cl-split-type" value="'+splitType+'">';
+  h += '<div id="cl-company-rate-row" style="display:'+(splitType==='company'?'flex':'none')+'">';
+  h += '<div class="frow" style="flex:1"><div class="flbl">公司抽成（%）</div><input class="fi" id="cl-company-rate" type="number" min="0" max="100" value="'+(item.company_rate||'')+'" placeholder="40"></div></div>';
+  h += '<div class="frow"><div class="flbl">我的分潤（%）</div><input class="fi" id="cl-my-rate" type="number" min="0" max="100" value="'+(item.my_rate!==undefined?item.my_rate:100)+'" placeholder="100"></div>';
+
+  // 合作人員
+  h += '<div id="cl-partners-list" style="margin-top:6px">';
+  partners.forEach(function(p, pi) {
+    h += '<div class="cl-partner-row" style="display:flex;gap:6px;align-items:center;margin-top:6px">';
+    h += '<input placeholder="姓名" class="cl-p-name" value="'+(p.name||'')+'" style="flex:2;padding:8px;background:var(--bg2);border:0.5px solid var(--bdr2);border-radius:7px;color:var(--inpt);font-family:var(--sans);font-size:14px">';
+    h += '<input placeholder="%" type="number" class="cl-p-rate" value="'+(p.rate||'')+'" style="width:65px;padding:8px;background:var(--bg2);border:0.5px solid var(--bdr2);border-radius:7px;color:var(--inpt);font-family:var(--sans);font-size:14px;text-align:center">';
+    h += '<button onclick="this.closest(\'.cl-partner-row\').remove()" style="padding:4px 8px;border-radius:5px;border:0.5px solid rgba(192,64,48,.3);background:transparent;color:var(--red);cursor:pointer;font-family:var(--sans)">✕</button>';
+    h += '</div>';
+  });
+  h += '</div>';
+  h += '<button id="cl-add-partner" style="font-size:13px;padding:5px 12px;border-radius:6px;border:0.5px solid var(--bdr2);background:transparent;color:var(--t1);cursor:pointer;font-family:var(--sans);margin-top:6px">+ 合作人員</button>';
+
+  // 額外收費
+  h += '<div class="sl">額外收費</div>';
+  h += '<div id="cl-fees-list">';
+  fees.forEach(function(f) {
+    h += '<div class="cl-fee-row" style="display:flex;gap:6px;align-items:center;margin-bottom:6px">';
+    h += '<input placeholder="費用名稱" class="cl-f-name" value="'+(f.name||'')+'" style="flex:2;padding:8px;background:var(--bg2);border:0.5px solid var(--bdr2);border-radius:7px;color:var(--inpt);font-family:var(--sans);font-size:14px">';
+    h += '<input placeholder="金額" type="number" class="cl-f-amt" value="'+(f.amount||'')+'" style="width:100px;padding:8px;background:var(--bg2);border:0.5px solid var(--bdr2);border-radius:7px;color:var(--inpt);font-family:var(--sans);font-size:14px">';
+    h += '<button onclick="this.closest(\'.cl-fee-row\').remove()" style="padding:4px 8px;border-radius:5px;border:0.5px solid rgba(192,64,48,.3);background:transparent;color:var(--red);cursor:pointer;font-family:var(--sans)">✕</button>';
+    h += '</div>';
+  });
+  h += '</div>';
+  h += '<button id="cl-add-fee" style="font-size:13px;padding:5px 12px;border-radius:6px;border:0.5px solid var(--bdr2);background:transparent;color:var(--t1);cursor:pointer;font-family:var(--sans);margin-bottom:8px">+ 新增收費項目</button>';
+
+  h += '<div class="frow"><div class="flbl">備註</div><input class="fi" id="cl-note" value="'+(item.note||'')+'" placeholder="其他說明"></div>';
+  h += '<div style="display:flex;gap:8px;margin-top:14px">';
+  h += '<button id="cl-cancel" class="btn-sm">取消</button>';
+  h += '<button id="cl-save" class="btn-p" style="flex:1">' + (isEdit?'儲存修改':'新增結案項目') + '</button>';
+  h += '</div>';
+
+  box.innerHTML = h;
+  modal.appendChild(box);
+  document.body.appendChild(modal);
+
+  // 類型切換
+  window.setClosingType = function(type, btn) {
+    document.getElementById('cl-type').value = type;
+    var isPawn2 = type === 'pawn';
+    document.getElementById('cl-pawn-section').style.display = isPawn2 ? 'block' : 'none';
+    document.getElementById('cl-loan-section').style.display = isPawn2 ? 'none' : 'block';
+    box.querySelectorAll('[id^="ct-btn-"]').forEach(function(b) {
+      var on = b.id === 'ct-btn-' + type;
+      b.style.border = on ? '0.5px solid var(--acc)' : '0.5px solid var(--bdr2)';
+      b.style.background = on ? 'var(--al)' : 'transparent';
+      b.style.color = on ? 'var(--acc)' : 'var(--t2)';
+    });
+  };
+  window.setRepayType = function(type) {
+    document.getElementById('cl-repay-type').value = type;
+    document.getElementById('cl-installments-row').style.display = type === 'installment' ? 'block' : 'none';
+    ['interest','install'].forEach(function(t) {
+      var b = document.getElementById('repay-' + t);
+      if (!b) return;
+      var on = (t === 'interest' && type === 'interest_only') || (t === 'install' && type === 'installment');
+      b.style.border = on ? '0.5px solid var(--acc)' : '0.5px solid var(--bdr2)';
+      b.style.background = on ? 'var(--al)' : 'transparent';
+      b.style.color = on ? 'var(--acc)' : 'var(--t2)';
+    });
+  };
+  window.setLendType = function(type) {
+    document.getElementById('cl-lend-type').value = type;
+    ['self','company'].forEach(function(t) {
+      var b = document.getElementById('lend-' + t);
+      if (!b) return;
+      var on = t === type;
+      b.style.border = on ? '0.5px solid var(--acc)' : '0.5px solid var(--bdr2)';
+      b.style.background = on ? 'var(--al)' : 'transparent';
+      b.style.color = on ? 'var(--acc)' : 'var(--t2)';
+    });
+  };
+  window.setClosingSplitType = function(type) {
+    document.getElementById('cl-split-type').value = type;
+    document.getElementById('cl-company-rate-row').style.display = type === 'company' ? 'flex' : 'none';
+    ['self','company'].forEach(function(t) {
+      var b = document.getElementById('split-' + t + '-btn');
+      if (!b) return;
+      var on = t === type;
+      b.style.border = on ? '0.5px solid var(--acc)' : '0.5px solid var(--bdr2)';
+      b.style.background = on ? 'var(--al)' : 'transparent';
+      b.style.color = on ? 'var(--acc)' : 'var(--t2)';
+    });
+  };
+
+  // 合作人員
+  box.querySelector('#cl-add-partner').onclick = function() {
+    var list = box.querySelector('#cl-partners-list');
+    var row = document.createElement('div');
+    row.className = 'cl-partner-row';
+    row.style.cssText = 'display:flex;gap:6px;align-items:center;margin-top:6px';
+    row.innerHTML =
+      '<input placeholder="姓名" class="cl-p-name" style="flex:2;padding:8px;background:var(--bg2);border:0.5px solid var(--bdr2);border-radius:7px;color:var(--inpt);font-family:var(--sans);font-size:14px">' +
+      '<input placeholder="%" type="number" class="cl-p-rate" style="width:65px;padding:8px;background:var(--bg2);border:0.5px solid var(--bdr2);border-radius:7px;color:var(--inpt);font-family:var(--sans);font-size:14px;text-align:center">' +
+      '<button onclick="this.closest(\'.cl-partner-row\').remove()" style="padding:4px 8px;border-radius:5px;border:0.5px solid rgba(192,64,48,.3);background:transparent;color:var(--red);cursor:pointer;font-family:var(--sans)">✕</button>';
+    list.appendChild(row);
+  };
+  // 額外收費
+  box.querySelector('#cl-add-fee').onclick = function() {
+    var list = box.querySelector('#cl-fees-list');
+    var row = document.createElement('div');
+    row.className = 'cl-fee-row';
+    row.style.cssText = 'display:flex;gap:6px;align-items:center;margin-bottom:6px';
+    row.innerHTML =
+      '<input placeholder="費用名稱" class="cl-f-name" style="flex:2;padding:8px;background:var(--bg2);border:0.5px solid var(--bdr2);border-radius:7px;color:var(--inpt);font-family:var(--sans);font-size:14px">' +
+      '<input placeholder="金額" type="number" class="cl-f-amt" style="width:100px;padding:8px;background:var(--bg2);border:0.5px solid var(--bdr2);border-radius:7px;color:var(--inpt);font-family:var(--sans);font-size:14px">' +
+      '<button onclick="this.closest(\'.cl-fee-row\').remove()" style="padding:4px 8px;border-radius:5px;border:0.5px solid rgba(192,64,48,.3);background:transparent;color:var(--red);cursor:pointer;font-family:var(--sans)">✕</button>';
+    list.appendChild(row);
+  };
+
+  box.querySelector('#cl-cancel').onclick = function(){ modal.remove(); };
+  modal.onclick = function(e){ if(e.target===modal) modal.remove(); };
+  box.querySelector('#cl-save').onclick = function(){ saveClosingItem(leadId, isEdit ? item.id : null, modal, box); };
+}
+
+async function saveClosingItem(leadId, editId, modal, box) {
+  var gv = function(id){ var el=box.querySelector('#'+id); return el?el.value.trim():''; };
+  var gi = function(id){ return parseInt(gv(id))||null; };
+  var gf = function(id){ return parseFloat(gv(id))||null; };
+
+  var type = gv('cl-type') || 'car_loan';
+  var isPawn = type === 'pawn';
+  var splitType = gv('cl-split-type') || 'self';
+
+  // 收集合作人員
+  var partners = [];
+  box.querySelectorAll('.cl-partner-row').forEach(function(row) {
+    var name = row.querySelector('.cl-p-name');
+    var rate = row.querySelector('.cl-p-rate');
+    if (name && name.value.trim()) partners.push({name: name.value.trim(), rate: parseFloat(rate?rate.value:0)||0});
+  });
+  // 收集額外收費
+  var fees = [];
+  box.querySelectorAll('.cl-fee-row').forEach(function(row) {
+    var name = row.querySelector('.cl-f-name');
+    var amt = row.querySelector('.cl-f-amt');
+    if (name && name.value.trim()) fees.push({name: name.value.trim(), amount: parseInt(amt?amt.value:0)||0});
+  });
+
+  var payload = {
+    lead_id: leadId, member_id: currentUser.id,
+    closing_type: type,
+    closed_amount: isPawn ? gi('cl-amount') : gi('cl-loan-amount'),
+    institution: isPawn ? null : gv('cl-institution'),
+    pawn_item_name: isPawn ? gv('cl-pawn-item') : null,
+    pawn_item_type: isPawn ? gv('cl-pawn-type') : null,
+    pawn_appraised_value: isPawn ? gi('cl-pawn-appraise') : null,
+    pawn_location: isPawn ? gv('cl-pawn-loc') : null,
+    pawn_monthly_rate: isPawn ? gf('cl-pawn-rate') : null,
+    pawn_loan_date: isPawn ? gv('cl-pawn-start') || null : null,
+    pawn_due_date: isPawn ? gv('cl-pawn-due') || null : null,
+    pawn_repay_type: isPawn ? gv('cl-repay-type') : null,
+    pawn_installments: isPawn && gv('cl-repay-type')==='installment' ? gi('cl-installments') : null,
+    pawn_lending_type: isPawn ? gv('cl-lend-type') : null,
+    split_type: splitType,
+    my_rate: gf('cl-my-rate') || 100,
+    company_rate: splitType==='company' ? (gf('cl-company-rate')||0) : 0,
+    partners: partners,
+    extra_fees: fees,
+    note: gv('cl-note') || null
+  };
+
+  var res;
+  if (editId) {
+    res = await sb.from('lead_closings').update(payload).eq('id', editId).select().single();
+    if (!res.error) {
+      leadClosings[leadId] = leadClosings[leadId].map(function(c){ return c.id===editId ? res.data : c; });
+    }
+  } else {
+    res = await sb.from('lead_closings').insert(payload).select().single();
+    if (!res.error) {
+      if (!leadClosings[leadId]) leadClosings[leadId] = [];
+      leadClosings[leadId].push(res.data);
+      // 當鋪出款，自動建行事曆提醒
+      if (isPawn && payload.pawn_due_date) {
+        await sb.from('schedules').insert({
+          member_id: currentUser.id, lead_id: leadId,
+          title: (payload.pawn_item_name||'當鋪') + ' · 到期',
+          schedule_date: payload.pawn_due_date,
+          type: 'pawn_due', is_done: false
+        });
+      }
+    }
+  }
+  if (res.error) { alert('儲存失敗：'+res.error.message); return; }
+  modal.remove();
+  renderClosingList(leadId);
+}
+
+async function deleteClosingItem(leadId, itemId) {
+  if (!confirm('確定刪除此結案項目？')) return;
+  await sb.from('lead_closings').delete().eq('id', itemId);
+  leadClosings[leadId] = (leadClosings[leadId]||[]).filter(function(c){ return c.id !== itemId; });
+  renderClosingList(leadId);
 }
 
 async function saveClosedIncome(leadId) {
@@ -5207,10 +5455,14 @@ async function showReferralModal(leadId) {
   h += '<div class="frow"><div class="flbl">年份</div><input class="fi" id="ref-car-year" placeholder="2020"></div></div>';
   h += '<div class="frow2" style="margin-top:6px"><div class="frow"><div class="flbl">車牌號碼</div><input class="fi" id="ref-plate" placeholder="ABC-1234"></div>';
   h += '<div class="frow"><div class="flbl">里程數</div><input class="fi" id="ref-mileage" placeholder="50000 km"></div></div>';
+  h += '<div class="frow" style="margin-top:6px"><div class="flbl">車輛配備</div><input class="fi" id="ref-features" placeholder="天窗、倒車鏡頭..."></div>';
   h += '<div class="frow2" style="margin-top:6px"><div class="frow"><div class="flbl">車行名稱</div><input class="fi" id="ref-dealer-name" placeholder="XX 汽車"></div>';
   h += '<div class="frow"><div class="flbl">車行地址</div><input class="fi" id="ref-dealer-addr" placeholder="台北市..."></div></div>';
-  h += '<div class="frow2" style="margin-top:6px"><div class="frow"><div class="flbl">申請金額（元）</div><input class="fi" id="ref-rv-amount" type="number" inputmode="numeric" placeholder="500000"></div>';
-  h += '<div class="frow"><div class="flbl">申請期數</div><select class="fi" id="ref-rv-term"><option>12期</option><option>24期</option><option>36期</option><option>48期</option><option>60期</option><option>72期</option></select></div></div>';
+  h += '<div class="frow2" style="margin-top:6px"><div class="frow"><div class="flbl">車輛購買金額（萬）</div><input class="fi" id="ref-buy-price" type="number" step="0.1" placeholder="60"></div>';
+  h += '<div class="frow"><div class="flbl">貸款申請金額（萬）</div><input class="fi" id="ref-rv-amount" type="number" step="0.1" placeholder="55"></div></div>';
+  h += '<div class="frow2" style="margin-top:6px"><div class="frow"><div class="flbl">訂金金額（萬）</div><input class="fi" id="ref-deposit" type="number" step="0.1" placeholder="5"></div>';
+  h += '<div class="frow"><div class="flbl">申請期數</div><select class="fi" id="ref-rv-term"><option>12期</option><option>24期</option><option>36期</option><option>48期</option><option>60期</option><option>72期</option><option>84期</option></select></div></div>';
+  h += '<div class="frow" style="margin-top:6px"><div class="flbl">備註</div><input class="fi" id="ref-note" placeholder="其他補充說明..."></div>';
   h += '</div>';
   h += '</div>';
 
@@ -5287,9 +5539,11 @@ async function showReferralModal(leadId) {
         var m = box.querySelector('#ref-car-model'); if(m) m.value = (car.brand||'')+' '+(car.model||'');
         var y = box.querySelector('#ref-car-year'); if(y) y.value = car.year||'';
         var mi = box.querySelector('#ref-mileage'); if(mi) mi.value = car.mileage?car.mileage.toLocaleString()+' km':'';
+        var feat = box.querySelector('#ref-features'); if(feat && car.features) feat.value = car.features;
         var dn = box.querySelector('#ref-dealer-name'); if(dn) dn.value = dealer.company_name||dealer.name||'';
         var da = box.querySelector('#ref-dealer-addr'); if(da) da.value = dealer.address||'';
-        var am = box.querySelector('#ref-rv-amount'); if(am && car.loanable_amount) am.value = car.loanable_amount;
+        var am = box.querySelector('#ref-rv-amount'); if(am && car.loanable_amount) am.value = (car.loanable_amount/10000).toFixed(1);
+        var bp = box.querySelector('#ref-buy-price'); if(bp && car.authority_price) bp.value = (car.authority_price/10000).toFixed(1);
         pickModal.remove();
       };
     });
@@ -5412,10 +5666,14 @@ function generateReferralLine(leadId, lead, box, modal) {
     var refCarYear    = box.querySelector('#ref-car-year')    ? box.querySelector('#ref-car-year').value.trim()    : '';
     var refPlate      = box.querySelector('#ref-plate')       ? box.querySelector('#ref-plate').value.trim()       : '';
     var refMileage    = box.querySelector('#ref-mileage')     ? box.querySelector('#ref-mileage').value.trim()     : '';
+    var refFeatures   = box.querySelector('#ref-features')    ? box.querySelector('#ref-features').value.trim()    : '';
     var refDealerName = box.querySelector('#ref-dealer-name') ? box.querySelector('#ref-dealer-name').value.trim() : '';
     var refDealerAddr = box.querySelector('#ref-dealer-addr') ? box.querySelector('#ref-dealer-addr').value.trim() : '';
-    var refAmount     = box.querySelector('#ref-rv-amount')   ? box.querySelector('#ref-rv-amount').value.trim()   : '';
+    var refBuyPrice   = box.querySelector('#ref-buy-price')   ? parseFloat(box.querySelector('#ref-buy-price').value)||0   : 0;
+    var refAmount     = box.querySelector('#ref-rv-amount')   ? parseFloat(box.querySelector('#ref-rv-amount').value)||0   : 0;
+    var refDeposit    = box.querySelector('#ref-deposit')     ? parseFloat(box.querySelector('#ref-deposit').value)||0     : 0;
     var refTerm       = box.querySelector('#ref-rv-term')     ? box.querySelector('#ref-rv-term').value            : '';
+    var refNote       = box.querySelector('#ref-note')        ? box.querySelector('#ref-note').value.trim()        : '';
 
     text.push('');
     text.push('═══════════════════════');
@@ -5440,19 +5698,27 @@ function generateReferralLine(leadId, lead, box, modal) {
     if (refCarModel) text.push('廠牌型號：'+refCarModel+(refCarYear?' ('+refCarYear+'年)':''));
     if (refPlate) text.push('車牌號碼：'+refPlate);
     if (refMileage) text.push('里程數：'+refMileage);
+    if (refFeatures) text.push('配備：'+refFeatures);
     if (refDealerName) text.push('車行：'+refDealerName);
     if (refDealerAddr) text.push('車行地址：'+refDealerAddr);
-    if (refAmount || refTerm) {
+    if (refBuyPrice || refAmount || refDeposit || refTerm) {
       text.push('───────────────────────');
-      text.push('💰 貸款申請');
-      if (refAmount) text.push('申請金額：$'+parseInt(refAmount).toLocaleString());
+      text.push('💰 金額資訊');
+      if (refBuyPrice) text.push('車輛購買金額：'+refBuyPrice+'萬元');
+      if (refAmount) text.push('貸款申請金額：'+refAmount+'萬元');
+      if (refDeposit) text.push('訂金金額：'+refDeposit+'萬元');
       if (refTerm) text.push('申請期數：'+refTerm);
       if (refAmount && refTerm) {
         var months = parseInt(refTerm);
+        var amtNum = refAmount * 10000;
         var rate = 0.008;
-        var pmt = Math.round(parseInt(refAmount) * rate * Math.pow(1+rate,months) / (Math.pow(1+rate,months)-1));
+        var pmt = Math.round(amtNum * rate * Math.pow(1+rate,months) / (Math.pow(1+rate,months)-1));
         text.push('月付款估算：$'+pmt.toLocaleString()+'（利率估算）');
       }
+    }
+    if (refNote) {
+      text.push('───────────────────────');
+      text.push('📝 備註：'+refNote);
     }
   }
 
@@ -6715,9 +6981,14 @@ function buildReviewTab(el) {
   h += '<div class="frow"><div class="flbl">里程數</div><input class="fi" id="rv-mileage" placeholder="50000 km"></div></div>';
   h += '<div class="frow2" style="margin-top:6px"><div class="frow"><div class="flbl">車行名稱</div><input class="fi" id="rv-dealer-name" placeholder="XX 汽車"></div>';
   h += '<div class="frow"><div class="flbl">車行地址</div><input class="fi" id="rv-dealer-addr" placeholder="台北市..."></div></div>';
-  h += '<div class="frow2" style="margin-top:6px"><div class="frow"><div class="flbl">申請金額（元）</div><input class="fi" id="rv-amount" type="number" inputmode="numeric" placeholder="500000"></div>';
-  h += '<div class="frow"><div class="flbl">申請期數</div><select class="fi" id="rv-term"><option>12期</option><option>24期</option><option>36期</option><option>48期</option><option>60期</option><option>72期</option></select></div></div>';
+  h += '<div class="frow" style="margin-top:6px"><div class="flbl">車輛配備</div><input class="fi" id="rv-features" placeholder="天窗、倒車鏡頭..."></div>';
+  h += '<div class="sl" style="margin-top:8px">金額資訊（萬元）</div>';
+  h += '<div class="frow2"><div class="frow"><div class="flbl">車輛購買金額（萬）</div><input class="fi" id="rv-buy-price" type="number" step="0.1" inputmode="decimal" placeholder="60"></div>';
+  h += '<div class="frow"><div class="flbl">貸款申請金額（萬）</div><input class="fi" id="rv-amount" type="number" step="0.1" inputmode="decimal" placeholder="55"></div></div>';
+  h += '<div class="frow2" style="margin-top:6px"><div class="frow"><div class="flbl">訂金金額（萬）</div><input class="fi" id="rv-deposit" type="number" step="0.1" inputmode="decimal" placeholder="5"></div>';
+  h += '<div class="frow"><div class="flbl">申請期數</div><select class="fi" id="rv-term"><option>12期</option><option>24期</option><option>36期</option><option>48期</option><option>60期</option><option>72期</option><option>84期</option></select></div></div>';
   h += '</div>';
+  h += '<div class="frow" style="margin-top:8px"><div class="flbl">備註</div><input class="fi" id="rv-note" placeholder="其他補充說明..."></div>';
 
   h += '<button id="gen-review-btn" class="btn-p" style="width:100%;margin-top:12px;font-size:15px">📋 一鍵生成照會內容</button>';
   h += '<div id="review-output" style="margin-top:12px"></div>';
@@ -6816,7 +7087,13 @@ async function showPickCarModal() {
       if (mileEl)  mileEl.value  = car.mileage ? car.mileage.toLocaleString()+' km' : '';
       if (dealerNameEl) dealerNameEl.value = dealerName;
       if (dealerAddrEl) dealerAddrEl.value = dealerAddr;
-      if (amtEl && car.loanable_amount) amtEl.value = car.loanable_amount;
+      if (amtEl && car.loanable_amount) amtEl.value = (car.loanable_amount/10000).toFixed(1);
+      // 帶入配備
+      var featEl = document.getElementById('rv-features');
+      if (featEl && car.features) featEl.value = car.features;
+      // 帶入購買金額（權威價）
+      var buyEl = document.getElementById('rv-buy-price');
+      if (buyEl && car.authority_price) buyEl.value = (car.authority_price/10000).toFixed(1);
       modal.remove();
     };
   });
@@ -6828,14 +7105,20 @@ async function showPickCarModal() {
 function generateReview() {
   var leadId = document.getElementById('review-lead-sel') ? document.getElementById('review-lead-sel').value : '';
   var lead = leads.find(function(l){ return l.id === leadId; });
-  var carModel    = document.getElementById('rv-car-model')    ? document.getElementById('rv-car-model').value.trim()    : '';
-  var carYear     = document.getElementById('rv-car-year')     ? document.getElementById('rv-car-year').value.trim()     : '';
-  var plate       = document.getElementById('rv-plate')        ? document.getElementById('rv-plate').value.trim()        : '';
-  var mileage     = document.getElementById('rv-mileage')      ? document.getElementById('rv-mileage').value.trim()      : '';
-  var dealerName  = document.getElementById('rv-dealer-name')  ? document.getElementById('rv-dealer-name').value.trim()  : '';
-  var dealerAddr  = document.getElementById('rv-dealer-addr')  ? document.getElementById('rv-dealer-addr').value.trim()  : '';
-  var amount      = document.getElementById('rv-amount')       ? document.getElementById('rv-amount').value.trim()       : '';
-  var term        = document.getElementById('rv-term')         ? document.getElementById('rv-term').value                : '';
+  var gv = function(id){ var el=document.getElementById(id); return el?el.value.trim():''; };
+  var gf = function(id){ var el=document.getElementById(id); return el?parseFloat(el.value)||0:0; };
+  var carModel   = gv('rv-car-model');
+  var carYear    = gv('rv-car-year');
+  var plate      = gv('rv-plate');
+  var mileage    = gv('rv-mileage');
+  var features   = gv('rv-features');
+  var dealerName = gv('rv-dealer-name');
+  var dealerAddr = gv('rv-dealer-addr');
+  var buyPrice   = gf('rv-buy-price');
+  var amount     = gf('rv-amount');
+  var deposit    = gf('rv-deposit');
+  var term       = gv('rv-term');
+  var note       = gv('rv-note');
 
   var tpl = reviewTemplates[0];
   var fields = tpl ? (tpl.fields || []) : getDefaultReviewFields();
@@ -6845,38 +7128,47 @@ function generateReview() {
     fields.forEach(function(f) {
       if (!f.enabled) return;
       var val = '';
-      if (f.key === 'name') val = lead.name || '—';
-      else if (f.key === 'age') val = lead.age ? lead.age+'歲' : '—';
-      else if (f.key === 'id_number') val = lead.id_number_hash ? lead.id_number_hash.substring(0,3)+'****' : '—';
-      else if (f.key === 'work') val = lead.work_type || '—';
-      else if (f.key === 'salary') val = lead.monthly_salary ? '$'+lead.monthly_salary.toLocaleString()+'/月' : '—';
-      else if (f.key === 'transfer') val = lead.has_salary_transfer ? '有薪轉' : '無薪轉';
-      else if (f.key === 'address') val = lead.address || '—';
-      else if (f.key === 'alert') val = lead.alert_status==='none'?'無':'⚠️ '+lead.alert_status;
-      else if (f.key === 'phone') val = lead.phone || '—';
-      else if (f.custom) val = f.value || ''; // 自訂欄位
-      if (val) lines.push(f.label + '：' + val);
+      if (f.key==='name') val = lead.name||'—';
+      else if (f.key==='age') val = lead.age?lead.age+'歲':'—';
+      else if (f.key==='id_number') val = lead.id_number_hash?lead.id_number_hash.substring(0,3)+'****':'—';
+      else if (f.key==='work') val = lead.work_type||'—';
+      else if (f.key==='salary') val = lead.monthly_salary?'$'+lead.monthly_salary.toLocaleString()+'/月':'—';
+      else if (f.key==='transfer') val = lead.has_salary_transfer?'有薪轉':'無薪轉';
+      else if (f.key==='address') val = lead.address||'—';
+      else if (f.key==='alert') val = lead.alert_status==='none'?'無':'⚠️ '+lead.alert_status;
+      else if (f.key==='phone') val = lead.phone||'—';
+      else if (f.custom) val = f.value||'';
+      if (val) lines.push(f.label+'：'+val);
     });
+    if (lead.company_phone) lines.push('公司電話：'+lead.company_phone);
   }
   lines.push('───────────────────────');
-  lines.push('🚗 車輛資訊');
-  if (carModel) lines.push('廠牌型號：' + carModel + (carYear?' ('+carYear+'年)':''));
-  if (plate) lines.push('車牌號碼：' + plate);
-  if (mileage) lines.push('里程數：' + mileage);
-  if (dealerName) lines.push('車行：' + dealerName);
-  if (dealerAddr) lines.push('車行地址：' + dealerAddr);
+  lines.push('🚙 車輛資訊');
+  if (carModel) lines.push('廠牌型號：'+carModel+(carYear?' ('+carYear+'年)':''));
+  if (plate) lines.push('車牌號碼：'+plate);
+  if (mileage) lines.push('里程數：'+mileage);
+  if (features) lines.push('配備：'+features);
+  if (dealerName) lines.push('車行：'+dealerName);
+  if (dealerAddr) lines.push('車行地址：'+dealerAddr);
   lines.push('───────────────────────');
-  lines.push('💰 貸款申請');
-  if (amount) lines.push('申請金額：$' + parseInt(amount).toLocaleString());
-  if (term) lines.push('申請期數：' + term);
+  lines.push('💰 金額資訊');
+  if (buyPrice) lines.push('車輛購買金額：'+buyPrice+'萬元');
+  if (amount) lines.push('貸款申請金額：'+amount+'萬元');
+  if (deposit) lines.push('訂金金額：'+deposit+'萬元');
+  if (term) lines.push('申請期數：'+term);
   if (amount && term) {
     var months = parseInt(term);
+    var amtNum = amount * 10000;
     var rate = 0.008;
-    var pmt = Math.round(parseInt(amount) * rate * Math.pow(1+rate, months) / (Math.pow(1+rate,months)-1));
-    lines.push('月付款估算：$' + pmt.toLocaleString() + '（利率估算）');
+    var pmt = Math.round(amtNum * rate * Math.pow(1+rate, months) / (Math.pow(1+rate,months)-1));
+    lines.push('月付款估算：$'+pmt.toLocaleString()+'（利率估算）');
+  }
+  if (note) {
+    lines.push('───────────────────────');
+    lines.push('📝 備註：'+note);
   }
   lines.push('═══════════════════════');
-  lines.push('生成時間：' + new Date().toLocaleString('zh-TW'));
+  lines.push('生成時間：'+new Date().toLocaleString('zh-TW'));
 
   var text = lines.join('\n');
   var output = document.getElementById('review-output');
