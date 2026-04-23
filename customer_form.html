@@ -233,8 +233,8 @@ function renderStep(s) {
     dots += '<div class="step-dot' + (i <= step ? ' on' : '') + '"></div>';
   }
 
-  var stepTitle = ['', '基本資料', '工作財務', '信用狀況'][step];
-  var stepSubtitle = ['', '姓名、電話、地址等', '工作單位、月薪等', '信用卡、申請記錄等'][step];
+  var stepTitle = ['', '基本資料', '工作資訊', '貸款記錄', '資料授權'][step];
+  var stepSubtitle = ['', '姓名、電話、身分證等', '工作單位、月薪等', '現有貸款、不動產記錄', '授權查詢相關資料'][step];
 
   var h = '<div class="steps">' + dots + '</div>';
   h += '<div style="text-align:center;margin-bottom:14px">';
@@ -284,7 +284,7 @@ function renderStep(s) {
     h += '</div>';
 
   } else if (step === 3) {
-    // Step 3：信用卡、婉拒、遲繳、不動產、備註（移除警示戶）
+    // Step 3：信用狀況 + 完整貸款記錄
     h += '<div class="card">';
     h += '<div class="ct">📊 信用狀況</div>';
     h += '<div class="frow"><div class="flbl">信用卡持卡時間</div>';
@@ -303,14 +303,53 @@ function renderStep(s) {
       h += '<option value="'+o[0]+'"'+(String(formData.late_pay_days)===o[0]?' selected':'')+'>'+o[1]+'</option>';
     });
     h += '</select></div>';
-    h += '<div class="frow"><div class="flbl">名下是否有不動產</div>';
-    h += '<select class="fi" id="f-property">';
-    h += '<option value="">請選擇</option>';
-    h += '<option value="true"'+(formData.has_property===true?' selected':'')+'>有</option>';
-    h += '<option value="false"'+(formData.has_property===false?' selected':'')+'>無</option>';
-    h += '</select></div>';
-    h += '<div class="frow"><div class="flbl">備註（其他說明）</div><textarea class="fi" id="f-note" rows="3" placeholder="如有其他需要說明的情況，請在此填寫..." style="resize:none">'+(formData.note||'')+'</textarea></div>';
     h += '</div>';
+
+    // 各類現有貸款
+    var loanTypes = [
+      {key:'credit', icon:'🏦', label:'銀行信用貸款', ph:'例：玉山、台新銀行', hasPenalty:false},
+      {key:'car',    icon:'🚗', label:'汽車貸款',     ph:'例：和潤、裕融企業', hasPenalty:true},
+      {key:'bike',   icon:'🛵', label:'機車貸款',     ph:'例：裕融、台灣金聯', hasPenalty:true},
+      {key:'phone',  icon:'📱', label:'手機/商品貸',  ph:'例：中租零顧、樂天', hasPenalty:true},
+      {key:'pawn',   icon:'🏛', label:'當鋪/民間借款', ph:'民間/當鋪名稱',     hasPenalty:false},
+    ];
+    loanTypes.forEach(function(lt) {
+      h += '<div class="card" style="border:0.5px solid var(--bdr2)">';
+      h += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">';
+      h += '<div style="font-size:15px;font-weight:600">'+lt.icon+' '+lt.label+'</div>';
+      h += '<button onclick="addCustomerLoanRow(\''+lt.key+'\',\''+lt.ph+'\','+lt.hasPenalty+')" style="padding:5px 12px;border-radius:7px;background:var(--acc);color:#FFF;border:none;cursor:pointer;font-family:var(--sans);font-size:13px;font-weight:600">+ 新增</button>';
+      h += '</div>';
+      h += '<div id="cf-loan-'+lt.key+'" style="font-size:13px;color:var(--t2)">目前無記錄，有的話請點「+ 新增」</div>';
+      h += '</div>';
+    });
+
+    // 名下不動產
+    h += '<div class="card" style="border:0.5px solid var(--bdr2)">';
+    h += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">';
+    h += '<div style="font-size:15px;font-weight:600">🏠 名下不動產</div>';
+    h += '<select class="fi" id="f-property" onchange="toggleCustomerPropSection(this.value)" style="width:100px">';
+    h += '<option value="false"'+(formData.has_property===false?' selected':'')+'>無</option>';
+    h += '<option value="true"'+(formData.has_property===true?' selected':'')+'>有</option>';
+    h += '</select></div>';
+    h += '<div id="cf-prop-section" style="display:'+(formData.has_property?'block':'none')+'">';
+    h += '<div class="frow"><div class="flbl">不動產估價（元）</div><input class="fi" id="f-prop-val" type="number" placeholder="0" value="'+(formData.property_valuation||'')+'" oninput="updateCustomerPropRatio()"></div>';
+    // 一二三胎
+    [{n:1,label:'一胎'},{n:2,label:'二胎（若有）'},{n:3,label:'三胎（若有，通常民間）'}].forEach(function(t) {
+      h += '<div style="font-size:13px;font-weight:500;color:var(--t2);margin:10px 0 5px;border-bottom:0.5px solid var(--bdr);padding-bottom:3px">'+t.label+'</div>';
+      h += '<div class="frow2">';
+      h += '<div class="frow"><div class="flbl">借款方（銀行/機構）</div><input class="fi" id="f-prop'+t.n+'-who" placeholder="例：台灣銀行" value="'+(formData['property_loan'+t.n+'_who']||'')+'"></div>';
+      h += '<div class="frow"><div class="flbl">貸款餘額（元）</div><input class="fi" id="f-prop'+t.n+'-amt" type="number" placeholder="0" value="'+(formData['property_loan'+t.n]||'')+'" oninput="updateCustomerPropRatio()"></div>';
+      h += '</div>';
+      h += '<div class="frow2" style="margin-top:4px">';
+      h += '<div class="frow"><div class="flbl">月繳（元）</div><input class="fi" id="f-prop'+t.n+'-pay" type="number" placeholder="0" value="'+(formData['property_pay'+t.n]||'')+'"></div>';
+      h += '<div class="frow"><div class="flbl">違約金（元）</div><input class="fi" id="f-prop'+t.n+'-penalty" type="number" placeholder="0" value="'+(formData['property_penalty'+t.n]||'')+'"></div>';
+      h += '</div>';
+    });
+    h += '<div id="cf-prop-ratio" style="margin-top:8px"></div>';
+    h += '</div></div>';
+
+    h += '<div class="frow"><div class="flbl">備註（其他說明）</div><textarea class="fi" id="f-note" rows="3" placeholder="如有其他需要說明的情況..." style="resize:none">'+(formData.note||'')+'</textarea></div>';
+
     h += '<div style="font-size:12px;color:var(--t3);margin-bottom:12px;text-align:center">填寫的資料僅用於貸款諮詢評估，不會用於其他用途</div>';
     h += '<div style="display:flex;gap:8px">';
     h += '<button class="btn-p" onclick="renderStep(2)" style="background:var(--inp);color:var(--t1);flex:0 0 auto;width:80px">← 上一步</button>';
@@ -461,15 +500,61 @@ function nextStep(from) {
     });
     renderStep(3);
   } else if (from === 3) {
-    var propertyVal = getVal('f-property');
+    var propertyVal2 = document.getElementById('f-property') ? document.getElementById('f-property').value : 'false';
+    // 收集各類貸款記錄
+    var loanRecords = {};
+    ['credit','car','bike','phone','pawn'].forEach(function(type) {
+      var rows = [];
+      var list = document.getElementById('cf-loan-' + type);
+      if (list) {
+        var counter = cfLoanCounters[type] || 0;
+        for (var i = 1; i <= counter; i++) {
+          var id = type + '_' + i;
+          var row = document.getElementById('cf-row-' + id);
+          if (!row) continue;
+          var inst = row.querySelector('#'+id+'_inst');
+          var amt  = row.querySelector('#'+id+'_amt');
+          var pay  = row.querySelector('#'+id+'_pay');
+          var pen  = row.querySelector('#'+id+'_penalty');
+          var sta  = row.querySelector('#'+id+'_status');
+          if (inst) rows.push({
+            inst: inst.value,
+            amount: parseFloat(amt?amt.value:0)||0,
+            monthly_payment: parseFloat(pay?pay.value:0)||0,
+            penalty: parseFloat(pen?pen.value:0)||0,
+            status: sta?sta.value:'normal'
+          });
+        }
+      }
+      loanRecords[type] = rows;
+    });
+    var hasProp = propertyVal2 === 'true';
+    var gn = function(id){ var el=document.getElementById(id); return el?parseFloat(el.value)||0:0; };
+    var gs = function(id){ var el=document.getElementById(id); return el?el.value.trim():''; };
     Object.assign(formData, {
       credit_card_age: getVal('f-cc'),
       bank_reject_count: parseInt(getVal('f-bank-rej')) || 0,
       fin_reject_count: parseInt(getVal('f-fin-rej')) || 0,
       late_pay_days: parseInt(getVal('f-late')) || 0,
-      has_property: propertyVal === 'true' ? true : propertyVal === 'false' ? false : null,
+      has_property: hasProp,
       alert_status: 'none',
       note: getVal('f-note'),
+      loan_records: loanRecords,
+      has_pawn_borrow: (loanRecords.pawn && loanRecords.pawn.length > 0),
+      has_car_loan: (loanRecords.car && loanRecords.car.length > 0),
+      property_valuation: hasProp ? gn('f-prop-val') : null,
+      property_loan1: hasProp ? gn('f-prop1-amt') : null,
+      property_loan1_who: hasProp ? gs('f-prop1-who') : null,
+      property_pay1: hasProp ? gn('f-prop1-pay') : null,
+      property_penalty1: hasProp ? gn('f-prop1-penalty') : null,
+      property_loan2: hasProp ? gn('f-prop2-amt') : null,
+      property_loan2_who: hasProp ? gs('f-prop2-who') : null,
+      property_pay2: hasProp ? gn('f-prop2-pay') : null,
+      property_penalty2: hasProp ? gn('f-prop2-penalty') : null,
+      property_loan3: hasProp ? gn('f-prop3-amt') : null,
+      property_loan3_who: hasProp ? gs('f-prop3-who') : null,
+      property_pay3: hasProp ? gn('f-prop3-pay') : null,
+      property_penalty3: hasProp ? gn('f-prop3-penalty') : null,
     });
     renderStep(4);
   }
@@ -487,6 +572,62 @@ window.updateAuthLabel = function(key) {
     label.style.background = 'var(--inp)';
     label.style.border = 'none';
   }
+};
+
+// 貸款新增行
+var cfLoanCounters = {};
+window.addCustomerLoanRow = function(type, ph, hasPenalty) {
+  var list = document.getElementById('cf-loan-' + type);
+  if (!list) return;
+  // 清除「無記錄」提示
+  if (list.querySelector('.no-record') || list.textContent.indexOf('無記錄') >= 0) {
+    list.innerHTML = '';
+  }
+  cfLoanCounters[type] = (cfLoanCounters[type] || 0) + 1;
+  var idx = cfLoanCounters[type];
+  var id = type + '_' + idx;
+  var div = document.createElement('div');
+  div.id = 'cf-row-' + id;
+  div.style.cssText = 'background:rgba(255,255,255,.04);border-radius:8px;padding:10px;margin-bottom:8px;border:0.5px solid rgba(255,255,255,.1)';
+  var h2 = '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">';
+  h2 += '<span style="font-size:13px;font-weight:500;color:var(--t2)">第 '+idx+' 筆</span>';
+  h2 += '<button onclick="document.getElementById(\'cf-row-'+id+'\').remove()" style="padding:3px 8px;border-radius:5px;border:0.5px solid rgba(192,64,48,.3);background:transparent;color:#C04030;cursor:pointer;font-family:var(--sans);font-size:12px">刪除</button>';
+  h2 += '</div>';
+  h2 += '<div class="frow"><div class="flbl">貸款單位名稱</div><input class="fi" id="'+id+'_inst" placeholder="'+ph+'"></div>';
+  h2 += '<div class="frow2" style="margin-top:6px">';
+  h2 += '<div class="frow"><div class="flbl">貸款金額（元）</div><input class="fi" id="'+id+'_amt" type="number" placeholder="0"></div>';
+  h2 += '<div class="frow"><div class="flbl">月繳（元）</div><input class="fi" id="'+id+'_pay" type="number" placeholder="0"></div>';
+  h2 += '</div>';
+  if (hasPenalty) {
+    h2 += '<div class="frow" style="margin-top:6px"><div class="flbl">違約金（元）</div><input class="fi" id="'+id+'_penalty" type="number" placeholder="0"></div>';
+  }
+  h2 += '<div class="frow" style="margin-top:6px"><div class="flbl">繳款狀況</div><select class="fi" id="'+id+'_status"><option value="normal">正常</option><option value="1w">遲繳1週內</option><option value="2w">遲繳2週</option><option value="3w">遲繳3週</option><option value="1m+">遲繳超過1個月</option></select></div>';
+  div.innerHTML = h2;
+  list.appendChild(div);
+};
+
+// 不動產展開
+window.toggleCustomerPropSection = function(val) {
+  var sec = document.getElementById('cf-prop-section');
+  if (sec) sec.style.display = val === 'true' ? 'block' : 'none';
+};
+
+// 不動產負債比計算
+window.updateCustomerPropRatio = function() {
+  var pv = parseFloat(document.getElementById('f-prop-val') ? document.getElementById('f-prop-val').value : 0) || 0;
+  var p1 = parseFloat(document.getElementById('f-prop1-amt') ? document.getElementById('f-prop1-amt').value : 0) || 0;
+  var p2 = parseFloat(document.getElementById('f-prop2-amt') ? document.getElementById('f-prop2-amt').value : 0) || 0;
+  var p3 = parseFloat(document.getElementById('f-prop3-amt') ? document.getElementById('f-prop3-amt').value : 0) || 0;
+  var el = document.getElementById('cf-prop-ratio');
+  if (!el || pv <= 0) { if(el) el.innerHTML = ''; return; }
+  var total = p1 + p2 + p3;
+  var ratio = parseFloat((total / pv * 100).toFixed(1));
+  var col = ratio <= 60 ? '#2D8A4E' : ratio <= 80 ? '#B88020' : '#C04030';
+  var lbl = ratio <= 60 ? '✅ 空間充裕' : ratio <= 80 ? '⚠️ 空間有限' : '❌ 空間不足';
+  el.innerHTML = '<div style="padding:8px 10px;background:rgba(255,255,255,.04);border-radius:8px">' +
+    '<div style="font-size:14px;font-weight:600;color:'+col+'">使用成數：'+ratio+'% — '+lbl+'</div>' +
+    '<div style="font-size:12px;color:var(--t2);margin-top:2px">合計 $'+total.toLocaleString()+' ÷ 估價 $'+pv.toLocaleString()+'</div>' +
+    '</div>';
 };
 
 async function submitForm() {
@@ -508,14 +649,8 @@ async function submitForm() {
       phone: formData.phone,
       id_number_hash: formData.id_number || null,
       age: formData.age || null,
-      address: formData.address || null,
-      housing_status: formData.housing_status || null,
-      required_amount: formData.required_amount || null,
-      fund_purpose: formData.fund_purpose || null,
       work_type: formData.work_type || null,
       company_name: formData.company_name || null,
-      company_phone: formData.company_phone || null,
-      company_address: formData.company_address || null,
       monthly_salary: formData.monthly_salary || null,
       has_salary_transfer: formData.has_salary_transfer,
       has_car_license: formData.has_car_license || false,
@@ -524,8 +659,18 @@ async function submitForm() {
       bank_reject_count: formData.bank_reject_count || 0,
       fin_reject_count: formData.fin_reject_count || 0,
       late_pay_days: formData.late_pay_days || 0,
-      has_property: formData.has_property,
-      alert_status: formData.alert_status || 'none',
+      has_property: formData.has_property || false,
+      has_pawn_borrow: formData.has_pawn_borrow || false,
+      has_car_loan: formData.has_car_loan || false,
+      alert_status: 'none',
+      note: formData.note || null,
+      // 不動產資料
+      property_valuation: formData.property_valuation || null,
+      property_loan1: formData.property_loan1 || null,
+      property_loan2: formData.property_loan2 || null,
+      property_loan3: formData.property_loan3 || null,
+      // 貸款記錄（JSON）
+      loan_records: formData.loan_records ? JSON.stringify(formData.loan_records) : null,
       status: 'new',
       source: 'customer_form',
       consent_at: formData.consent_at || new Date().toISOString(),
@@ -535,8 +680,6 @@ async function submitForm() {
       auth_traffic_query: formData.auth_traffic || false,
       auth_license_query: formData.auth_license || false,
       auth_mydata_query: formData.auth_mydata || false,
-      consent_at: formData.consent_at || new Date().toISOString(),
-      consent_version: formData.consent_version || '2024-v1',
     };
 
     var res = await sb.from('leads').insert(payload).select().single();
