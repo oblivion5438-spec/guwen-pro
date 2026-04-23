@@ -243,31 +243,20 @@ function renderStep(s) {
   h += '</div>';
 
   if (step === 1) {
+    // Step 1：姓名、電話、身分證、出生年份
     h += '<div class="card">';
     h += '<div class="ct">👤 基本資料</div>';
     h += '<div class="frow"><div class="flbl">姓名 *</div><input class="fi" id="f-name" placeholder="真實姓名" value="'+(formData.name||'')+'"></div>';
     h += '<div class="frow"><div class="flbl">手機號碼 *</div><input class="fi" id="f-phone" type="tel" placeholder="09XX-XXX-XXX" value="'+(formData.phone||'')+'"></div>';
     h += '<div class="frow"><div class="flbl">身分證字號</div><input class="fi" id="f-idno" placeholder="A123456789" value="'+(formData.id_number||'')+'"></div>';
     h += '<div class="frow"><div class="flbl">出生年份</div><input class="fi" id="f-birth" type="number" placeholder="1990" value="'+(formData.birth_year||'')+'"></div>';
-    h += '<div class="sl">居住資訊</div>';
-    h += '<div class="frow"><div class="flbl">居住地址</div><input class="fi" id="f-addr" placeholder="縣市、區域..." value="'+(formData.address||'')+'"></div>';
-    h += '<div class="frow"><div class="flbl">居住狀況</div>';
-    h += '<select class="fi" id="f-housing">';
-    [['','請選擇'],['self_own','自有（本人名下）'],['self_live','自住（非本人名下）'],['family','親屬房子'],['rent','租屋'],['other','其他']].forEach(function(o){
-      h += '<option value="'+o[0]+'"'+(formData.housing_status===o[0]?' selected':'')+'>'+o[1]+'</option>';
-    });
-    h += '</select></div>';
-    h += '<div class="sl">需求</div>';
-    h += '<div class="frow2">';
-    h += '<div class="frow"><div class="flbl">需求資金（元）</div><input class="fi" id="f-amt" type="number" placeholder="500000" value="'+(formData.required_amount||'')+'"></div>';
-    h += '<div class="frow"><div class="flbl">資金用途</div><input class="fi" id="f-purpose" placeholder="週轉、購車..." value="'+(formData.fund_purpose||'')+'"></div>';
-    h += '</div>';
     h += '</div>';
     h += '<button class="btn-p" onclick="nextStep(1)">下一步 →</button>';
 
   } else if (step === 2) {
+    // Step 2：工作、公司、月薪、薪轉、駕照
     h += '<div class="card">';
-    h += '<div class="ct">💼 工作財務</div>';
+    h += '<div class="ct">💼 工作資訊</div>';
     h += '<div class="frow"><div class="flbl">工作狀況</div>';
     h += '<select class="fi" id="f-work">';
     [['','請選擇'],['employed','受雇員工'],['self_employed','自行創業'],['freelance','自由業'],['part_time','兼職'],['unemployed','待業中'],['retired','退休']].forEach(function(o){
@@ -275,8 +264,6 @@ function renderStep(s) {
     });
     h += '</select></div>';
     h += '<div class="frow"><div class="flbl">公司名稱</div><input class="fi" id="f-company" placeholder="公司或行號名稱" value="'+(formData.company_name||'')+'"></div>';
-    h += '<div class="frow"><div class="flbl">公司電話</div><input class="fi" id="f-company-phone" type="tel" placeholder="02-XXXX-XXXX" value="'+(formData.company_phone||'')+'"></div>';
-    h += '<div class="frow"><div class="flbl">公司地址</div><input class="fi" id="f-company-addr" placeholder="縣市、區域..." value="'+(formData.company_address||'')+'"></div>';
     h += '<div class="frow2">';
     h += '<div class="frow"><div class="flbl">月收入（元）</div><input class="fi" id="f-salary" type="number" placeholder="40000" value="'+(formData.monthly_salary||'')+'"></div>';
     h += '<div class="frow"><div class="flbl">薪資入帳</div>';
@@ -284,8 +271,7 @@ function renderStep(s) {
     h += '<option value="">請選擇</option>';
     h += '<option value="true"'+(formData.has_salary_transfer===true?' selected':'')+'>有薪轉</option>';
     h += '<option value="false"'+(formData.has_salary_transfer===false?' selected':'')+'>無薪轉</option>';
-    h += '</select></div>';
-    h += '</div>';
+    h += '</select></div></div>';
     h += '<div class="sl">駕照</div>';
     h += '<div style="display:flex;gap:8px">';
     h += '<label style="flex:1;display:flex;align-items:center;gap:8px;padding:10px;background:var(--inp);border-radius:8px;cursor:pointer"><input type="checkbox" id="f-car-lic" '+(formData.has_car_license?'checked':'')+' style="width:18px;height:18px;accent-color:var(--acc)"><span>汽車駕照</span></label>';
@@ -298,6 +284,7 @@ function renderStep(s) {
     h += '</div>';
 
   } else if (step === 3) {
+    // Step 3：信用卡、婉拒、遲繳、不動產、備註（移除警示戶）
     h += '<div class="card">';
     h += '<div class="ct">📊 信用狀況</div>';
     h += '<div class="frow"><div class="flbl">信用卡持卡時間</div>';
@@ -321,12 +308,6 @@ function renderStep(s) {
     h += '<option value="">請選擇</option>';
     h += '<option value="true"'+(formData.has_property===true?' selected':'')+'>有</option>';
     h += '<option value="false"'+(formData.has_property===false?' selected':'')+'>無</option>';
-    h += '</select></div>';
-    h += '<div class="frow"><div class="flbl">警示協商狀況</div>';
-    h += '<select class="fi" id="f-alert">';
-    [['none','無'],['alert','有警示'],['negotiation','有協商']].forEach(function(o){
-      h += '<option value="'+o[0]+'"'+(formData.alert_status===o[0]?' selected':'')+'>'+o[1]+'</option>';
-    });
     h += '</select></div>';
     h += '<div class="frow"><div class="flbl">備註（其他說明）</div><textarea class="fi" id="f-note" rows="3" placeholder="如有其他需要說明的情況，請在此填寫..." style="resize:none">'+(formData.note||'')+'</textarea></div>';
     h += '</div>';
@@ -466,10 +447,6 @@ function nextStep(from) {
       id_number: getVal('f-idno'),
       birth_year: getVal('f-birth'),
       age: age || null,
-      address: getVal('f-addr'),
-      housing_status: getVal('f-housing'),
-      required_amount: parseInt(getVal('f-amt')) || null,
-      fund_purpose: getVal('f-purpose'),
     });
     renderStep(2);
   } else if (from === 2) {
@@ -477,8 +454,6 @@ function nextStep(from) {
     Object.assign(formData, {
       work_type: getVal('f-work'),
       company_name: getVal('f-company'),
-      company_phone: getVal('f-company-phone'),
-      company_address: getVal('f-company-addr'),
       monthly_salary: parseInt(getVal('f-salary')) || null,
       has_salary_transfer: transferVal === 'true' ? true : transferVal === 'false' ? false : null,
       has_car_license: getCheck('f-car-lic'),
@@ -493,7 +468,7 @@ function nextStep(from) {
       fin_reject_count: parseInt(getVal('f-fin-rej')) || 0,
       late_pay_days: parseInt(getVal('f-late')) || 0,
       has_property: propertyVal === 'true' ? true : propertyVal === 'false' ? false : null,
-      alert_status: getVal('f-alert') || 'none',
+      alert_status: 'none',
       note: getVal('f-note'),
     });
     renderStep(4);

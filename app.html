@@ -239,57 +239,45 @@ select.fi{-webkit-appearance:auto;appearance:auto;display:block;max-width:100%;w
 
       <!-- 註冊表單 -->
       <div id="form-register" style="display:none">
-        <div class="fg2">
-          <div class="frow">
-            <div class="flbl">姓名 <span class="req">*</span></div>
-            <input class="fi" id="reg-name" placeholder="真實姓名">
-          </div>
-          <div class="frow">
-            <div class="flbl">公司名稱</div>
-            <input class="fi" id="reg-company" placeholder="可空白">
-          </div>
+
+        <!-- 7天免費試用說明 -->
+        <div style="background:var(--al);border:0.5px solid rgba(200,81,26,.3);border-radius:10px;padding:12px;margin-bottom:14px;text-align:center">
+          <div style="font-size:16px;font-weight:700;color:var(--acc);margin-bottom:4px">🎉 免費試用 7 天</div>
+          <div style="font-size:13px;color:var(--t2)">試用期結束後自動升級為專業版<br>可隨時取消，不會自動扣款</div>
+        </div>
+
+        <!-- 必填欄位（精簡版） -->
+        <div class="frow">
+          <div class="flbl">姓名 <span class="req">*</span></div>
+          <input class="fi" id="reg-name" placeholder="真實姓名">
         </div>
         <div class="frow">
           <div class="flbl">Email <span class="req">*</span></div>
           <input class="fi" type="email" id="reg-email" placeholder="your@email.com" autocomplete="email">
         </div>
         <div class="frow">
-          <div class="flbl">手機號碼</div>
-          <input class="fi" type="tel" id="reg-phone" placeholder="09XX-XXXXXX">
-        </div>
-        <div class="fg2">
-          <div class="frow">
-            <div class="flbl">所在縣市</div>
-            <select class="fi" id="reg-city" onchange="updateDistricts()">
-              <option value="">選擇縣市</option>
-              <option>台北市</option><option>新北市</option><option>桃園市</option>
-              <option>台中市</option><option>台南市</option><option>高雄市</option>
-              <option>基隆市</option><option>新竹市</option><option>新竹縣</option>
-              <option>苗栗縣</option><option>彰化縣</option><option>南投縣</option>
-              <option>雲林縣</option><option>嘉義市</option><option>嘉義縣</option>
-              <option>屏東縣</option><option>宜蘭縣</option><option>花蓮縣</option>
-              <option>台東縣</option><option>澎湖縣</option><option>金門縣</option><option>連江縣</option>
-            </select>
-          </div>
-          <div class="frow">
-            <div class="flbl">行政區</div>
-            <select class="fi" id="reg-district"><option value="">請先選縣市</option></select>
-          </div>
-
-        </div>
-        <div class="frow">
           <div class="flbl">密碼 <span class="req">*</span></div>
           <input class="fi" type="password" id="reg-pw" placeholder="至少8碼英數混合" autocomplete="new-password">
         </div>
-
-        <!-- 服務須知 -->
-        <div style="background:var(--inp);border-radius:8px;padding:12px 14px;font-size:16px;color:var(--t2);line-height:1.6;max-height:100px;overflow-y:auto;margin:10px 0">
-          <strong style="color:var(--t0)">會員服務須知摘要</strong><br>
-          本平台供貸款顧問使用。您有義務依個資法保護客戶個人資料，不得超出授權範圍使用、不得轉售客戶資料。違規者停權並保留法律追訴權。完整條款請見服務條款頁面。
+        <div class="frow">
+          <div class="flbl">邀請碼（選填）</div>
+          <input class="fi" id="reg-invite" placeholder="填入推薦人邀請碼">
         </div>
+
+        <!-- 個資保護告知 -->
+        <div style="background:var(--inp);border-radius:10px;padding:12px;margin:12px 0;max-height:140px;overflow-y:auto;font-size:12px;color:var(--t2);line-height:1.8">
+          <div style="font-size:13px;font-weight:700;color:var(--t0);margin-bottom:6px">📋 個人資料保護告知（個資法第8條）</div>
+          <strong>蒐集目的：</strong>提供顧問PRO平台會員服務<br>
+          <strong>蒐集項目：</strong>姓名、Email 等基本識別資料<br>
+          <strong>利用期間：</strong>帳號存續期間及法令規定期間<br>
+          <strong>利用地區：</strong>中華民國台灣境內<br>
+          <strong>您的權利：</strong>依個資法第3條，您可隨時查詢、更正或要求刪除個人資料<br>
+          <strong>保護義務：</strong>本平台供貸款顧問使用，您有義務依個資法保護客戶個人資料，不得超出授權範圍使用、不得轉售客戶資料，違規者停權並保留法律追訴權
+        </div>
+
         <div class="tgl-row opted" id="terms-row" onclick="toggleTerms()">
           <div class="tgl-info">
-            <div class="tgl-t">我已閱讀並同意會員服務須知與個資保護義務</div>
+            <div class="tgl-t">我已閱讀並同意個資保護告知與會員服務規範</div>
             <div class="tgl-s">必要同意，不同意無法建立帳號</div>
           </div>
           <div style="text-align:center">
@@ -298,7 +286,7 @@ select.fi{-webkit-appearance:auto;appearance:auto;display:block;max-width:100%;w
           </div>
         </div>
 
-        <button class="btn-p" id="reg-btn" onclick="doRegister()">建立顧問帳號</button>
+        <button class="btn-p" id="reg-btn" onclick="doRegister()">開始 7 天免費試用</button>
         <div class="auth-hint">已有帳號？點上方「登入」</div>
       </div>
     </div>
@@ -1327,27 +1315,39 @@ async function doLogin() {
 }
 
 async function doRegister() {
-  if (!termsAgreed) { showErr('請先同意會員服務須知'); return; }
+  if (!termsAgreed) { showErr('請先同意個資保護告知與服務規範'); return; }
   var name = document.getElementById('reg-name').value.trim();
   var email = document.getElementById('reg-email').value.trim();
   var pw = document.getElementById('reg-pw').value;
-  var company = document.getElementById('reg-company').value.trim();
-  var phone = document.getElementById('reg-phone').value.trim();
-  var city = document.getElementById('reg-city').value;
-  var district = document.getElementById('reg-district').value;
+  var refCode = document.getElementById('reg-invite') ? document.getElementById('reg-invite').value.trim() : '';
   if (!name) { showErr('請填寫姓名'); return; }
   if (!email) { showErr('請填寫 Email'); return; }
   if (pw.length < 8) { showErr('密碼至少需要 8 碼'); return; }
   showLoading('建立帳號中…');
   var r = await sb.auth.signUp({ email:email, password:pw });
   if (r.error) { hideLoading(); showErr('帳號建立失敗：' + r.error.message); return; }
-  // 邀請碼只用英數字，避免中文字在 URL 被編碼導致找不到
+  // 產生邀請碼
   var nameEn = name.replace(/[^\x00-\x7F]/g, '').substring(0,2).toUpperCase() || 'GW';
   if (nameEn.length < 2) nameEn = ('GW' + nameEn).slice(-2);
   var invCode = nameEn + Math.random().toString(36).substring(2,6).toUpperCase() + '-' + new Date().getFullYear();
-  await sb.from('members').insert({ id:r.data.user.id, email:email, name:name, company:company, phone:phone, city:city, district:district, invite_code:invCode, plan:'free' });
+  // 計算7天試用到期時間
+  var trialEnd = new Date(Date.now() + 7*24*60*60*1000).toISOString();
+  // 查詢邀請人（推薦碼）
+  var referredBy = null;
+  if (refCode) {
+    var refRes = await sb.from('members').select('id').eq('invite_code', refCode).maybeSingle();
+    if (refRes.data) referredBy = refRes.data.id;
+  }
+  await sb.from('members').insert({
+    id: r.data.user.id, email: email, name: name,
+    invite_code: invCode, plan: 'trial',
+    trial_end: trialEnd,
+    referred_by: referredBy,
+    consent_at: new Date().toISOString(),
+    consent_version: '2025-v1'
+  });
   hideLoading();
-  showOk('帳號建立成功！請檢查 Email 確認信後登入。');
+  showOk('🎉 帳號建立成功！7 天免費試用已開始\n請檢查 Email 確認信後登入。');
 }
 
 function showMobileMoreMenu() {
@@ -1540,7 +1540,7 @@ async function renderDash() {
   }
   var maxLeads6 = Math.max.apply(null, months6.map(function(m){return m.leads;})) || 1;
   var maxClosed6 = Math.max.apply(null, months6.map(function(m){return m.closed;})) || 1;
-  var chartH = 80;
+  var chartH = 50;
   var chartW = 300;
   var stepX = chartW / 5;
 
