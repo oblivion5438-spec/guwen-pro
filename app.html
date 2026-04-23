@@ -278,6 +278,9 @@ select.fi{-webkit-appearance:auto;appearance:auto;display:block;max-width:100%;w
           <input class="fi" type="password" id="login-pw" placeholder="••••••••" autocomplete="current-password">
         </div>
         <button class="btn-p" id="login-btn" onclick="doLogin()">登入</button>
+        <div style="text-align:center;margin-top:10px">
+          <button onclick="doForgotPassword()" style="background:transparent;border:none;color:var(--t2);font-size:13px;cursor:pointer;font-family:var(--sans);text-decoration:underline">忘記密碼？</button>
+        </div>
         <div class="auth-hint">還沒有帳號？點上方「加入成為顧問」</div>
       </div>
 
@@ -1252,6 +1255,8 @@ async function init() {
     loadNotifCount();
     // 延遲3秒檢查到期提醒（等資料載入完成）
     setTimeout(function(){ checkPawnDueReminders(); }, 3000);
+    // 初始化推播通知
+    setTimeout(function(){ initPushNotification(); }, 2000);
   } else {
     showPage('auth');
   }
@@ -1468,6 +1473,9 @@ async function doLogin() {
   await loadMember();
   showPage('member');
   renderDash();
+  loadNotifCount();
+  setTimeout(function(){ checkPawnDueReminders(); }, 3000);
+  setTimeout(function(){ initPushNotification(); }, 2000);
 }
 
 async function doRegister() {
@@ -1481,7 +1489,24 @@ async function doRegister() {
   if (pw.length < 8) { showErr('密碼至少需要 8 碼'); return; }
   showLoading('建立帳號中…');
   var r = await sb.auth.signUp({ email:email, password:pw });
-  if (r.error) { hideLoading(); showErr('帳號建立失敗：' + r.error.message); return; }
+
+  // 處理錯誤
+  if (r.error) {
+    hideLoading();
+    if (r.error.message.includes('already registered') || r.error.message.includes('already been registered')) {
+      showErr('此 Email 已經註冊過了，請直接登入或使用忘記密碼');
+    } else {
+      showErr('帳號建立失敗：' + r.error.message);
+    }
+    return;
+  }
+
+  // Supabase 在 Email 已存在時不回傳 error，但 user.identities 會是空陣列
+  if (!r.data.user || (r.data.user.identities && r.data.user.identities.length === 0)) {
+    hideLoading();
+    showErr('此 Email 已經註冊過了，請直接登入或使用「忘記密碼」重設');
+    return;
+  }
   // 產生邀請碼
   var nameEn = name.replace(/[^\x00-\x7F]/g, '').substring(0,2).toUpperCase() || 'GW';
   if (nameEn.length < 2) nameEn = ('GW' + nameEn).slice(-2);
@@ -1504,6 +1529,24 @@ async function doRegister() {
   });
   hideLoading();
   showOk('🎉 帳號建立成功！7 天免費試用已開始\n請檢查 Email 確認信後登入。');
+}
+
+async function doForgotPassword() {
+  var email = document.getElementById('login-email').value.trim();
+  if (!email) {
+    showErr('請先填寫 Email 再點忘記密碼');
+    return;
+  }
+  showLoading('發送重設信件中…');
+  var r = await sb.auth.resetPasswordForEmail(email, {
+    redirectTo: 'https://guwen-pro.vercel.app/app.html'
+  });
+  hideLoading();
+  if (r.error) {
+    showErr('發送失敗：' + r.error.message);
+  } else {
+    showOk('✅ 已發送密碼重設信件\n請檢查 ' + email + ' 的收件匣\n（也請確認垃圾郵件資料夾）');
+  }
 }
 
 function toggleMobileSidebar() {
@@ -6618,6 +6661,76 @@ function generateMonthlyReport(year, month) {
 // PayPal 設定
 // ══════════════════════════════
 var PAYPAL_CLIENT_ID = 'AcefH-W4SjcpaZRJiqb2iKN0xPRpMTU-lbaRUTxw6YdPeoToIRtTu14UuTkPlkrsgyaYqzjSq1xj3R8r';
+
+// ── Web Push VAPID 公鑰 ──
+var VAPID_PUBLIC_KEY = 'BJdsI7BD-913nAHUh8EMIb9AnY3iijeWaJg-ppYbEkzE-3zwGqMSSLtjU1a3VVX1qyE7wKU58rjt_3ohriL33eI';
+
+function urlBase64ToUint8Array(base64String) {
+  var padding = '='.repeat((4 - base64String.length % 4) % 4);
+  var base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+  var rawData = window.atob(base64);
+  var outputArray = new Uint8Array(rawData.length);
+  for (var i = 0; i < rawData.length; ++i) {
+    outputArray[i] = rawData.charCodeAt(i);
+  }
+  return outputArray;
+}
+
+// 訂閱推播通知
+async function subscribePushNotification() {
+  if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+    console.log('瀏覽器不支援推播通知');
+    return false;
+  }
+  try {
+    var permission = await Notification.requestPermission();
+    if (permission !== 'granted') {
+      console.log('用戶拒絕推播通知');
+      return false;
+    }
+    var reg = await navigator.serviceWorker.ready;
+    var existing = await reg.pushManager.getSubscription();
+    if (existing) {
+      await savePushSubscription(existing);
+      return true;
+    }
+    var subscription = await reg.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY)
+    });
+    await savePushSubscription(subscription);
+    console.log('✅ 推播通知訂閱成功');
+    return true;
+  } catch(err) {
+    console.error('推播通知訂閱失敗:', err);
+    return false;
+  }
+}
+
+async function savePushSubscription(subscription) {
+  if (!currentUser) return;
+  var subJson = JSON.stringify(subscription.toJSON());
+  await sb.from('push_subscriptions').upsert({
+    member_id: currentUser.id,
+    subscription: subJson,
+    updated_at: new Date().toISOString()
+  }, { onConflict: 'member_id' });
+}
+
+// 登入後自動請求推播授權
+async function initPushNotification() {
+  if (!currentUser) return;
+  if (!('Notification' in window)) return;
+  // 如果之前已授權，靜默重新訂閱
+  if (Notification.permission === 'granted') {
+    subscribePushNotification();
+  } else if (Notification.permission === 'default') {
+    // 延遲 3 秒再問，避免一進來就跳
+    setTimeout(function() {
+      subscribePushNotification();
+    }, 3000);
+  }
+}
 
 // ── 全域錯誤攔截：避免頁面卡在「載入中」──
 window.addEventListener('unhandledrejection', function(e) {
