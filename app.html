@@ -5192,11 +5192,26 @@ async function showReferralModal(leadId) {
 
   // 照會內容
   h += '<div><div style="font-size:12px;color:var(--t3);font-weight:600;margin-bottom:4px;text-transform:uppercase;letter-spacing:0.5px">📋 照會</div>';
-  h += '<div style="display:flex;flex-wrap:wrap;gap:4px">';
-  h += '<label style="display:flex;align-items:center;gap:4px;padding:5px 10px;border-radius:15px;border:0.5px solid var(--bdr2);cursor:pointer;font-size:13px">';
-  h += '<input type="checkbox" class="ref-field" data-key="review" style="accent-color:var(--acc)"> 附上照會內容（車貸用）';
+  h += '<div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:8px">';
+  h += '<label style="display:flex;align-items:center;gap:4px;padding:5px 10px;border-radius:15px;border:0.5px solid var(--bdr2);cursor:pointer;font-size:13px" id="ref-review-label">';
+  h += '<input type="checkbox" class="ref-field" id="ref-review-check" data-key="review" style="accent-color:var(--acc)"> 附上照會內容（車貸用）';
   h += '</label>';
-  h += '</div></div>';
+  h += '</div>';
+  // 車輛資訊區塊（照會勾選時展開）
+  h += '<div id="ref-car-info" style="display:none;background:var(--inp);border-radius:10px;padding:12px;margin-top:4px">';
+  h += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">';
+  h += '<div style="font-size:13px;font-weight:600">🚙 車輛資訊</div>';
+  h += '<button id="ref-pick-car-btn" style="padding:4px 12px;background:var(--acc);color:#FFF;border:none;border-radius:7px;cursor:pointer;font-family:var(--sans);font-size:12px;font-weight:600">從車行選車</button>';
+  h += '</div>';
+  h += '<div class="frow2"><div class="frow"><div class="flbl">廠牌型號</div><input class="fi" id="ref-car-model" placeholder="Toyota Camry 2.5"></div>';
+  h += '<div class="frow"><div class="flbl">年份</div><input class="fi" id="ref-car-year" placeholder="2020"></div></div>';
+  h += '<div class="frow2" style="margin-top:6px"><div class="frow"><div class="flbl">車牌號碼</div><input class="fi" id="ref-plate" placeholder="ABC-1234"></div>';
+  h += '<div class="frow"><div class="flbl">里程數</div><input class="fi" id="ref-mileage" placeholder="50000 km"></div></div>';
+  h += '<div class="frow2" style="margin-top:6px"><div class="frow"><div class="flbl">車行名稱</div><input class="fi" id="ref-dealer-name" placeholder="XX 汽車"></div>';
+  h += '<div class="frow"><div class="flbl">車行地址</div><input class="fi" id="ref-dealer-addr" placeholder="台北市..."></div></div>';
+  h += '<div class="frow2" style="margin-top:6px"><div class="frow"><div class="flbl">申請金額（元）</div><input class="fi" id="ref-rv-amount" type="number" inputmode="numeric" placeholder="500000"></div>';
+  h += '<div class="frow"><div class="flbl">申請期數</div><select class="fi" id="ref-rv-term"><option>12期</option><option>24期</option><option>36期</option><option>48期</option><option>60期</option><option>72期</option></select></div></div>';
+  h += '</div>';
   h += '</div>';
 
   // 操作按鈕
@@ -5209,6 +5224,76 @@ async function showReferralModal(leadId) {
   box.innerHTML = h;
   modal.appendChild(box);
   document.body.appendChild(modal);
+
+  // 照會 checkbox 切換車輛區塊
+  var reviewCheck = box.querySelector('#ref-review-check');
+  var carInfoDiv = box.querySelector('#ref-car-info');
+  if (reviewCheck && carInfoDiv) {
+    reviewCheck.onchange = function() {
+      carInfoDiv.style.display = this.checked ? 'block' : 'none';
+    };
+  }
+
+  // 從車行選車（轉介版）
+  var refPickCarBtn = box.querySelector('#ref-pick-car-btn');
+  if (refPickCarBtn) refPickCarBtn.onclick = async function() {
+    var connRes = await sb.from('business_connections')
+      .select('requester_id, receiver_id')
+      .or('requester_id.eq.'+currentUser.id+',receiver_id.eq.'+currentUser.id)
+      .eq('status','accepted');
+    var partnerIds = (connRes.data||[]).map(function(c){
+      return c.requester_id === currentUser.id ? c.receiver_id : c.requester_id;
+    });
+    var cars = [];
+    if (partnerIds.length > 0) {
+      var carRes = await sb.from('car_inventory')
+        .select('*, member:member_id(id,name,company_name,address)')
+        .in('member_id', partnerIds).eq('status','available').eq('is_public',true);
+      cars = carRes.data || [];
+    }
+    var myCars = carInventory.filter(function(c){ return c.status==='available'; });
+    cars = cars.concat(myCars);
+
+    var pickModal = document.createElement('div');
+    pickModal.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.8);z-index:10000;display:flex;align-items:flex-start;justify-content:center;padding:16px;overflow-y:auto';
+    var pickBox = document.createElement('div');
+    pickBox.style.cssText = 'background:var(--card);border-radius:16px;padding:16px;width:100%;max-width:540px;margin:auto';
+    var ph = '<div style="font-size:16px;font-weight:700;margin-bottom:12px">🚙 選擇車輛帶入</div>';
+    if (cars.length === 0) {
+      ph += '<div style="text-align:center;padding:20px;color:var(--t2)">目前無在售車輛</div>';
+    } else {
+      cars.forEach(function(car) {
+        var dealer = car.member || {};
+        var dealerName = dealer.company_name || dealer.name || '我的車行';
+        var dealerAddr = dealer.address || '';
+        ph += '<div id="ref-pick-'+car.id+'" style="border:0.5px solid var(--bdr2);border-radius:10px;padding:12px;margin-bottom:8px;cursor:pointer" onmouseover="this.style.borderColor=\'var(--acc)\'" onmouseout="this.style.borderColor=\'var(--bdr2)\'">';
+        ph += '<div style="font-size:15px;font-weight:700;margin-bottom:3px">'+(car.brand||'')+' '+(car.model||'')+' <span style="font-size:12px;color:var(--t2);font-weight:400">'+(car.year||'')+'年</span></div>';
+        ph += '<div style="font-size:12px;color:var(--t3);margin-bottom:4px">🏪 '+dealerName+(dealerAddr?' · '+dealerAddr:'')+'</div>';
+        ph += '<div style="font-size:13px;color:var(--acc);font-weight:600">可貸 $'+(car.loanable_amount||0).toLocaleString()+'</div>';
+        ph += '</div>';
+      });
+    }
+    ph += '<button id="ref-pick-close" class="btn-sm" style="width:100%;margin-top:6px">取消</button>';
+    pickBox.innerHTML = ph;
+    pickModal.appendChild(pickBox);
+    document.body.appendChild(pickModal);
+    pickBox.querySelector('#ref-pick-close').onclick = function(){ pickModal.remove(); };
+    pickModal.onclick = function(e){ if(e.target===pickModal) pickModal.remove(); };
+    cars.forEach(function(car) {
+      var item = pickBox.querySelector('#ref-pick-'+car.id);
+      if (!item) return;
+      var dealer = car.member || {};
+      item.onclick = function() {
+        var m = box.querySelector('#ref-car-model'); if(m) m.value = (car.brand||'')+' '+(car.model||'');
+        var y = box.querySelector('#ref-car-year'); if(y) y.value = car.year||'';
+        var mi = box.querySelector('#ref-mileage'); if(mi) mi.value = car.mileage?car.mileage.toLocaleString()+' km':'';
+        var dn = box.querySelector('#ref-dealer-name'); if(dn) dn.value = dealer.company_name||dealer.name||'';
+        var da = box.querySelector('#ref-dealer-addr'); if(da) da.value = dealer.address||'';
+        var am = box.querySelector('#ref-rv-amount'); if(am && car.loanable_amount) am.value = car.loanable_amount;
+        pickModal.remove();
+      };
+    });
+  };
 
   // 全選函數
   window.toggleAllReferralFields = function(val) {
@@ -5319,12 +5404,23 @@ function generateReferralLine(leadId, lead, box, modal) {
     }
   });
 
-  // 附上照會內容
+  // 附上照會內容（含車輛資訊）
   if (selectedKeys.review) {
     var tpl = reviewTemplates[0];
     var fields = tpl ? (tpl.fields||[]) : getDefaultReviewFields();
+    var refCarModel   = box.querySelector('#ref-car-model')   ? box.querySelector('#ref-car-model').value.trim()   : '';
+    var refCarYear    = box.querySelector('#ref-car-year')    ? box.querySelector('#ref-car-year').value.trim()    : '';
+    var refPlate      = box.querySelector('#ref-plate')       ? box.querySelector('#ref-plate').value.trim()       : '';
+    var refMileage    = box.querySelector('#ref-mileage')     ? box.querySelector('#ref-mileage').value.trim()     : '';
+    var refDealerName = box.querySelector('#ref-dealer-name') ? box.querySelector('#ref-dealer-name').value.trim() : '';
+    var refDealerAddr = box.querySelector('#ref-dealer-addr') ? box.querySelector('#ref-dealer-addr').value.trim() : '';
+    var refAmount     = box.querySelector('#ref-rv-amount')   ? box.querySelector('#ref-rv-amount').value.trim()   : '';
+    var refTerm       = box.querySelector('#ref-rv-term')     ? box.querySelector('#ref-rv-term').value            : '';
+
     text.push('');
-    text.push('【照會資料】');
+    text.push('═══════════════════════');
+    text.push('📋 車貸照會資料');
+    text.push('═══════════════════════');
     fields.forEach(function(f) {
       if (!f.enabled) return;
       var val = '';
@@ -5336,8 +5432,28 @@ function generateReferralLine(leadId, lead, box, modal) {
       else if (f.key==='transfer') val = lead.has_salary_transfer?'有薪轉':'無薪轉';
       else if (f.key==='address') val = lead.address||'—';
       else if (f.key==='alert') val = lead.alert_status==='none'?'無':'⚠️ '+lead.alert_status;
+      else if (f.custom) val = f.value||'';
       if (val) text.push(f.label+'：'+val);
     });
+    text.push('───────────────────────');
+    text.push('🚙 車輛資訊');
+    if (refCarModel) text.push('廠牌型號：'+refCarModel+(refCarYear?' ('+refCarYear+'年)':''));
+    if (refPlate) text.push('車牌號碼：'+refPlate);
+    if (refMileage) text.push('里程數：'+refMileage);
+    if (refDealerName) text.push('車行：'+refDealerName);
+    if (refDealerAddr) text.push('車行地址：'+refDealerAddr);
+    if (refAmount || refTerm) {
+      text.push('───────────────────────');
+      text.push('💰 貸款申請');
+      if (refAmount) text.push('申請金額：$'+parseInt(refAmount).toLocaleString());
+      if (refTerm) text.push('申請期數：'+refTerm);
+      if (refAmount && refTerm) {
+        var months = parseInt(refTerm);
+        var rate = 0.008;
+        var pmt = Math.round(parseInt(refAmount) * rate * Math.pow(1+rate,months) / (Math.pow(1+rate,months)-1));
+        text.push('月付款估算：$'+pmt.toLocaleString()+'（利率估算）');
+      }
+    }
   }
 
   text.push('');
@@ -6235,11 +6351,23 @@ function buildCarCard(car) {
   h += '</div>';
   if (car.features) h += '<div style="font-size:12px;color:var(--t2);margin-top:6px;padding:6px 8px;background:var(--inp);border-radius:6px">🔧 ' + car.features + '</div>';
   if (car.note) h += '<div style="font-size:12px;color:var(--t3);margin-top:4px">📝 ' + car.note + '</div>';
+
+  // 照片區（顯示已上傳的照片）
+  var photos = car.photos || [];
+  if (photos.length > 0) {
+    h += '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">';
+    photos.forEach(function(url) {
+      h += '<img src="'+url+'" style="width:80px;height:60px;object-fit:cover;border-radius:6px;border:0.5px solid var(--bdr2);cursor:pointer" onclick="window.open(\''+url+'\',\'_blank\')">';
+    });
+    h += '</div>';
+  }
   h += '</div>';
 
   // 右側操作按鈕
   h += '<div style="display:flex;flex-direction:column;gap:4px;flex-shrink:0">';
   h += '<button id="edit-car-' + car.id + '" style="font-size:12px;padding:4px 10px;border-radius:6px;border:0.5px solid var(--bdr2);background:transparent;color:var(--t1);cursor:pointer;font-family:var(--sans)">✏️ 編輯</button>';
+  h += '<button id="photo-car-' + car.id + '" style="font-size:12px;padding:4px 10px;border-radius:6px;border:0.5px solid rgba(42,106,184,.3);background:transparent;color:var(--blu);cursor:pointer;font-family:var(--sans)">📷 上傳照片</button>';
+  h += '<input type="file" id="photo-input-'+car.id+'" accept="image/*" multiple style="display:none">';
   // 狀態切換
   if (car.status === 'available') {
     h += '<button id="reserve-car-' + car.id + '" style="font-size:12px;padding:4px 10px;border-radius:6px;border:0.5px solid rgba(184,128,32,.3);background:transparent;color:var(--yel);cursor:pointer;font-family:var(--sans)">預訂</button>';
@@ -6255,6 +6383,13 @@ function buildCarCard(car) {
   // DOM 綁定按鈕
   var editCarBtn = card.querySelector('#edit-car-' + car.id);
   if (editCarBtn) editCarBtn.onclick = function(){ showEditCarForm(car); };
+  // 照片上傳
+  var photoBtn = card.querySelector('#photo-car-' + car.id);
+  var photoInput = card.querySelector('#photo-input-' + car.id);
+  if (photoBtn && photoInput) {
+    photoBtn.onclick = function(){ photoInput.click(); };
+    photoInput.onchange = function(e){ uploadCarPhotos(e, car); };
+  }
   var reserveBtn = card.querySelector('#reserve-car-' + car.id);
   if (reserveBtn) reserveBtn.onclick = function(){ updateCarStatus(car.id, 'reserved'); };
   var soldBtn = card.querySelector('#sold-car-' + car.id);
@@ -6420,6 +6555,29 @@ async function updateCarStatus(carId, status) {
   buildCarDealerUI(document.getElementById('member-content'));
 }
 
+async function uploadCarPhotos(event, car) {
+  var files = Array.from(event.target.files);
+  if (!files.length) return;
+  showLoading('上傳照片中...');
+  var existingPhotos = car.photos || [];
+  var newUrls = [];
+  for (var i = 0; i < files.length; i++) {
+    var file = files[i];
+    var ext = file.name.split('.').pop();
+    var path = 'cars/' + car.id + '/' + Date.now() + '_' + i + '.' + ext;
+    var res = await sb.storage.from('car-photos').upload(path, file, {upsert: true});
+    if (!res.error) {
+      var urlRes = sb.storage.from('car-photos').getPublicUrl(path);
+      newUrls.push(urlRes.data.publicUrl);
+    }
+  }
+  var allPhotos = existingPhotos.concat(newUrls);
+  await sb.from('car_inventory').update({photos: allPhotos}).eq('id', car.id);
+  carInventory = carInventory.map(function(c){ return c.id===car.id ? Object.assign({},c,{photos:allPhotos}) : c; });
+  hideLoading();
+  buildCarDealerUI(document.getElementById('member-content'));
+}
+
 async function deleteCar(carId) {
   if (!confirm('確定刪除此車輛？')) return;
   await sb.from('car_inventory').delete().eq('id', carId);
@@ -6545,13 +6703,18 @@ function buildReviewTab(el) {
   });
   h += '</select></div>';
 
-  // 車輛資訊輸入
+  // 車輛資訊
   h += '<div style="margin-top:12px;padding:12px;background:var(--inp);border-radius:10px">';
-  h += '<div style="font-size:14px;font-weight:600;margin-bottom:8px">🚙 車輛資訊（手動填入或從車行資料帶入）</div>';
+  h += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">';
+  h += '<div style="font-size:14px;font-weight:600">🚙 車輛資訊</div>';
+  h += '<button id="pick-car-btn" style="padding:6px 14px;background:var(--acc);color:#FFF;border:none;border-radius:8px;cursor:pointer;font-family:var(--sans);font-size:13px;font-weight:600">從車行選車 ▾</button>';
+  h += '</div>';
   h += '<div class="frow2"><div class="frow"><div class="flbl">廠牌型號</div><input class="fi" id="rv-car-model" placeholder="Toyota Camry 2.5"></div>';
   h += '<div class="frow"><div class="flbl">年份</div><input class="fi" id="rv-car-year" placeholder="2020"></div></div>';
   h += '<div class="frow2" style="margin-top:6px"><div class="frow"><div class="flbl">車牌號碼</div><input class="fi" id="rv-plate" placeholder="ABC-1234"></div>';
   h += '<div class="frow"><div class="flbl">里程數</div><input class="fi" id="rv-mileage" placeholder="50000 km"></div></div>';
+  h += '<div class="frow2" style="margin-top:6px"><div class="frow"><div class="flbl">車行名稱</div><input class="fi" id="rv-dealer-name" placeholder="XX 汽車"></div>';
+  h += '<div class="frow"><div class="flbl">車行地址</div><input class="fi" id="rv-dealer-addr" placeholder="台北市..."></div></div>';
   h += '<div class="frow2" style="margin-top:6px"><div class="frow"><div class="flbl">申請金額（元）</div><input class="fi" id="rv-amount" type="number" inputmode="numeric" placeholder="500000"></div>';
   h += '<div class="frow"><div class="flbl">申請期數</div><select class="fi" id="rv-term"><option>12期</option><option>24期</option><option>36期</option><option>48期</option><option>60期</option><option>72期</option></select></div></div>';
   h += '</div>';
@@ -6563,23 +6726,120 @@ function buildReviewTab(el) {
 
   var genBtn = card.querySelector('#gen-review-btn');
   if (genBtn) genBtn.onclick = function(){ generateReview(); };
+
+  // 從車行選車按鈕
+  var pickBtn = card.querySelector('#pick-car-btn');
+  if (pickBtn) pickBtn.onclick = function(){ showPickCarModal(); };
+}
+
+async function showPickCarModal() {
+  // 載入配合車行的庫存
+  var connRes = await sb.from('business_connections')
+    .select('requester_id, receiver_id')
+    .or('requester_id.eq.'+currentUser.id+',receiver_id.eq.'+currentUser.id)
+    .eq('status','accepted');
+  var partnerIds = (connRes.data||[]).map(function(c){
+    return c.requester_id === currentUser.id ? c.receiver_id : c.requester_id;
+  });
+
+  var cars = [];
+  if (partnerIds.length > 0) {
+    var carRes = await sb.from('car_inventory')
+      .select('*, member:member_id(id,name,company_name,address)')
+      .in('member_id', partnerIds)
+      .eq('status','available')
+      .eq('is_public', true);
+    cars = carRes.data || [];
+  }
+
+  // 也加入自己的車行庫存
+  if (carInventory.length === 0) {
+    var myRes = await sb.from('car_inventory').select('*').eq('member_id', currentUser.id).eq('status','available');
+    cars = cars.concat(myRes.data||[]);
+  } else {
+    cars = cars.concat(carInventory.filter(function(c){ return c.status==='available'; }));
+  }
+
+  var modal = document.createElement('div');
+  modal.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.75);z-index:9999;display:flex;align-items:flex-start;justify-content:center;padding:16px;overflow-y:auto';
+  var box = document.createElement('div');
+  box.style.cssText = 'background:var(--card);border-radius:16px;padding:18px;width:100%;max-width:600px;margin:auto';
+
+  var h = '<div style="font-size:17px;font-weight:700;margin-bottom:4px">🚙 選擇車輛</div>';
+  h += '<div style="font-size:13px;color:var(--t2);margin-bottom:14px">點選車輛即可帶入照會資料</div>';
+
+  if (cars.length === 0) {
+    h += '<div style="text-align:center;padding:24px;color:var(--t2)">目前無可選車輛<br><span style="font-size:12px">請先在車行管理上架車輛，或與車行建立配合關係</span></div>';
+  } else {
+    cars.forEach(function(car) {
+      var dealer = car.member || {};
+      var dealerName = dealer.company_name || dealer.name || '我的車行';
+      var dealerAddr = dealer.address || '';
+      h += '<div id="pick-car-item-'+car.id+'" style="border:0.5px solid var(--bdr2);border-radius:10px;padding:12px;margin-bottom:8px;cursor:pointer;transition:border-color .15s" onmouseover="this.style.borderColor=\'var(--acc)\'" onmouseout="this.style.borderColor=\'var(--bdr2)\'">';
+      h += '<div style="display:flex;justify-content:space-between;align-items:flex-start">';
+      h += '<div><div style="font-size:15px;font-weight:700;margin-bottom:4px">'+(car.brand||'')+' '+(car.model||'')+' <span style="font-size:13px;color:var(--t2);font-weight:400">'+(car.year||'')+'年</span></div>';
+      h += '<div style="font-size:12px;color:var(--t3);margin-bottom:6px">🏪 '+dealerName+(dealerAddr?' · '+dealerAddr:'')+'</div>';
+      h += '<div style="display:flex;gap:12px;font-size:13px">';
+      if (car.cc) h += '<span style="color:var(--t2)">'+car.cc+'cc</span>';
+      if (car.color) h += '<span style="color:var(--t2)">'+car.color+'</span>';
+      if (car.mileage) h += '<span style="color:var(--t2)">'+car.mileage.toLocaleString()+'km</span>';
+      h += '</div></div>';
+      h += '<div style="text-align:right"><div style="font-size:12px;color:var(--t3)">可貸金額</div><div style="font-size:16px;font-weight:700;color:var(--acc)">$'+(car.loanable_amount||0).toLocaleString()+'</div></div>';
+      h += '</div>';
+      if (car.features) h += '<div style="font-size:12px;color:var(--t2);margin-top:6px">🔧 '+car.features+'</div>';
+      h += '</div>';
+    });
+  }
+
+  h += '<button id="pick-car-close" class="btn-sm" style="width:100%;margin-top:8px">取消</button>';
+  box.innerHTML = h;
+  modal.appendChild(box);
+  document.body.appendChild(modal);
+
+  // 綁定每台車的點選
+  cars.forEach(function(car) {
+    var item = box.querySelector('#pick-car-item-'+car.id);
+    if (!item) return;
+    var dealer = car.member || {};
+    var dealerName = dealer.company_name || dealer.name || '我的車行';
+    var dealerAddr = dealer.address || '';
+    item.onclick = function() {
+      // 帶入照會欄位
+      var modelEl = document.getElementById('rv-car-model');
+      var yearEl  = document.getElementById('rv-car-year');
+      var mileEl  = document.getElementById('rv-mileage');
+      var dealerNameEl = document.getElementById('rv-dealer-name');
+      var dealerAddrEl = document.getElementById('rv-dealer-addr');
+      var amtEl   = document.getElementById('rv-amount');
+      if (modelEl) modelEl.value = (car.brand||'')+' '+(car.model||'');
+      if (yearEl)  yearEl.value  = car.year || '';
+      if (mileEl)  mileEl.value  = car.mileage ? car.mileage.toLocaleString()+' km' : '';
+      if (dealerNameEl) dealerNameEl.value = dealerName;
+      if (dealerAddrEl) dealerAddrEl.value = dealerAddr;
+      if (amtEl && car.loanable_amount) amtEl.value = car.loanable_amount;
+      modal.remove();
+    };
+  });
+
+  box.querySelector('#pick-car-close').onclick = function(){ modal.remove(); };
+  modal.onclick = function(e){ if(e.target===modal) modal.remove(); };
 }
 
 function generateReview() {
   var leadId = document.getElementById('review-lead-sel') ? document.getElementById('review-lead-sel').value : '';
   var lead = leads.find(function(l){ return l.id === leadId; });
-  var carModel = document.getElementById('rv-car-model') ? document.getElementById('rv-car-model').value.trim() : '';
-  var carYear  = document.getElementById('rv-car-year')  ? document.getElementById('rv-car-year').value.trim()  : '';
-  var plate    = document.getElementById('rv-plate')     ? document.getElementById('rv-plate').value.trim()     : '';
-  var mileage  = document.getElementById('rv-mileage')   ? document.getElementById('rv-mileage').value.trim()   : '';
-  var amount   = document.getElementById('rv-amount')    ? document.getElementById('rv-amount').value.trim()    : '';
-  var term     = document.getElementById('rv-term')      ? document.getElementById('rv-term').value             : '';
+  var carModel    = document.getElementById('rv-car-model')    ? document.getElementById('rv-car-model').value.trim()    : '';
+  var carYear     = document.getElementById('rv-car-year')     ? document.getElementById('rv-car-year').value.trim()     : '';
+  var plate       = document.getElementById('rv-plate')        ? document.getElementById('rv-plate').value.trim()        : '';
+  var mileage     = document.getElementById('rv-mileage')      ? document.getElementById('rv-mileage').value.trim()      : '';
+  var dealerName  = document.getElementById('rv-dealer-name')  ? document.getElementById('rv-dealer-name').value.trim()  : '';
+  var dealerAddr  = document.getElementById('rv-dealer-addr')  ? document.getElementById('rv-dealer-addr').value.trim()  : '';
+  var amount      = document.getElementById('rv-amount')       ? document.getElementById('rv-amount').value.trim()       : '';
+  var term        = document.getElementById('rv-term')         ? document.getElementById('rv-term').value                : '';
 
-  // 取範本欄位
   var tpl = reviewTemplates[0];
   var fields = tpl ? (tpl.fields || []) : getDefaultReviewFields();
 
-  // 生成文字
   var lines = ['═══════════════════════', '📋 車貸照會資料', '═══════════════════════'];
   if (lead) {
     fields.forEach(function(f) {
@@ -6594,6 +6854,7 @@ function generateReview() {
       else if (f.key === 'address') val = lead.address || '—';
       else if (f.key === 'alert') val = lead.alert_status==='none'?'無':'⚠️ '+lead.alert_status;
       else if (f.key === 'phone') val = lead.phone || '—';
+      else if (f.custom) val = f.value || ''; // 自訂欄位
       if (val) lines.push(f.label + '：' + val);
     });
   }
@@ -6602,14 +6863,15 @@ function generateReview() {
   if (carModel) lines.push('廠牌型號：' + carModel + (carYear?' ('+carYear+'年)':''));
   if (plate) lines.push('車牌號碼：' + plate);
   if (mileage) lines.push('里程數：' + mileage);
+  if (dealerName) lines.push('車行：' + dealerName);
+  if (dealerAddr) lines.push('車行地址：' + dealerAddr);
   lines.push('───────────────────────');
   lines.push('💰 貸款申請');
   if (amount) lines.push('申請金額：$' + parseInt(amount).toLocaleString());
   if (term) lines.push('申請期數：' + term);
-  // 月付款試算
   if (amount && term) {
     var months = parseInt(term);
-    var rate = 0.008; // 月利率0.8%估算
+    var rate = 0.008;
     var pmt = Math.round(parseInt(amount) * rate * Math.pow(1+rate, months) / (Math.pow(1+rate,months)-1));
     lines.push('月付款估算：$' + pmt.toLocaleString() + '（利率估算）');
   }
@@ -6652,30 +6914,88 @@ function buildTemplateTab(el) {
   var card = document.createElement('div');
   card.className = 'card';
   var h = '<div class="ct">⚙️ 照會範本設定</div>';
-  h += '<div style="font-size:13px;color:var(--t2);margin-bottom:12px">勾選要出現在照會內容的欄位，儲存後一鍵生成時自動套用</div>';
-  fields.forEach(function(f, fi) {
+  h += '<div style="font-size:13px;color:var(--t2);margin-bottom:12px">勾選要出現在照會內容的欄位，也可新增自訂欄位</div>';
+
+  // 預設欄位
+  h += '<div style="font-size:12px;color:var(--t3);font-weight:600;margin-bottom:6px;text-transform:uppercase">系統欄位</div>';
+  fields.filter(function(f){ return !f.custom; }).forEach(function(f, fi) {
     h += '<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:0.5px solid var(--bdr)">';
     h += '<input type="checkbox" id="tpl-field-'+fi+'" '+(f.enabled?'checked':'')+' style="width:18px;height:18px;cursor:pointer;accent-color:var(--acc)">';
     h += '<label for="tpl-field-'+fi+'" style="font-size:15px;cursor:pointer;flex:1">'+f.label+'</label>';
     h += '</div>';
   });
-  h += '<button id="save-tpl-btn" class="btn-p" style="width:100%;margin-top:12px">儲存範本</button>';
+
+  // 自訂欄位
+  var customFields = fields.filter(function(f){ return f.custom; });
+  h += '<div style="font-size:12px;color:var(--t3);font-weight:600;margin:12px 0 6px;text-transform:uppercase">自訂欄位</div>';
+  h += '<div id="tpl-custom-fields">';
+  customFields.forEach(function(f, ci) {
+    h += '<div class="tpl-custom-row" style="display:flex;gap:6px;align-items:center;margin-bottom:6px">';
+    h += '<input type="checkbox" class="tpl-custom-check" '+(f.enabled?'checked':'')+' style="width:18px;height:18px;accent-color:var(--acc)">';
+    h += '<input class="fi tpl-custom-label" value="'+f.label+'" placeholder="欄位名稱" style="flex:1">';
+    h += '<input class="fi tpl-custom-value" value="'+(f.value||'')+'" placeholder="固定內容（選填）" style="flex:1">';
+    h += '<button onclick="this.closest(\'.tpl-custom-row\').remove()" style="padding:4px 8px;border-radius:5px;border:0.5px solid rgba(192,64,48,.3);background:transparent;color:var(--red);cursor:pointer;font-family:var(--sans)">✕</button>';
+    h += '</div>';
+  });
+  h += '</div>';
+  h += '<button id="add-custom-field-btn" style="font-size:13px;padding:6px 14px;border-radius:7px;border:0.5px solid var(--bdr2);background:transparent;color:var(--t1);cursor:pointer;font-family:var(--sans);margin-bottom:12px">+ 新增自訂欄位</button>';
+
+  h += '<button id="save-tpl-btn" class="btn-p" style="width:100%">儲存範本</button>';
   card.innerHTML = h;
   el.appendChild(card);
+
+  // 新增自訂欄位
+  var addBtn = card.querySelector('#add-custom-field-btn');
+  if (addBtn) addBtn.onclick = function() {
+    var container = card.querySelector('#tpl-custom-fields');
+    var row = document.createElement('div');
+    row.className = 'tpl-custom-row';
+    row.style.cssText = 'display:flex;gap:6px;align-items:center;margin-bottom:6px';
+    row.innerHTML =
+      '<input type="checkbox" class="tpl-custom-check" checked style="width:18px;height:18px;accent-color:var(--acc)">' +
+      '<input class="fi tpl-custom-label" placeholder="欄位名稱" style="flex:1">' +
+      '<input class="fi tpl-custom-value" placeholder="固定內容（選填）" style="flex:1">' +
+      '<button onclick="this.closest(\'.tpl-custom-row\').remove()" style="padding:4px 8px;border-radius:5px;border:0.5px solid rgba(192,64,48,.3);background:transparent;color:var(--red);cursor:pointer;font-family:var(--sans)">✕</button>';
+    container.appendChild(row);
+  };
+
   var saveBtn = card.querySelector('#save-tpl-btn');
-  if (saveBtn) saveBtn.onclick = function(){ saveReviewTemplate(fields); };
+  if (saveBtn) saveBtn.onclick = function(){ saveReviewTemplate(fields, card); };
 }
 
-async function saveReviewTemplate(fields) {
-  fields.forEach(function(f, fi) {
+async function saveReviewTemplate(fields, card) {
+  // 更新預設欄位勾選狀態
+  var sysFields = fields.filter(function(f){ return !f.custom; });
+  sysFields.forEach(function(f, fi) {
     var cb = document.getElementById('tpl-field-'+fi);
     if (cb) f.enabled = cb.checked;
   });
+
+  // 收集自訂欄位
+  var customRows = card ? card.querySelectorAll('.tpl-custom-row') : [];
+  var customFields = [];
+  customRows.forEach(function(row) {
+    var label = row.querySelector('.tpl-custom-label');
+    var value = row.querySelector('.tpl-custom-value');
+    var check = row.querySelector('.tpl-custom-check');
+    if (label && label.value.trim()) {
+      customFields.push({
+        key: 'custom_' + Date.now() + Math.random(),
+        label: label.value.trim(),
+        value: value ? value.value.trim() : '',
+        enabled: check ? check.checked : true,
+        custom: true
+      });
+    }
+  });
+
+  var newFields = sysFields.concat(customFields);
+
   if (reviewTemplates.length > 0) {
-    await sb.from('loan_review_templates').update({fields:fields}).eq('id', reviewTemplates[0].id);
-    reviewTemplates[0].fields = fields;
+    await sb.from('loan_review_templates').update({fields: newFields}).eq('id', reviewTemplates[0].id);
+    reviewTemplates[0].fields = newFields;
   } else {
-    var res = await sb.from('loan_review_templates').insert({member_id:currentUser.id, name:'預設範本', fields:fields}).select().single();
+    var res = await sb.from('loan_review_templates').insert({member_id: currentUser.id, name:'預設範本', fields: newFields}).select().single();
     if (!res.error) reviewTemplates.push(res.data);
   }
   alert('✓ 範本已儲存');
