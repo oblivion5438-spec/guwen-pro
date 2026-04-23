@@ -9583,25 +9583,41 @@ function shareScoreToLine(leadId) {
   window.open('https://line.me/R/share?text=' + encodeURIComponent(lines.join('\n')), '_blank');
 }
 
-function exportLeadPDF(leadId) {
+async function exportLeadPDF(leadId) {
   var lead = leads.find(function(l){ return l.id === leadId; });
   if (!lead) return;
+
+  // 從 Supabase 重新取得最新資料（含文件）
+  var freshRes = await sb.from('leads').select('*').eq('id', leadId).single();
+  if (freshRes.data) lead = freshRes.data;
+
   var scores = calcScores(lead);
   var w = window.open('', '_blank');
-  var housingLabels = {self_own:'本人名下（自有）',self_live:'自住（非本本名下）',family:'親屬房子',rent:'租屋',other:'其他'};
+  var housingLabels = {self_own:'本人名下（自有）',self_live:'自住（非本人名下）',family:'親屬房子',rent:'租屋',other:'其他'};
+  var docLabels = {
+    mydata:'MyData 截圖', movable:'動產擔保查詢',
+    verdict:'司法裁判書', traffic:'監理網罰單',
+    license:'技術士證照', vehicle:'行照',
+    build_reg:'建物謄本', land_reg:'土地謄本',
+    house_photos:'屋況照片', id_card:'雙證件'
+  };
+
   var scoreItems = [
-    ['銀行信貸', scores.bank],
-    ['汽車貸款', scores.car],
-    ['機車貸款', scores.bike],
-    ['商品手機貸', scores.phone],
+    ['銀行信貸', scores.bank, scores.bankBlocked],
+    ['汽車貸款', scores.car, scores.carBlocked],
+    ['機車貸款', scores.bike, false],
+    ['商品手機貸', scores.phone, false],
   ];
   var scoreRows = scoreItems.map(function(s) {
     var col = s[1]>=80?'#2D8A4E':s[1]>=60?'#B88020':'#C04030';
-    var blocked = s[1] === 0;
-    return '<tr><td>'+s[0]+'</td><td><div style="background:#eee;border-radius:4px;height:14px;width:200px;display:inline-block;vertical-align:middle"><div style="width:'+s[1]+'%;height:100%;background:'+col+';border-radius:4px"></div></div> <span style="color:'+col+';font-weight:600">'+(blocked?'封鎖':s[1]+'%')+'</span></td></tr>';
+    var blocked = s[2] || s[1] === 0;
+    return '<tr><td style="width:120px">'+s[0]+'</td>' +
+      '<td><div style="background:#eee;border-radius:4px;height:14px;width:180px;display:inline-block;vertical-align:middle">' +
+      '<div style="width:'+(blocked?0:s[1])+'%;height:100%;background:'+col+';border-radius:4px"></div></div> ' +
+      '<span style="color:'+col+';font-weight:600;margin-left:6px">'+(blocked?'封鎖':s[1]+'%')+'</span></td></tr>';
   }).join('');
 
-  var rows = [
+  var infoRows = [
     ['姓名', lead.name||'—'],
     ['年齡', lead.age?lead.age+'歲':'—'],
     ['電話', lead.phone||'—'],
@@ -9609,32 +9625,146 @@ function exportLeadPDF(leadId) {
     ['居住地址', lead.address||'—'],
     ['居住狀況', housingLabels[lead.housing_status]||'—'],
     ['工作', lead.work_type||'—'],
+    ['公司名稱', lead.company_name||'—'],
     ['月薪', lead.monthly_salary?'$'+lead.monthly_salary.toLocaleString():'—'],
     ['薪轉', lead.has_salary_transfer?'有':'無'],
     ['信用卡', lead.credit_card_age||'—'],
     ['銀行婉拒', (lead.bank_reject_count||0)+'次'],
     ['融資婉拒', (lead.fin_reject_count||0)+'次'],
     ['遲繳天數', (lead.late_pay_days||0)+'天'],
-    ['警示協商', lead.alert_status==='none'?'無':lead.alert_status],
+    ['警示協商', lead.alert_status==='none'||!lead.alert_status?'無':lead.alert_status],
     ['需求資金', lead.required_amount?'$'+lead.required_amount.toLocaleString():'—'],
     ['資金用途', lead.fund_purpose||'—'],
-  ].map(function(r){ return '<tr><td style="color:#666;width:120px">'+r[0]+'</td><td style="font-weight:500">'+r[1]+'</td></tr>'; }).join('');
+    ['顧問備註', lead.advisor_note||'—'],
+  ].map(function(r){ return '<tr><td style="color:#666;width:100px;font-size:13px">'+r[0]+'</td><td style="font-weight:500;font-size:13px">'+r[1]+'</td></tr>'; }).join('');
 
-  w.document.write('<!DOCTYPE html><html><head><meta charset="UTF-8"><title>'+lead.name+' 客戶資料</title><style>');
-  w.document.write('body{font-family:-apple-system,sans-serif;padding:30px;color:#111;max-width:800px;margin:0 auto}');
-  w.document.write('h1{font-size:20px;margin-bottom:4px}h2{font-size:15px;font-weight:600;margin:20px 0 8px;padding-bottom:4px;border-bottom:2px solid #C8511A;color:#C8511A}');
-  w.document.write('table{width:100%;border-collapse:collapse}td{padding:7px 10px;border-bottom:1px solid #eee;font-size:14px}');
-  w.document.write('.header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px;padding-bottom:14px;border-bottom:2px solid #111}');
+  // 不動產資料
+  var propRows = '';
+  if (lead.has_property) {
+    var propData = [
+      ['估價', lead.property_valuation?'$'+lead.property_valuation.toLocaleString():'—'],
+      ['一胎', lead.property_loan1?'$'+lead.property_loan1.toLocaleString():'無'],
+      ['二胎', lead.property_loan2?'$'+lead.property_loan2.toLocaleString():'無'],
+      ['三胎', lead.property_loan3?'$'+lead.property_loan3.toLocaleString():'無'],
+    ];
+    propRows = propData.map(function(r){ return '<tr><td style="color:#666;width:100px;font-size:13px">'+r[0]+'</td><td style="font-weight:500;font-size:13px">'+r[1]+'</td></tr>'; }).join('');
+  }
+
+  // 結案項目
+  var closingItems = leadClosings[leadId] || [];
+  var closingTypeMap = {car_loan:'汽車貸款',credit_loan:'信用貸款',bike_loan:'機車貸款',phone_loan:'手機貸',pawn:'當鋪出款',property:'不動產抵押',other:'其他'};
+  var closingRows = '';
+  if (closingItems.length > 0) {
+    closingRows = closingItems.map(function(ci){
+      return '<tr><td style="font-size:13px">'+(closingTypeMap[ci.closing_type]||ci.closing_type)+'</td>' +
+        '<td style="font-size:13px">'+(ci.institution||'—')+'</td>' +
+        '<td style="font-size:13px;font-weight:600;color:#2D8A4E">'+(ci.closed_amount?'$'+ci.closed_amount.toLocaleString():'—')+'</td>' +
+        '<td style="font-size:13px">'+(ci.pawn_monthly_rate?ci.pawn_monthly_rate+'%/月':'—')+'</td></tr>';
+    }).join('');
+  }
+
+  // 授權調閱狀況
+  var authItems = [
+    ['動產擔保', lead.auth_movable_query],
+    ['司法裁判書', lead.auth_verdict_query],
+    ['監理網', lead.auth_traffic_query],
+    ['技術士證照', lead.auth_license_query],
+    ['MyData', lead.auth_mydata_query],
+  ].filter(function(a){ return a[1]; }).map(function(a){ return a[0]; });
+
+  // 文件列表
+  var docs = [];
+  if (lead.documents) {
+    try {
+      docs = typeof lead.documents === 'string' ? JSON.parse(lead.documents) : lead.documents;
+    } catch(e) { docs = []; }
+  }
+  var imgDocs = docs.filter(function(d){ return d.url && /\.(jpg|jpeg|png|gif|webp)/i.test(d.url); });
+  var fileDocs = docs.filter(function(d){ return d.url && !/\.(jpg|jpeg|png|gif|webp)/i.test(d.url); });
+
+  // 圖片 HTML
+  var imgHtml = '';
+  if (imgDocs.length > 0) {
+    imgHtml = '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:8px">';
+    imgDocs.forEach(function(d){
+      var lbl = docLabels[d.type] || d.type || d.name || '文件';
+      imgHtml += '<div style="text-align:center">' +
+        '<img src="'+d.url+'" style="width:100%;max-height:160px;object-fit:cover;border-radius:6px;border:1px solid #eee" onerror="this.style.display=\'none\'">' +
+        '<div style="font-size:11px;color:#666;margin-top:4px">'+lbl+'</div></div>';
+    });
+    imgHtml += '</div>';
+  }
+
+  // 非圖片文件 HTML
+  var fileHtml = '';
+  if (fileDocs.length > 0) {
+    fileHtml = fileDocs.map(function(d){
+      var lbl = docLabels[d.type] || d.type || d.name || '文件';
+      return '<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid #eee;font-size:13px">' +
+        '<span>📄</span><span style="flex:1">'+lbl+'</span>' +
+        '<a href="'+d.url+'" target="_blank" style="color:#C8511A;text-decoration:none;font-size:12px">開啟 →</a></div>';
+    }).join('');
+  }
+
+  // 寫出 HTML
+  w.document.write('<!DOCTYPE html><html><head><meta charset="UTF-8"><title>'+lead.name+' 客戶完整資料</title><style>');
+  w.document.write('body{font-family:-apple-system,sans-serif;padding:32px;color:#111;max-width:850px;margin:0 auto;background:#fff}');
+  w.document.write('h2{font-size:15px;font-weight:700;margin:24px 0 8px;padding-bottom:5px;border-bottom:2px solid #C8511A;color:#C8511A}');
+  w.document.write('table{width:100%;border-collapse:collapse}td{padding:7px 10px;border-bottom:1px solid #eee}');
+  w.document.write('.header{display:flex;justify-content:space-between;align-items:flex-start;padding-bottom:16px;border-bottom:2px solid #111;margin-bottom:20px}');
   w.document.write('.logo{font-size:22px;font-weight:900}.logo span{color:#C8511A}');
-  w.document.write('.badge{display:inline-block;padding:3px 10px;border-radius:20px;font-size:13px;font-weight:600}');
-  w.document.write('@media print{button{display:none}}');
+  w.document.write('.tag{display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;background:#f0f0f0;color:#555;margin:2px}');
+  w.document.write('@media print{button{display:none}body{padding:16px}.header{padding-bottom:10px}}');
   w.document.write('</style></head><body>');
-  w.document.write('<div class="header"><div><div class="logo">顧問<span>PRO</span></div><div style="font-size:13px;color:#666;margin-top:4px">客戶評估報告</div></div>');
-  w.document.write('<div style="text-align:right"><div style="font-size:20px;font-weight:800">'+lead.name+'</div><div style="font-size:13px;color:#666;margin-top:4px">產生時間：'+new Date().toLocaleString('zh-TW')+'</div></div></div>');
+
+  // Header
+  w.document.write('<div class="header">');
+  w.document.write('<div><div class="logo">顧問<span>PRO</span></div><div style="font-size:12px;color:#666;margin-top:3px">客戶完整資料報告</div></div>');
+  w.document.write('<div style="text-align:right"><div style="font-size:22px;font-weight:800">'+lead.name+'</div>');
+  w.document.write('<div style="font-size:12px;color:#666;margin-top:3px">產生時間：'+new Date().toLocaleString('zh-TW')+'</div></div>');
+  w.document.write('</div>');
+
+  // AI 評估
   w.document.write('<h2>📊 AI 評估機率</h2><table>'+scoreRows+'</table>');
-  w.document.write('<h2>👤 基本資料</h2><table>'+rows+'</table>');
-  w.document.write('<div style="margin-top:30px;font-size:12px;color:#aaa;text-align:center">此報告由顧問PRO系統自動產生，評估結果僅供參考</div>');
-  w.document.write('<div style="text-align:center;margin-top:16px"><button onclick="window.print()" style="padding:10px 24px;background:#C8511A;color:#FFF;border:none;border-radius:8px;font-size:15px;cursor:pointer;font-family:inherit">🖨️ 列印 / 儲存 PDF</button></div>');
+
+  // 基本資料
+  w.document.write('<h2>👤 基本資料</h2><table>'+infoRows+'</table>');
+
+  // 不動產
+  if (lead.has_property && propRows) {
+    w.document.write('<h2>🏠 不動產資料</h2><table>'+propRows+'</table>');
+  }
+
+  // 結案項目
+  if (closingItems.length > 0) {
+    w.document.write('<h2>✅ 結案項目</h2>');
+    w.document.write('<table><tr style="background:#f5f5f5;font-weight:600"><td>業務類型</td><td>機構</td><td>金額</td><td>月息</td></tr>'+closingRows+'</table>');
+  }
+
+  // 授權調閱
+  if (authItems.length > 0) {
+    w.document.write('<h2>🔍 客戶授權調閱</h2>');
+    w.document.write('<div>'+authItems.map(function(a){ return '<span class="tag">✅ '+a+'</span>'; }).join('')+'</div>');
+  }
+
+  // 上傳文件（圖片）
+  if (imgDocs.length > 0) {
+    w.document.write('<h2>📷 上傳圖片文件</h2>');
+    w.document.write(imgHtml);
+  }
+
+  // 上傳文件（非圖片）
+  if (fileDocs.length > 0) {
+    w.document.write('<h2>📎 上傳文件</h2>');
+    w.document.write(fileHtml);
+  }
+
+  if (docs.length === 0) {
+    w.document.write('<h2>📎 上傳文件</h2><div style="font-size:13px;color:#999;padding:8px 0">尚未上傳任何文件</div>');
+  }
+
+  w.document.write('<div style="margin-top:32px;font-size:11px;color:#aaa;text-align:center;padding-top:12px;border-top:1px solid #eee">此報告由顧問PRO系統自動產生，評估結果僅供參考</div>');
+  w.document.write('<div style="text-align:center;margin-top:14px"><button onclick="window.print()" style="padding:10px 24px;background:#C8511A;color:#FFF;border:none;border-radius:8px;font-size:15px;cursor:pointer;font-family:inherit;font-weight:600">🖨️ 列印 / 儲存 PDF</button></div>');
   w.document.write('</body></html>');
   w.document.close();
 }
