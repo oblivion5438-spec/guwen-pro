@@ -356,6 +356,7 @@ select.fi{-webkit-appearance:auto;appearance:auto;display:block;max-width:100%;w
       <div class="top-logo">顧問<span>PRO</span></div>
       <div class="top-right">
         <span class="badge b-acc" id="plan-badge">基本版</span>
+        <button onclick="showGlobalSearch()" style="background:transparent;border:none;cursor:pointer;font-size:20px;padding:4px;color:var(--t2)">🔍</button>
         <div class="avatar" id="member-avatar" onclick="navTo('settings',null)">顧</div>
       </div>
     </div>
@@ -363,6 +364,7 @@ select.fi{-webkit-appearance:auto;appearance:auto;display:block;max-width:100%;w
     <div id="desktop-topbar" style="display:none;align-items:center;justify-content:space-between;padding:12px 20px;border-bottom:0.5px solid var(--bdr);background:var(--bg);flex-shrink:0">
       <div style="font-size:15px;color:var(--t2)" id="dt-title">儀表板</div>
       <div style="display:flex;align-items:center;gap:10px">
+        <button onclick="showGlobalSearch()" style="display:flex;align-items:center;gap:6px;padding:6px 14px;background:var(--inp);border:0.5px solid var(--bdr2);border-radius:20px;color:var(--t2);cursor:pointer;font-size:14px;font-family:var(--sans)">🔍 搜尋客戶</button>
         <span class="badge b-acc" id="dt-plan-badge">進階版</span>
         <div style="display:flex;align-items:center;gap:8px;cursor:pointer" onclick="navTo('settings',null)">
           <div style="width:32px;height:32px;border-radius:50%;background:var(--al);color:var(--acc);display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700" id="dt-avatar">顧</div>
@@ -802,6 +804,8 @@ function calcScores(lead) {
   // ── 銀行信貸 ──
   var bank = 0;
   var bankBlocked = false;
+  var laborIns = lead.labor_insurance_years || 'none'; // none, 6m+, 1y+, 2y+
+  var hasHealthIns = lead.has_health_insurance;
   if (hasAlert && R.bankAlertBlock) {
     bankBlocked = true;
   } else if (bankRejCount >= 4 && R.bankRej4Block) {
@@ -827,6 +831,24 @@ function calcScores(lead) {
     else if (latePayDays > 14) bank += R.latePay14_30;
     else if (latePayDays > 7) bank += R.latePay7_14;
     else if (latePayDays > 0) bank += R.latePayLt7;
+    // 勞保加分
+    if (laborIns === '2y+') bank += 8;
+    else if (laborIns === '1y+') bank += 5;
+    else if (laborIns === '6m+') bank += 3;
+    else if (laborIns === 'none') bank -= 5;
+    // 負債比扣分
+    if (debtRatio >= 70) bank -= 20;
+    else if (debtRatio >= 50) bank -= 10;
+    else if (debtRatio >= 35) bank -= 5;
+    // 居住狀況
+    if (housingStatus === 'self_own') bank += 5;
+    else if (housingStatus === 'rent') bank -= 3;
+    // 健保
+    if (!hasHealthIns) bank -= 3;
+    // 月薪
+    if (salary >= 60000) bank += 10;
+    else if (salary >= 40000) bank += 5;
+    else if (salary < 25000 && salary > 0) bank -= 8;
     bank = Math.min(95, Math.max(0, bank));
   }
   if (bankBlocked) bank = 0;
@@ -1274,6 +1296,107 @@ async function renderDash() {
   html += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:8px">';
   html += '<div><div style="font-size:20px;font-weight:700">儀表板</div>';
   html += '<div style="font-size:14px;color:var(--t2);margin-top:2px">' + memberName + ' · ' + planLabel + '顧問</div></div>';
+  html += '</div>';
+
+  // ── 本月結案詳細統計 ──
+  var statusGroups = {
+    new: thisLeads.filter(function(l){return l.status==='new';}).length,
+    invited: thisLeads.filter(function(l){return l.status==='invited';}).length,
+    submitting: thisLeads.filter(function(l){return l.status==='submitting';}).length,
+    approved: thisLeads.filter(function(l){return l.status==='approved';}).length,
+    closed: closed,
+    rejected: thisLeads.filter(function(l){return l.status==='rejected';}).length,
+    lost: thisLeads.filter(function(l){return l.status==='lost';}).length,
+  };
+  var convRate = total > 0 ? Math.round(closed/total*100) : 0;
+
+  html += '<div class="card" style="margin-bottom:14px">';
+  html += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">';
+  html += '<div class="ct" style="margin-bottom:0">本月案件進度</div>';
+  html += '<div style="font-size:14px;font-weight:700;color:var(--grn)">成交率 '+convRate+'%</div>';
+  html += '</div>';
+  // 漏斗圖
+  var funnelSteps = [
+    {key:'new',       label:'新名單', val:statusGroups.new,       col:'#888'},
+    {key:'invited',   label:'邀約',   val:statusGroups.invited,   col:'#C8511A'},
+    {key:'submitting',label:'送件',   val:statusGroups.submitting,col:'#B88020'},
+    {key:'approved',  label:'核准',   val:statusGroups.approved,  col:'#2D7AB8'},
+    {key:'closed',    label:'結案',   val:statusGroups.closed,    col:'#2D8A4E'},
+  ];
+  var maxVal = Math.max.apply(null, funnelSteps.map(function(s){return s.val;})) || 1;
+  html += '<div style="display:flex;flex-direction:column;gap:4px">';
+  funnelSteps.forEach(function(step) {
+    var barW = Math.max(8, Math.round(step.val / maxVal * 100));
+    html += '<div style="display:flex;align-items:center;gap:8px">';
+    html += '<div style="font-size:12px;color:var(--t2);width:32px;text-align:right;flex-shrink:0">'+step.label+'</div>';
+    html += '<div style="flex:1;background:var(--inp);border-radius:4px;height:20px;overflow:hidden">';
+    html += '<div style="height:100%;width:'+barW+'%;background:'+step.col+';border-radius:4px;display:flex;align-items:center;padding-left:6px;transition:width .4s">';
+    if (step.val > 0) html += '<span style="font-size:11px;color:#FFF;font-weight:600">'+step.val+'</span>';
+    html += '</div></div>';
+    html += '<div style="font-size:13px;font-weight:600;width:24px;color:'+step.col+'">'+step.val+'</div>';
+    html += '</div>';
+  });
+  html += '</div>';
+  // 其他狀態
+  if (statusGroups.rejected > 0 || statusGroups.lost > 0) {
+    html += '<div style="display:flex;gap:8px;margin-top:8px;padding-top:8px;border-top:0.5px solid var(--bdr)">';
+    if (statusGroups.rejected > 0) html += '<span style="font-size:12px;color:var(--red)">無法承作 '+statusGroups.rejected+'</span>';
+    if (statusGroups.lost > 0) html += '<span style="font-size:12px;color:var(--t3)">失聯 '+statusGroups.lost+'</span>';
+    html += '</div>';
+  }
+  html += '</div>';
+
+  // ── 近6個月趨勢折線圖 ──
+  var months6 = [];
+  for (var mi = 5; mi >= 0; mi--) {
+    var ms = new Date(now.getFullYear(), now.getMonth()-mi, 1);
+    var me = new Date(now.getFullYear(), now.getMonth()-mi+1, 1);
+    var mLabel = (ms.getMonth()+1)+'月';
+    var mLeads = leads.filter(function(l){ var d=new Date(l.created_at); return d>=ms&&d<me; }).length;
+    var mClosed = leads.filter(function(l){ var d=new Date(l.created_at); return d>=ms&&d<me&&l.status==='closed'; }).length;
+    months6.push({label:mLabel, leads:mLeads, closed:mClosed});
+  }
+  var maxLeads6 = Math.max.apply(null, months6.map(function(m){return m.leads;})) || 1;
+  var maxClosed6 = Math.max.apply(null, months6.map(function(m){return m.closed;})) || 1;
+  var chartH = 80;
+  var chartW = 300;
+  var stepX = chartW / 5;
+
+  function mkPoints(arr, key, maxV) {
+    return arr.map(function(m, i) {
+      var x = i * stepX;
+      var y = chartH - Math.round(m[key] / maxV * chartH);
+      return x+','+y;
+    }).join(' ');
+  }
+
+  html += '<div class="card" style="margin-bottom:14px">';
+  html += '<div class="ct">近6個月趨勢</div>';
+  html += '<svg viewBox="0 0 '+chartW+' '+(chartH+24)+'" width="100%" style="overflow:visible">';
+  // 格線
+  [0,25,50,75,100].forEach(function(pct) {
+    var y = chartH - Math.round(pct/100*chartH);
+    html += '<line x1="0" y1="'+y+'" x2="'+chartW+'" y2="'+y+'" stroke="rgba(255,255,255,.06)" stroke-width="1"/>';
+  });
+  // 名單折線（灰）
+  html += '<polyline points="'+mkPoints(months6,'leads',maxLeads6)+'" fill="none" stroke="rgba(200,81,26,.5)" stroke-width="1.5" stroke-dasharray="4 2"/>';
+  // 結案折線（綠）
+  html += '<polyline points="'+mkPoints(months6,'closed',maxLeads6)+'" fill="none" stroke="#2D8A4E" stroke-width="2"/>';
+  // 資料點和月份標籤
+  months6.forEach(function(m, i) {
+    var x = i * stepX;
+    var yL = chartH - Math.round(m.leads / maxLeads6 * chartH);
+    var yC = chartH - Math.round(m.closed / maxLeads6 * chartH);
+    html += '<circle cx="'+x+'" cy="'+yL+'" r="3" fill="#C8511A"/>';
+    html += '<circle cx="'+x+'" cy="'+yC+'" r="3" fill="#2D8A4E"/>';
+    if (m.closed > 0) html += '<text x="'+x+'" y="'+(yC-7)+'" text-anchor="middle" font-size="10" fill="#2D8A4E">'+m.closed+'</text>';
+    html += '<text x="'+x+'" y="'+(chartH+16)+'" text-anchor="middle" font-size="11" fill="#666">'+m.label+'</text>';
+  });
+  html += '</svg>';
+  html += '<div style="display:flex;gap:14px;margin-top:4px">';
+  html += '<div style="display:flex;align-items:center;gap:5px;font-size:12px;color:var(--t2)"><div style="width:14px;height:2px;background:rgba(200,81,26,.5);border-top:2px dashed rgba(200,81,26,.5)"></div>名單數</div>';
+  html += '<div style="display:flex;align-items:center;gap:5px;font-size:12px;color:var(--t2)"><div style="width:14px;height:2px;background:#2D8A4E"></div>結案數</div>';
+  html += '</div>';
   html += '</div>';
 
   // ── 四格統計卡 ──
@@ -1737,7 +1860,7 @@ function showLeadDetail(id) {
   html += '<div style="margin-left:auto;display:flex;gap:6px;flex-wrap:wrap">';
   html += '<button id="referral-btn-' + id + '" class="btn-sm" style="border-color:var(--blu);color:var(--blu)">🤝 轉介</button>';
   html += '<button class="btn-sm" onclick="shareLeadLine(\'' + id + '\')">LINE</button>';
-  html += '<button class="btn-grn" onclick="alert(\'PDF下載即將上線\')">PDF</button>';
+  html += '<button class="btn-grn" onclick="exportLeadPDF(\'' + id + '\')">📄 PDF</button>';
   html += '</div></div>';
 
   html += '<div class="card"><div class="ct">AI 評估機率</div>';
@@ -8356,6 +8479,7 @@ function generateReview() {
       '<div style="background:var(--inp);border-radius:10px;padding:14px;font-family:monospace;font-size:13px;line-height:1.8;white-space:pre-wrap;color:var(--t1);margin-bottom:8px">' + text + '</div>' +
       '<div style="display:flex;gap:8px">' +
       '<button onclick="navigator.clipboard.writeText('+JSON.stringify(text)+').then(function(){alert(\'已複製！可貼到 LINE 傳送\')})" class="btn-p" style="flex:1">📋 複製照會內容</button>' +
+      '<button onclick="exportReviewPDF('+JSON.stringify(text)+')" class="btn-sm" style="white-space:nowrap">📄 PDF</button>' +
       '<button onclick="shareReviewToLine('+JSON.stringify(text)+')" class="btn-grn" style="flex:1">📱 分享到 LINE</button>' +
       '</div>';
   }
@@ -8363,6 +8487,137 @@ function generateReview() {
 
 function shareReviewToLine(text) {
   window.open('https://line.me/R/share?text=' + encodeURIComponent(text), '_blank');
+}
+
+// ══════════════════════════════
+// 📄 PDF 輸出
+// ══════════════════════════════
+function exportLeadPDF(leadId) {
+  var lead = leads.find(function(l){ return l.id === leadId; });
+  if (!lead) return;
+  var scores = calcScores(lead);
+  var w = window.open('', '_blank');
+  var housingLabels = {self_own:'本人名下（自有）',self_live:'自住（非本本名下）',family:'親屬房子',rent:'租屋',other:'其他'};
+  var scoreItems = [
+    ['銀行信貸', scores.bank],
+    ['汽車貸款', scores.car],
+    ['機車貸款', scores.bike],
+    ['商品手機貸', scores.phone],
+  ];
+  var scoreRows = scoreItems.map(function(s) {
+    var col = s[1]>=80?'#2D8A4E':s[1]>=60?'#B88020':'#C04030';
+    var blocked = s[1] === 0;
+    return '<tr><td>'+s[0]+'</td><td><div style="background:#eee;border-radius:4px;height:14px;width:200px;display:inline-block;vertical-align:middle"><div style="width:'+s[1]+'%;height:100%;background:'+col+';border-radius:4px"></div></div> <span style="color:'+col+';font-weight:600">'+(blocked?'封鎖':s[1]+'%')+'</span></td></tr>';
+  }).join('');
+
+  var rows = [
+    ['姓名', lead.name||'—'],
+    ['年齡', lead.age?lead.age+'歲':'—'],
+    ['電話', lead.phone||'—'],
+    ['身分證', lead.id_number_hash||'—'],
+    ['居住地址', lead.address||'—'],
+    ['居住狀況', housingLabels[lead.housing_status]||'—'],
+    ['工作', lead.work_type||'—'],
+    ['月薪', lead.monthly_salary?'$'+lead.monthly_salary.toLocaleString():'—'],
+    ['薪轉', lead.has_salary_transfer?'有':'無'],
+    ['信用卡', lead.credit_card_age||'—'],
+    ['銀行婉拒', (lead.bank_reject_count||0)+'次'],
+    ['融資婉拒', (lead.fin_reject_count||0)+'次'],
+    ['遲繳天數', (lead.late_pay_days||0)+'天'],
+    ['警示協商', lead.alert_status==='none'?'無':lead.alert_status],
+    ['需求資金', lead.required_amount?'$'+lead.required_amount.toLocaleString():'—'],
+    ['資金用途', lead.fund_purpose||'—'],
+  ].map(function(r){ return '<tr><td style="color:#666;width:120px">'+r[0]+'</td><td style="font-weight:500">'+r[1]+'</td></tr>'; }).join('');
+
+  w.document.write('<!DOCTYPE html><html><head><meta charset="UTF-8"><title>'+lead.name+' 客戶資料</title><style>');
+  w.document.write('body{font-family:-apple-system,sans-serif;padding:30px;color:#111;max-width:800px;margin:0 auto}');
+  w.document.write('h1{font-size:20px;margin-bottom:4px}h2{font-size:15px;font-weight:600;margin:20px 0 8px;padding-bottom:4px;border-bottom:2px solid #C8511A;color:#C8511A}');
+  w.document.write('table{width:100%;border-collapse:collapse}td{padding:7px 10px;border-bottom:1px solid #eee;font-size:14px}');
+  w.document.write('.header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px;padding-bottom:14px;border-bottom:2px solid #111}');
+  w.document.write('.logo{font-size:22px;font-weight:900}.logo span{color:#C8511A}');
+  w.document.write('.badge{display:inline-block;padding:3px 10px;border-radius:20px;font-size:13px;font-weight:600}');
+  w.document.write('@media print{button{display:none}}');
+  w.document.write('</style></head><body>');
+  w.document.write('<div class="header"><div><div class="logo">顧問<span>PRO</span></div><div style="font-size:13px;color:#666;margin-top:4px">客戶評估報告</div></div>');
+  w.document.write('<div style="text-align:right"><div style="font-size:20px;font-weight:800">'+lead.name+'</div><div style="font-size:13px;color:#666;margin-top:4px">產生時間：'+new Date().toLocaleString('zh-TW')+'</div></div></div>');
+  w.document.write('<h2>📊 AI 評估機率</h2><table>'+scoreRows+'</table>');
+  w.document.write('<h2>👤 基本資料</h2><table>'+rows+'</table>');
+  w.document.write('<div style="margin-top:30px;font-size:12px;color:#aaa;text-align:center">此報告由顧問PRO系統自動產生，評估結果僅供參考</div>');
+  w.document.write('<div style="text-align:center;margin-top:16px"><button onclick="window.print()" style="padding:10px 24px;background:#C8511A;color:#FFF;border:none;border-radius:8px;font-size:15px;cursor:pointer;font-family:inherit">🖨️ 列印 / 儲存 PDF</button></div>');
+  w.document.write('</body></html>');
+  w.document.close();
+}
+
+function exportReviewPDF(text) {
+  var w = window.open('', '_blank');
+  var lines = text.split('\n');
+  var content = lines.map(function(line) {
+    if (line.startsWith('═') || line.startsWith('─')) {
+      return '<hr style="border:none;border-top:1px solid #ddd;margin:8px 0">';
+    }
+    if (line === '') return '<br>';
+    return '<div style="font-size:14px;padding:2px 0">'+line+'</div>';
+  }).join('');
+  w.document.write('<!DOCTYPE html><html><head><meta charset="UTF-8"><title>車貸照會資料</title><style>');
+  w.document.write('body{font-family:-apple-system,sans-serif;padding:30px;color:#111;max-width:600px;margin:0 auto}');
+  w.document.write('.logo{font-size:22px;font-weight:900;margin-bottom:20px}.logo span{color:#C8511A}');
+  w.document.write('@media print{button{display:none}}');
+  w.document.write('</style></head><body>');
+  w.document.write('<div class="logo">顧問<span>PRO</span> <span style="font-size:14px;font-weight:400;color:#666">照會資料</span></div>');
+  w.document.write(content);
+  w.document.write('<div style="margin-top:24px;text-align:center"><button onclick="window.print()" style="padding:10px 24px;background:#C8511A;color:#FFF;border:none;border-radius:8px;font-size:15px;cursor:pointer;font-family:inherit">🖨️ 列印 / 儲存 PDF</button></div>');
+  w.document.write('</body></html>');
+  w.document.close();
+}
+
+// ══════════════════════════════
+// 🔍 跨模組搜尋
+// ══════════════════════════════
+function showGlobalSearch() {
+  var modal = document.createElement('div');
+  modal.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.8);z-index:9999;display:flex;flex-direction:column;padding:16px';
+  modal.id = 'global-search-modal';
+  var h = '<div style="display:flex;gap:8px;margin-bottom:12px">';
+  h += '<input id="gs-input" placeholder="搜尋客戶姓名、電話、公司..." style="flex:1;padding:12px 16px;background:var(--card);border:0.5px solid var(--acc);border-radius:10px;color:var(--inpt);font-size:16px;font-family:var(--sans);outline:none">';
+  h += '<button onclick="document.getElementById(\'global-search-modal\').remove()" style="padding:10px 14px;background:var(--inp);border:none;border-radius:10px;color:var(--t2);cursor:pointer;font-size:20px">✕</button>';
+  h += '</div>';
+  h += '<div id="gs-results" style="overflow-y:auto;flex:1"></div>';
+  modal.innerHTML = h;
+  document.body.appendChild(modal);
+  var input = modal.querySelector('#gs-input');
+  if (input) {
+    input.focus();
+    input.addEventListener('input', function() {
+      var q = this.value.toLowerCase().trim();
+      var resultsEl = document.getElementById('gs-results');
+      if (!resultsEl) return;
+      if (q.length < 1) { resultsEl.innerHTML = '<div style="text-align:center;padding:20px;color:var(--t2)">輸入關鍵字搜尋</div>'; return; }
+      var matched = leads.filter(function(l) {
+        return (l.name||'').toLowerCase().indexOf(q)>=0 ||
+               (l.phone||'').indexOf(q)>=0 ||
+               (l.work_type||'').toLowerCase().indexOf(q)>=0 ||
+               (l.address||'').toLowerCase().indexOf(q)>=0;
+      });
+      if (matched.length === 0) {
+        resultsEl.innerHTML = '<div style="text-align:center;padding:20px;color:var(--t2)">找不到「'+q+'」相關客戶</div>';
+        return;
+      }
+      var html = '<div style="font-size:13px;color:var(--t2);margin-bottom:8px">找到 '+matched.length+' 位客戶</div>';
+      matched.forEach(function(l) {
+        html += '<div onclick="document.getElementById(\'global-search-modal\').remove();navTo(\'leads\',null);setTimeout(function(){showLeadDetail(\''+l.id+'\')},300)" style="padding:12px;background:var(--card);border-radius:10px;margin-bottom:6px;cursor:pointer;border:0.5px solid var(--bdr2)">';
+        html += '<div style="display:flex;align-items:center;justify-content:space-between">';
+        html += '<div style="font-size:16px;font-weight:600">'+l.name+'</div>';
+        html += '<span class="badge '+statusBadge(l.status)+'">'+statusText(l.status)+'</span>';
+        html += '</div>';
+        if (l.phone) html += '<div style="font-size:13px;color:var(--t2);margin-top:3px">📞 '+l.phone+'</div>';
+        if (l.work_type) html += '<div style="font-size:13px;color:var(--t2)">💼 '+l.work_type+'</div>';
+        if (l.required_amount) html += '<div style="font-size:13px;color:var(--acc)">需求 $'+l.required_amount.toLocaleString()+'</div>';
+        html += '</div>';
+      });
+      resultsEl.innerHTML = html;
+    });
+  }
+  modal.addEventListener('click', function(e){ if(e.target===modal) modal.remove(); });
 }
 
 function getDefaultReviewFields() {
