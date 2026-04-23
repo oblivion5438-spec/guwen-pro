@@ -6788,8 +6788,8 @@ function renderBroker() {
   var tabDiv = document.createElement('div');
   tabDiv.style.cssText = 'display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap';
   [
-    {key:'leads',       label:'👥 客戶名單'},
-    {key:'partners',    label:'🤝 配合業者'},
+    {key:'leads',    label:'👥 客戶名單'},
+    {key:'partners', label:'🤝 配合業者'},
   ].forEach(function(t) {
     var btn = document.createElement('button');
     var on = brokerTab === t.key;
@@ -6801,10 +6801,96 @@ function renderBroker() {
   el.appendChild(tabDiv);
 
   if (brokerTab === 'leads') {
-    buildModuleLeadList(el, 'broker', {title:'💼 我的客戶名單', emptyText:'尚無客戶，點「新增客戶資料」開始'});
+    buildModuleLeadList(el, 'broker', {title:'💼 我的客戶名單'});
   } else {
-    renderConnections();
+    // 配合業者內容直接在此頁渲染，不跳轉
+    buildBrokerConnectionsTab(el);
   }
+}
+
+async function buildBrokerConnectionsTab(el) {
+  var card = document.createElement('div');
+  card.className = 'card';
+  card.innerHTML = '<div style="text-align:center;padding:16px;color:var(--t2)"><div class="spinner" style="margin:0 auto 8px"></div>載入中...</div>';
+  el.appendChild(card);
+
+  var [received, accepted] = await Promise.all([
+    sb.from('business_connections').select('*, requester:requester_id(id,name,email)').eq('receiver_id', currentUser.id).eq('status','pending').order('created_at', {ascending:false}),
+    sb.from('business_connections').select('*, requester:requester_id(id,name,email), receiver:receiver_id(id,name,email)').or('requester_id.eq.'+currentUser.id+',receiver_id.eq.'+currentUser.id).eq('status','accepted').order('created_at', {ascending:false})
+  ]);
+
+  var h = '<div class="ct">🤝 配合業者管理</div>';
+
+  // 申請新對接
+  h += '<div style="margin-bottom:14px">';
+  h += '<div style="font-size:14px;font-weight:600;margin-bottom:8px">申請新對接</div>';
+  h += '<div style="display:flex;gap:8px">';
+  h += '<input id="broker-conn-input" placeholder="對方帳號 ID 或邀請碼" style="flex:1;padding:10px 12px;background:var(--inp);border:0.5px solid var(--bdr2);border-radius:9px;color:var(--inpt);font-size:15px;font-family:var(--sans)">';
+  h += '<button id="broker-conn-btn" class="btn-p" style="white-space:nowrap">申請對接</button>';
+  h += '</div>';
+  h += '<div id="broker-conn-result" style="margin-top:6px"></div>';
+  h += '</div>';
+
+  // 收到的申請
+  if (received.data && received.data.length > 0) {
+    h += '<div style="font-size:14px;font-weight:600;margin-bottom:8px">收到的申請 <span class="badge b-red">'+received.data.length+'</span></div>';
+    received.data.forEach(function(conn) {
+      var req = conn.requester || {};
+      h += '<div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:0.5px solid var(--bdr)">';
+      h += '<div style="width:36px;height:36px;border-radius:50%;background:var(--al);color:var(--acc);display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:700">'+(req.name||'?').charAt(0)+'</div>';
+      h += '<div style="flex:1"><div style="font-size:14px;font-weight:500">'+(req.name||'—')+'</div><div style="font-size:12px;color:var(--t2)">'+(req.email||'')+'</div></div>';
+      h += '<button id="accept-'+conn.id+'" style="padding:6px 14px;background:var(--grn);color:#FFF;border:none;border-radius:7px;cursor:pointer;font-family:var(--sans);font-size:13px;font-weight:600">接受</button>';
+      h += '<button id="reject-'+conn.id+'" style="padding:6px 10px;background:transparent;border:0.5px solid rgba(192,64,48,.3);color:var(--red);border-radius:7px;cursor:pointer;font-family:var(--sans);font-size:13px">拒絕</button>';
+      h += '</div>';
+    });
+  }
+
+  // 配合中
+  h += '<div style="font-size:14px;font-weight:600;margin:12px 0 8px">配合中（'+(accepted.data?accepted.data.length:0)+'）</div>';
+  if (!accepted.data || accepted.data.length === 0) {
+    h += '<div style="font-size:13px;color:var(--t2);padding:12px;background:var(--inp);border-radius:8px">尚無配合業者</div>';
+  } else {
+    accepted.data.forEach(function(conn) {
+      var isReq = conn.requester_id === currentUser.id;
+      var partner = isReq ? conn.receiver : conn.requester;
+      if (!partner) return;
+      h += '<div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:0.5px solid var(--bdr)">';
+      h += '<div style="width:36px;height:36px;border-radius:50%;background:var(--gl);color:var(--grn);display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:700">'+(partner.name||'?').charAt(0)+'</div>';
+      h += '<div style="flex:1"><div style="font-size:14px;font-weight:500">'+(partner.name||'—')+'</div><div style="font-size:12px;color:var(--t2)">'+(partner.email||'')+'</div></div>';
+      h += '<button id="remove-'+conn.id+'" style="font-size:12px;padding:4px 10px;border-radius:6px;border:0.5px solid rgba(192,64,48,.3);background:transparent;color:var(--red);cursor:pointer;font-family:var(--sans)">解除</button>';
+      h += '</div>';
+    });
+  }
+
+  card.innerHTML = h;
+
+  // DOM 綁定
+  var connBtn = card.querySelector('#broker-conn-btn');
+  if (connBtn) connBtn.onclick = async function() {
+    var input = card.querySelector('#broker-conn-input');
+    var result = card.querySelector('#broker-conn-result');
+    var code = input ? input.value.trim() : '';
+    if (!code) { if (result) result.innerHTML = '<div style="color:var(--red);font-size:13px">請輸入對方 ID 或邀請碼</div>'; return; }
+    if (result) result.innerHTML = '<div style="color:var(--t2);font-size:13px">🔍 查詢中...</div>';
+    var res = await sb.from('members').select('id,name,email').or('invite_code.eq.'+code+',id.eq.'+code).maybeSingle();
+    if (!res.data) { if (result) result.innerHTML = '<div style="color:var(--red);font-size:13px">找不到此業者</div>'; return; }
+    if (res.data.id === currentUser.id) { if (result) result.innerHTML = '<div style="color:var(--red);font-size:13px">不能對自己申請</div>'; return; }
+    await sb.from('business_connections').insert({ requester_id: currentUser.id, receiver_id: res.data.id, status:'pending' });
+    await sb.from('notifications').insert({ member_id: res.data.id, type:'connection_request', title:'新的對接申請', body:(currentUser.user_metadata&&currentUser.user_metadata.name||'有人')+' 申請與您建立配合關係', data:{requester_id:currentUser.id} });
+    if (result) result.innerHTML = '<div style="color:var(--grn);font-size:13px">✓ 已送出申請給「'+(res.data.name||res.data.email)+'」</div>';
+    if (input) input.value = '';
+  };
+  if (received.data) received.data.forEach(function(conn) {
+    var acc = card.querySelector('#accept-'+conn.id);
+    var rej = card.querySelector('#reject-'+conn.id);
+    if (acc) acc.onclick = function(){ handleConnection(conn.id,'accepted',conn.requester_id).then(function(){ brokerTab='partners'; renderBroker(); }); };
+    if (rej) rej.onclick = function(){ handleConnection(conn.id,'rejected',null).then(function(){ brokerTab='partners'; renderBroker(); }); };
+  });
+  if (accepted.data) accepted.data.forEach(function(conn) {
+    var rem = card.querySelector('#remove-'+conn.id);
+    if (rem) rem.onclick = function(){ removeConnection(conn.id).then(function(){ brokerTab='partners'; renderBroker(); }); };
+  });
+  loadNotifCount();
 }
 
 // 各模組整合客戶名單的函數
