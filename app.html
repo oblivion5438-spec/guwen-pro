@@ -1528,59 +1528,6 @@ async function renderDash() {
   }
   html += '</div>';
 
-  // ── 近6個月趨勢折線圖 ──
-  var months6 = [];
-  for (var mi = 5; mi >= 0; mi--) {
-    var ms = new Date(now.getFullYear(), now.getMonth()-mi, 1);
-    var me = new Date(now.getFullYear(), now.getMonth()-mi+1, 1);
-    var mLabel = (ms.getMonth()+1)+'月';
-    var mLeads = leads.filter(function(l){ var d=new Date(l.created_at); return d>=ms&&d<me; }).length;
-    var mClosed = leads.filter(function(l){ var d=new Date(l.created_at); return d>=ms&&d<me&&l.status==='closed'; }).length;
-    months6.push({label:mLabel, leads:mLeads, closed:mClosed});
-  }
-  var maxLeads6 = Math.max.apply(null, months6.map(function(m){return m.leads;})) || 1;
-  var maxClosed6 = Math.max.apply(null, months6.map(function(m){return m.closed;})) || 1;
-  var chartH = 50;
-  var chartW = 300;
-  var stepX = chartW / 5;
-
-  function mkPoints(arr, key, maxV) {
-    return arr.map(function(m, i) {
-      var x = i * stepX;
-      var y = chartH - Math.round(m[key] / maxV * chartH);
-      return x+','+y;
-    }).join(' ');
-  }
-
-  html += '<div class="card" style="margin-bottom:14px">';
-  html += '<div class="ct">近6個月趨勢</div>';
-  html += '<svg viewBox="0 0 '+chartW+' '+(chartH+24)+'" width="100%" style="overflow:visible">';
-  // 格線
-  [0,25,50,75,100].forEach(function(pct) {
-    var y = chartH - Math.round(pct/100*chartH);
-    html += '<line x1="0" y1="'+y+'" x2="'+chartW+'" y2="'+y+'" stroke="rgba(255,255,255,.06)" stroke-width="1"/>';
-  });
-  // 名單折線（灰）
-  html += '<polyline points="'+mkPoints(months6,'leads',maxLeads6)+'" fill="none" stroke="rgba(200,81,26,.5)" stroke-width="1.5" stroke-dasharray="4 2"/>';
-  // 結案折線（綠）
-  html += '<polyline points="'+mkPoints(months6,'closed',maxLeads6)+'" fill="none" stroke="#2D8A4E" stroke-width="2"/>';
-  // 資料點和月份標籤
-  months6.forEach(function(m, i) {
-    var x = i * stepX;
-    var yL = chartH - Math.round(m.leads / maxLeads6 * chartH);
-    var yC = chartH - Math.round(m.closed / maxLeads6 * chartH);
-    html += '<circle cx="'+x+'" cy="'+yL+'" r="3" fill="#C8511A"/>';
-    html += '<circle cx="'+x+'" cy="'+yC+'" r="3" fill="#2D8A4E"/>';
-    if (m.closed > 0) html += '<text x="'+x+'" y="'+(yC-7)+'" text-anchor="middle" font-size="10" fill="#2D8A4E">'+m.closed+'</text>';
-    html += '<text x="'+x+'" y="'+(chartH+16)+'" text-anchor="middle" font-size="11" fill="#666">'+m.label+'</text>';
-  });
-  html += '</svg>';
-  html += '<div style="display:flex;gap:14px;margin-top:4px">';
-  html += '<div style="display:flex;align-items:center;gap:5px;font-size:12px;color:var(--t2)"><div style="width:14px;height:2px;background:rgba(200,81,26,.5);border-top:2px dashed rgba(200,81,26,.5)"></div>名單數</div>';
-  html += '<div style="display:flex;align-items:center;gap:5px;font-size:12px;color:var(--t2)"><div style="width:14px;height:2px;background:#2D8A4E"></div>結案數</div>';
-  html += '</div>';
-  html += '</div>';
-
   // ── 四格統計卡 ──
   html += '<div class="stat-grid" style="margin-bottom:14px">';
   html += '<div class="stat-card"><div class="stat-l">本月名單</div><div class="stat-v">' + total + '</div><div class="stat-s">'+arrowSpan(total,lmL)+' vs 上月</div></div>';
@@ -1921,6 +1868,78 @@ function renderAddLead() {
   noteSec.innerHTML = '<div class="fs-title">📝 顧問備註</div><textarea class="fi" id="n-note" rows="3" style="resize:none;margin-top:6px" placeholder="客戶特殊情況說明…"></textarea>';
   el.appendChild(noteSec);
 
+  // ── 文件上傳區塊 ──
+  var docSec = document.createElement('div');
+  docSec.className = 'form-section';
+  docSec.id = 'n-doc-section';
+
+  var docTypes = [
+    {key:'mydata',    icon:'📊', label:'MyData 截圖',         accept:'image/*,.pdf', multiple:true},
+    {key:'movable',   icon:'🏷️', label:'動產擔保查詢截圖',    accept:'image/*',      multiple:false},
+    {key:'verdict',   icon:'⚖️', label:'司法裁判書截圖',      accept:'image/*',      multiple:false},
+    {key:'traffic',   icon:'🚗', label:'監理網罰單截圖',      accept:'image/*',      multiple:false},
+    {key:'license',   icon:'📜', label:'技術士證照截圖',      accept:'image/*',      multiple:true},
+    {key:'vehicle',   icon:'🚙', label:'行照',               accept:'image/*',      multiple:false},
+    {key:'build_reg', icon:'📄', label:'建物謄本',           accept:'image/*,.pdf', multiple:false},
+    {key:'land_reg',  icon:'📄', label:'土地謄本',           accept:'image/*,.pdf', multiple:false},
+    {key:'house_photos', icon:'🏠', label:'屋況照片',        accept:'image/*',      multiple:true},
+    {key:'id_card',   icon:'🪪', label:'雙證件照片',         accept:'image/*',      multiple:true},
+  ];
+
+  var dh = '<div class="fs-title">📎 文件上傳</div>';
+  dh += '<div style="font-size:12px;color:var(--t2);margin-bottom:10px">支援 JPG、PNG、PDF，上傳後儲存至雲端</div>';
+  dh += '<div id="n-doc-list"></div>';
+  docSec.innerHTML = dh;
+  el.appendChild(docSec);
+
+  // 動態建立上傳區塊（DOM 方式，避免引號問題）
+  var docList = document.getElementById('n-doc-list');
+  docTypes.forEach(function(dt) {
+    var row = document.createElement('div');
+    row.style.cssText = 'display:flex;align-items:center;gap:10px;padding:10px;background:var(--inp);border-radius:8px;margin-bottom:6px';
+
+    var icon = document.createElement('span');
+    icon.style.cssText = 'font-size:20px;flex-shrink:0';
+    icon.textContent = dt.icon;
+
+    var info = document.createElement('div');
+    info.style.flex = '1';
+    var lbl = document.createElement('div');
+    lbl.style.cssText = 'font-size:13px;font-weight:500;margin-bottom:2px';
+    lbl.textContent = dt.label;
+    var hint = document.createElement('div');
+    hint.id = 'n-doc-hint-' + dt.key;
+    hint.style.cssText = 'font-size:12px;color:var(--t2)';
+    hint.textContent = '尚未上傳';
+    info.appendChild(lbl);
+    info.appendChild(hint);
+
+    var uploadLabel = document.createElement('label');
+    uploadLabel.style.cssText = 'padding:5px 12px;background:var(--acc);color:#FFF;border-radius:7px;cursor:pointer;font-size:13px;font-family:var(--sans);white-space:nowrap;flex-shrink:0';
+    uploadLabel.textContent = '上傳';
+    var fileInput = document.createElement('input');
+    fileInput.type = 'file';
+    fileInput.accept = dt.accept;
+    if (dt.multiple) fileInput.multiple = true;
+    fileInput.style.display = 'none';
+    fileInput.dataset.key = dt.key;
+    fileInput.onchange = handleLeadDocUpload;
+    uploadLabel.appendChild(fileInput);
+
+    row.appendChild(icon);
+    row.appendChild(info);
+    row.appendChild(uploadLabel);
+    docList.appendChild(row);
+  });
+
+  // 預覽容器
+  var previewDiv = document.createElement('div');
+  previewDiv.id = 'n-doc-previews';
+  previewDiv.style.cssText = 'display:flex;flex-wrap:wrap;gap:6px;margin-top:8px';
+  docSec.appendChild(previewDiv);
+
+  el.appendChild(docSec);
+
   // 按鈕
   var btnsDiv = document.createElement('div'); btnsDiv.style.cssText = 'display:flex;gap:8px;margin-bottom:20px';
   var cBtn = document.createElement('button'); cBtn.className = 'btn-sm'; cBtn.textContent = '取消'; cBtn.onclick = function() { navTo('leads', null); };
@@ -2014,6 +2033,67 @@ function addLoanRow(listId, type) {
   list.appendChild(div);
 }
 
+// 新增客戶文件暫存
+var pendingLeadDocs = {}; // { docKey: [{file, name}] }
+
+function handleLeadDocUpload(e) {
+  var key = this.dataset.key;
+  var files = Array.from(e.target.files);
+  if (!files.length) return;
+  if (!pendingLeadDocs[key]) pendingLeadDocs[key] = [];
+  files.forEach(function(f){ pendingLeadDocs[key].push({file:f, name:f.name}); });
+  // 更新提示
+  var hint = document.getElementById('n-doc-hint-' + key);
+  if (hint) {
+    var total = pendingLeadDocs[key].length;
+    hint.style.color = 'var(--grn)';
+    hint.textContent = '✓ 已選擇 ' + total + ' 個檔案（儲存後上傳）';
+  }
+  // 預覽
+  var previewDiv = document.getElementById('n-doc-previews');
+  if (previewDiv) {
+    files.forEach(function(f) {
+      if (f.type.startsWith('image/')) {
+        var img = document.createElement('img');
+        img.style.cssText = 'width:60px;height:45px;object-fit:cover;border-radius:5px';
+        img.src = URL.createObjectURL(f);
+        previewDiv.appendChild(img);
+      } else {
+        var a = document.createElement('div');
+        a.style.cssText = 'padding:4px 8px;background:var(--inp);border-radius:5px;font-size:12px;color:var(--blu)';
+        a.textContent = '📄 ' + f.name;
+        previewDiv.appendChild(a);
+      }
+    });
+  }
+}
+
+async function uploadPendingLeadDocs(leadId) {
+  var docLabels = {
+    mydata:'mydata', movable:'movable', verdict:'verdict', traffic:'traffic',
+    license:'license', vehicle:'vehicle', build_reg:'build_reg', land_reg:'land_reg',
+    house_photos:'house_photos', id_card:'id_card'
+  };
+  var allDocs = [];
+  for (var key in pendingLeadDocs) {
+    var items = pendingLeadDocs[key];
+    for (var i = 0; i < items.length; i++) {
+      var item = items[i];
+      var ext = item.name.split('.').pop();
+      var path = 'leads/' + leadId + '/' + key + '_' + Date.now() + '_' + i + '.' + ext;
+      var res = await sb.storage.from('lead-documents').upload(path, item.file, {upsert:true});
+      if (!res.error) {
+        var urlRes = sb.storage.from('lead-documents').getPublicUrl(path);
+        allDocs.push({type:key, url:urlRes.data.publicUrl, name:item.name});
+      }
+    }
+  }
+  if (allDocs.length > 0) {
+    await sb.from('leads').update({documents: allDocs}).eq('id', leadId);
+  }
+  pendingLeadDocs = {};
+}
+
 async function saveLead() {
   var name = gv('n-name').trim();
   if (!name) { document.getElementById('add-err').textContent='請填寫客戶姓名'; document.getElementById('add-err').style.display='block'; return; }
@@ -2084,6 +2164,11 @@ async function saveLead() {
     }
   });
   if (loans.length > 0) await sb.from('lead_loans').insert(loans);
+
+  // 上傳暫存文件
+  if (Object.keys(pendingLeadDocs).length > 0) {
+    await uploadPendingLeadDocs(r.data.id);
+  }
 
   loanCounters = { credit:0, car:0, bike:0, phone:0, pawn:0 };
   hideLoading();
