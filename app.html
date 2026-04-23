@@ -6660,76 +6660,90 @@ async function renderNotifications() {
 function buildModuleLeadList(el, moduleKey, options) {
   options = options || {};
   var title = options.title || '客戶名單';
-  var emptyText = options.emptyText || '尚無客戶，請先在客戶名單新增';
-
-  // 從 referrals 表取得客戶來源資訊
-  var referralMap = {}; // lead_id → sender name
 
   var card = document.createElement('div');
   card.className = 'card';
+  card.id = 'module-lead-card-' + moduleKey;
 
   var h = '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">';
-  h += '<div class="ct" style="margin-bottom:0">' + title + ' <span style="font-size:13px;color:var(--t2);font-weight:400">（' + leads.length + ' 位）</span></div>';
-  h += '<button onclick="navTo(\'leads\',null)" class="btn-sm">客戶名單 →</button>';
-  h += '</div>';
+  h += '<div class="ct" style="margin-bottom:0">' + title + '</div>';
+  h += '<div style="display:flex;gap:6px">';
+  h += '<button onclick="showAddLeadTagModal(\''+moduleKey+'\')" style="padding:5px 10px;border-radius:7px;font-size:12px;border:0.5px solid var(--acc);background:var(--al);color:var(--acc);cursor:pointer;font-family:var(--sans)">+ 加入客戶</button>';
+  h += '<button onclick="navTo(\'leads\',null)" class="btn-sm">完整名單 →</button>';
+  h += '</div></div>';
 
   // 搜尋欄
-  h += '<input id="module-lead-search" placeholder="搜尋客戶姓名..." style="width:100%;padding:9px 12px;background:var(--inp);border:0.5px solid var(--bdr2);border-radius:9px;color:var(--inpt);font-size:14px;font-family:var(--sans);margin-bottom:10px;box-sizing:border-box">';
+  h += '<input id="ml-search-'+moduleKey+'" placeholder="搜尋客戶姓名..." oninput="renderModuleLeadItems(\''+moduleKey+'\')" style="width:100%;padding:9px 12px;background:var(--inp);border:0.5px solid var(--bdr2);border-radius:9px;color:var(--inpt);font-size:14px;font-family:var(--sans);margin-bottom:10px;box-sizing:border-box">';
 
-  // 快速篩選狀態
-  h += '<div id="module-lead-filters" style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:10px">';
-  [
+  // 狀態篩選（完整版）
+  var allStatuses = [
     {val:'', label:'全部'},
     {val:'new', label:'新名單'},
-    {val:'contact', label:'洽談中'},
-    {val:'closed', label:'已成交'},
-  ].forEach(function(f) {
-    h += '<button onclick="filterModuleLeads(\''+f.val+'\')" data-filter="'+f.val+'" style="padding:4px 12px;border-radius:20px;font-size:12px;font-family:var(--sans);cursor:pointer;border:0.5px solid '+(f.val===''?'var(--acc)':'var(--bdr2)')+';background:'+(f.val===''?'var(--al)':'transparent')+';color:'+(f.val===''?'var(--acc)':'var(--t2)')+'">'+f.label+'</button>';
+    {val:'invited', label:'邀約'},
+    {val:'submitting', label:'送件中'},
+    {val:'approved', label:'核准'},
+    {val:'closed', label:'結案'},
+    {val:'pending_guarantor', label:'待補保人'},
+    {val:'rejected', label:'無法承作'},
+    {val:'lost', label:'失聯'},
+  ];
+  h += '<div id="ml-filters-'+moduleKey+'" style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:10px">';
+  allStatuses.forEach(function(f) {
+    var on = f.val === '';
+    h += '<button onclick="setModuleFilter(\''+moduleKey+'\',\''+f.val+'\')" data-mfilter="'+f.val+'" data-mkey="'+moduleKey+'" style="padding:4px 10px;border-radius:20px;font-size:12px;font-family:var(--sans);cursor:pointer;border:0.5px solid '+(on?'var(--acc)':'var(--bdr2)')+';background:'+(on?'var(--al)':'transparent')+';color:'+(on?'var(--acc)':'var(--t2)')+'">'+f.label+'</button>';
   });
+  // 自訂狀態也加進去
+  h += '<span id="ml-custom-filters-'+moduleKey+'"></span>';
   h += '</div>';
 
-  h += '<div id="module-leads-list"></div>';
+  h += '<div id="ml-list-'+moduleKey+'"><div style="text-align:center;padding:16px;color:var(--t2)">載入中...</div></div>';
   card.innerHTML = h;
   el.appendChild(card);
 
-  // 搜尋功能
-  var searchEl = card.querySelector('#module-lead-search');
-  if (searchEl) searchEl.addEventListener('input', function() {
-    renderModuleLeadItems(card, leads, this.value, '');
-  });
-
   // 初始渲染
-  renderModuleLeadItems(card, leads, '', '');
+  renderModuleLeadItems(moduleKey);
 }
 
-var moduleLeadFilter = '';
-window.filterModuleLeads = function(status) {
-  moduleLeadFilter = status;
-  var card = document.querySelector('#member-content .card');
-  var search = document.getElementById('module-lead-search');
-  var searchVal = search ? search.value : '';
-  // 更新篩選按鈕樣式
-  document.querySelectorAll('[data-filter]').forEach(function(btn) {
-    var on = btn.dataset.filter === status;
+var moduleFilters = {}; // { moduleKey: statusFilter }
+
+window.setModuleFilter = function(moduleKey, status) {
+  moduleFilters[moduleKey] = status;
+  // 更新按鈕樣式
+  document.querySelectorAll('[data-mkey="'+moduleKey+'"]').forEach(function(btn) {
+    var on = btn.dataset.mfilter === status;
     btn.style.border = on ? '0.5px solid var(--acc)' : '0.5px solid var(--bdr2)';
     btn.style.background = on ? 'var(--al)' : 'transparent';
     btn.style.color = on ? 'var(--acc)' : 'var(--t2)';
   });
-  renderModuleLeadItems(null, leads, searchVal, status);
+  renderModuleLeadItems(moduleKey);
 };
 
-function renderModuleLeadItems(card, allLeads, search, statusFilter) {
-  var list = document.getElementById('module-leads-list');
+function renderModuleLeadItems(moduleKey) {
+  var list = document.getElementById('ml-list-' + moduleKey);
   if (!list) return;
-  var filtered = allLeads.filter(function(l) {
-    var matchName = !search || (l.name||'').toLowerCase().indexOf(search.toLowerCase()) >= 0;
+  var searchEl = document.getElementById('ml-search-' + moduleKey);
+  var search = searchEl ? searchEl.value.toLowerCase() : '';
+  var statusFilter = moduleFilters[moduleKey] || '';
+
+  // 篩選：依業務標籤（如果有）否則顯示全部
+  var filtered = leads.filter(function(l) {
+    var matchSearch = !search || (l.name||'').toLowerCase().indexOf(search) >= 0;
     var matchStatus = !statusFilter || l.status === statusFilter;
-    return matchName && matchStatus;
+    // 業務標籤篩選（如果有設定）
+    var matchTag = true;
+    if (moduleKey && moduleKey !== 'broker') {
+      var tags = l.business_tags || [];
+      if (tags.length > 0) matchTag = tags.indexOf(moduleKey) >= 0;
+    }
+    return matchSearch && matchStatus && matchTag;
   });
+
   if (filtered.length === 0) {
-    list.innerHTML = '<div style="text-align:center;padding:16px;color:var(--t2);font-size:13px">沒有符合的客戶</div>';
+    list.innerHTML = '<div style="text-align:center;padding:16px;color:var(--t2);font-size:13px">' +
+      (search || statusFilter ? '沒有符合條件的客戶' : '尚無客戶，點「+ 加入客戶」或到客戶名單新增') + '</div>';
     return;
   }
+
   list.innerHTML = '';
   filtered.forEach(function(lead) {
     var item = document.createElement('div');
@@ -6738,25 +6752,32 @@ function renderModuleLeadItems(card, allLeads, search, statusFilter) {
     item.onmouseout = function(){ this.style.borderColor='var(--bdr2)'; };
 
     var badgeClass = statusBadge(lead.status);
+    var tags = lead.business_tags || [];
+    var tagLabels = {'broker':'💼仲介','car-dealer':'🚙車商','car-finance':'🚗融資','pawn':'🏛民間'};
+
     var h = '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">';
     h += '<div style="display:flex;align-items:center;gap:8px">';
     h += '<div style="width:34px;height:34px;border-radius:50%;background:var(--al);color:var(--acc);display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:700">' + (lead.name||'?').charAt(0) + '</div>';
-    h += '<div><div style="font-size:15px;font-weight:600">' + (lead.name||'—') + '</div>';
-    h += '<div style="font-size:12px;color:var(--t2)">' + (lead.work_type||'') + (lead.monthly_salary?' · $'+lead.monthly_salary.toLocaleString()+'/月':'') + '</div></div>';
-    h += '</div>';
+    h += '<div>';
+    h += '<div style="font-size:15px;font-weight:600">' + (lead.name||'—') + '</div>';
+    h += '<div style="font-size:12px;color:var(--t2)">' + (lead.work_type||'') + (lead.monthly_salary?' · $'+lead.monthly_salary.toLocaleString()+'/月':'') + '</div>';
+    // 業務標籤顯示
+    if (tags.length > 0) {
+      h += '<div style="display:flex;gap:3px;margin-top:2px">';
+      tags.forEach(function(t){ h += '<span style="font-size:10px;padding:1px 5px;background:var(--inp);border-radius:10px;color:var(--t3)">'+(tagLabels[t]||t)+'</span>'; });
+      h += '</div>';
+    }
+    h += '</div></div>';
     h += '<span class="badge ' + badgeClass + '">' + statusText(lead.status) + '</span>';
     h += '</div>';
-    // 來源標示
-    if (lead.referral_source) {
-      h += '<div style="font-size:12px;color:var(--blu);margin-bottom:4px">🔀 來源：' + lead.referral_source + '</div>';
-    }
+    if (lead.referral_source) h += '<div style="font-size:12px;color:var(--blu);margin-bottom:3px">🔀 來源：' + lead.referral_source + '</div>';
     if (lead.required_amount) h += '<div style="font-size:12px;color:var(--t2)">需求：$' + lead.required_amount.toLocaleString() + (lead.fund_purpose?' · '+lead.fund_purpose:'') + '</div>';
-    h += '<div id="module-lead-detail-'+lead.id+'" style="display:none;margin-top:8px;padding-top:8px;border-top:0.5px solid var(--bdr)"></div>';
+    h += '<div id="mld-'+moduleKey+'-'+lead.id+'" style="display:none;margin-top:8px;padding-top:8px;border-top:0.5px solid var(--bdr)"></div>';
 
     item.innerHTML = h;
     item.onclick = function(e) {
-      if (e.target.tagName === 'BUTTON') return;
-      var detail = item.querySelector('#module-lead-detail-' + lead.id);
+      if (e.target.tagName === 'BUTTON' || e.target.closest('button')) return;
+      var detail = item.querySelector('#mld-'+moduleKey+'-'+lead.id);
       if (!detail) return;
       if (detail.style.display === 'none') {
         detail.style.display = 'block';
@@ -6765,15 +6786,116 @@ function renderModuleLeadItems(card, allLeads, search, statusFilter) {
           (lead.phone?'<div style="font-size:13px"><span style="color:var(--t3)">電話</span> '+lead.phone+'</div>':'') +
           (lead.age?'<div style="font-size:13px"><span style="color:var(--t3)">年齡</span> '+lead.age+'歲</div>':'') +
           (lead.address?'<div style="font-size:13px;grid-column:1/-1"><span style="color:var(--t3)">地址</span> '+lead.address+'</div>':'') +
-          (lead.alert_status&&lead.alert_status!=='none'?'<div style="font-size:13px;color:var(--red)">⚠️ '+lead.alert_status+'</div>':'') +
+          (lead.alert_status&&lead.alert_status!=='none'?'<div style="font-size:13px;color:var(--red);grid-column:1/-1">⚠️ '+lead.alert_status+'</div>':'') +
           '</div>' +
-          '<button onclick="navTo(\'leads\',null);setTimeout(function(){showLeadDetail(\''+lead.id+'\')},300)" class="btn-p" style="width:100%;font-size:13px">查看完整資料 →</button>';
+          '<div style="display:flex;gap:6px">' +
+          '<button onclick="event.stopPropagation();showLeadTagModal(\''+lead.id+'\',\''+moduleKey+'\')" style="flex:1;padding:7px;border-radius:7px;border:0.5px solid var(--bdr2);background:transparent;color:var(--t1);cursor:pointer;font-family:var(--sans);font-size:13px">🏷 管理標籤</button>' +
+          '<button onclick="event.stopPropagation();navTo(\'leads\',null);setTimeout(function(){showLeadDetail(\''+lead.id+'\')},300)" class="btn-p" style="flex:1;font-size:13px">查看完整資料 →</button>' +
+          '</div>';
       } else {
         detail.style.display = 'none';
       }
     };
     list.appendChild(item);
   });
+}
+
+// 業務標籤管理 Modal
+function showLeadTagModal(leadId, currentModule) {
+  var lead = leads.find(function(l){ return l.id === leadId; });
+  if (!lead) return;
+  var tags = lead.business_tags || [];
+  var tagDefs = [
+    {key:'broker',      label:'💼 貸款仲介'},
+    {key:'car-dealer',  label:'🚙 中古車商'},
+    {key:'car-finance', label:'🚗 融資車貸'},
+    {key:'pawn',        label:'🏛 民間借款'},
+  ];
+  var modal = document.createElement('div');
+  modal.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.7);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px';
+  var box = document.createElement('div');
+  box.style.cssText = 'background:var(--card);border-radius:14px;padding:18px;width:100%;max-width:380px';
+  var h = '<div style="font-size:16px;font-weight:700;margin-bottom:4px">🏷 業務標籤管理</div>';
+  h += '<div style="font-size:13px;color:var(--t2);margin-bottom:14px">' + (lead.name||'') + ' · 勾選此客戶相關的業務類型</div>';
+  tagDefs.forEach(function(t) {
+    var checked = tags.indexOf(t.key) >= 0;
+    h += '<label style="display:flex;align-items:center;gap:10px;padding:10px;background:var(--inp);border-radius:8px;margin-bottom:6px;cursor:pointer">';
+    h += '<input type="checkbox" data-tag="'+t.key+'" '+(checked?'checked':'')+' style="width:18px;height:18px;accent-color:var(--acc)">';
+    h += '<span style="font-size:15px">' + t.label + '</span>';
+    h += '</label>';
+  });
+  h += '<div style="display:flex;gap:8px;margin-top:12px">';
+  h += '<button id="tag-cancel" class="btn-sm">取消</button>';
+  h += '<button id="tag-save" class="btn-p" style="flex:1">儲存標籤</button>';
+  h += '</div>';
+  box.innerHTML = h;
+  modal.appendChild(box);
+  document.body.appendChild(modal);
+  box.querySelector('#tag-cancel').onclick = function(){ modal.remove(); };
+  modal.onclick = function(e){ if(e.target===modal) modal.remove(); };
+  box.querySelector('#tag-save').onclick = async function() {
+    var newTags = [];
+    box.querySelectorAll('[data-tag]:checked').forEach(function(cb){ newTags.push(cb.dataset.tag); });
+    await sb.from('leads').update({business_tags: newTags}).eq('id', leadId);
+    lead.business_tags = newTags;
+    modal.remove();
+    renderModuleLeadItems(currentModule);
+  };
+}
+
+// 快速加入現有客戶到此業務模組
+function showAddLeadTagModal(moduleKey) {
+  var tagLabels = {'broker':'💼 貸款仲介','car-dealer':'🚙 中古車商','car-finance':'🚗 融資車貸','pawn':'🏛 民間借款'};
+  var modal = document.createElement('div');
+  modal.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.7);z-index:9999;display:flex;align-items:flex-start;justify-content:center;padding:16px;overflow-y:auto';
+  var box = document.createElement('div');
+  box.style.cssText = 'background:var(--card);border-radius:14px;padding:18px;width:100%;max-width:480px;margin:auto';
+  var h = '<div style="font-size:16px;font-weight:700;margin-bottom:4px">+ 加入客戶</div>';
+  h += '<div style="font-size:13px;color:var(--t2);margin-bottom:12px">選擇要加入「'+(tagLabels[moduleKey]||moduleKey)+'」的客戶</div>';
+  h += '<input id="addtag-search" placeholder="搜尋姓名..." oninput="filterAddTagList(\''+moduleKey+'\')" style="width:100%;padding:9px 12px;background:var(--inp);border:0.5px solid var(--bdr2);border-radius:9px;color:var(--inpt);font-size:14px;font-family:var(--sans);margin-bottom:10px;box-sizing:border-box">';
+  h += '<div id="addtag-list" style="max-height:50vh;overflow-y:auto">';
+  leads.forEach(function(lead) {
+    var tags = lead.business_tags || [];
+    var hasTag = tags.indexOf(moduleKey) >= 0;
+    h += '<label style="display:flex;align-items:center;gap:10px;padding:8px;border-radius:8px;margin-bottom:4px;cursor:pointer;border:0.5px solid var(--bdr2)" class="addtag-row" data-name="'+(lead.name||'').toLowerCase()+'">';
+    h += '<input type="checkbox" data-leadid="'+lead.id+'" '+(hasTag?'checked':'')+' style="width:16px;height:16px;accent-color:var(--acc)">';
+    h += '<div style="flex:1"><div style="font-size:14px;font-weight:500">'+(lead.name||'—')+'</div>';
+    h += '<div style="font-size:12px;color:var(--t2)">'+(lead.work_type||'')+(lead.monthly_salary?' · $'+lead.monthly_salary.toLocaleString()+'/月':'')+'</div></div>';
+    h += '<span class="badge '+statusBadge(lead.status)+'">'+statusText(lead.status)+'</span>';
+    h += '</label>';
+  });
+  h += '</div>';
+  h += '<div style="display:flex;gap:8px;margin-top:12px">';
+  h += '<button id="addtag-cancel" class="btn-sm">取消</button>';
+  h += '<button id="addtag-save" class="btn-p" style="flex:1">確認加入</button>';
+  h += '</div>';
+  box.innerHTML = h;
+  modal.appendChild(box);
+  document.body.appendChild(modal);
+
+  window.filterAddTagList = function(mk) {
+    var val = (document.getElementById('addtag-search')||{}).value || '';
+    box.querySelectorAll('.addtag-row').forEach(function(row){
+      row.style.display = !val || row.dataset.name.indexOf(val.toLowerCase())>=0 ? '' : 'none';
+    });
+  };
+
+  box.querySelector('#addtag-cancel').onclick = function(){ modal.remove(); };
+  modal.onclick = function(e){ if(e.target===modal) modal.remove(); };
+  box.querySelector('#addtag-save').onclick = async function() {
+    var promises = [];
+    box.querySelectorAll('[data-leadid]').forEach(function(cb) {
+      var lead = leads.find(function(l){ return l.id === cb.dataset.leadid; });
+      if (!lead) return;
+      var tags = (lead.business_tags||[]).slice();
+      var hasTag = tags.indexOf(moduleKey) >= 0;
+      if (cb.checked && !hasTag) { tags.push(moduleKey); lead.business_tags = tags; promises.push(sb.from('leads').update({business_tags:tags}).eq('id',cb.dataset.leadid)); }
+      else if (!cb.checked && hasTag) { tags.splice(tags.indexOf(moduleKey),1); lead.business_tags = tags; promises.push(sb.from('leads').update({business_tags:tags}).eq('id',cb.dataset.leadid)); }
+    });
+    await Promise.all(promises);
+    modal.remove();
+    renderModuleLeadItems(moduleKey);
+  };
 }
 
 // ══════════════════════════════
