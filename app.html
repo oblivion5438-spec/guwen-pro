@@ -1084,6 +1084,8 @@ async function init() {
     showPage('member');
     renderDash();
     loadNotifCount();
+    // 延遲3秒檢查到期提醒（等資料載入完成）
+    setTimeout(function(){ checkPawnDueReminders(); }, 3000);
   } else {
     showPage('auth');
   }
@@ -1105,6 +1107,106 @@ async function loadMember() {
     var dtAv = document.getElementById('dt-avatar'); if(dtAv) dtAv.textContent=firstChar;
     var dtName = document.getElementById('dt-name'); if(dtName) dtName.textContent=r.data.name+(r.data.company?' · '+r.data.company:'');
   }
+  // 啟動 Realtime 訂閱通知角標
+  startNotifRealtime();
+  // 定時更新角標（每60秒）
+  if (!window._notifTimer) {
+    window._notifTimer = setInterval(function(){ loadNotifCount(); }, 60000);
+  }
+  // 請求瀏覽器推播權限
+  requestPushPermission();
+}
+
+function startNotifRealtime() {
+  if (window._notifChannel) return;
+  try {
+    window._notifChannel = sb.channel('notif-'+currentUser.id)
+      .on('postgres_changes', {
+        event: 'INSERT', schema: 'public', table: 'notifications',
+        filter: 'member_id=eq.'+currentUser.id
+      }, function(payload) {
+        loadNotifCount();
+        // 顯示瀏覽器通知
+        if (payload.new) showBrowserNotif(payload.new.title, payload.new.body);
+      })
+      .subscribe();
+  } catch(e) {}
+}
+
+function requestPushPermission() {
+  if (!('Notification' in window)) return;
+  if (Notification.permission === 'default') {
+    // 延遲5秒再詢問，不要一進來就跳
+    setTimeout(function() {
+      Notification.requestPermission();
+    }, 5000);
+  }
+}
+
+function showBrowserNotif(title, body) {
+  if (!('Notification' in window)) return;
+  if (Notification.permission !== 'granted') return;
+  try {
+    var n = new Notification('顧問PRO · ' + (title||'新通知'), {
+      body: body || '',
+      icon: 'https://guwen-pro.vercel.app/favicon.ico',
+      badge: 'https://guwen-pro.vercel.app/favicon.ico',
+    });
+    n.onclick = function() { window.focus(); n.close(); navTo('notifications', null); };
+    setTimeout(function(){ n.close(); }, 5000);
+  } catch(e) {}
+}
+
+// 當鋪到期提醒檢查（登入後自動執行）
+async function checkPawnDueReminders() {
+  if (!currentUser) return;
+  var today = new Date();
+  var todayStr = today.toISOString().split('T')[0];
+  var in3days = new Date(today.getTime() + 3*24*60*60*1000).toISOString().split('T')[0];
+  var in7days = new Date(today.getTime() + 7*24*60*60*1000).toISOString().split('T')[0];
+
+  // 查詢即將到期的當鋪/不動產借款
+  var res = await sb.from('lead_closings')
+    .select('*, leads!inner(name, member_id)')
+    .eq('leads.member_id', currentUser.id)
+    .in('closing_type', ['pawn', 'property'])
+    .not('pawn_due_date', 'is', null)
+    .lte('pawn_due_date', in7days)
+    .gte('pawn_due_date', todayStr);
+
+  var items = res.data || [];
+  if (items.length === 0) return;
+
+  // 檢查今天是否已發過通知（避免重複）
+  var sentKey = 'pawn_remind_' + todayStr;
+  var alreadySent = localStorage.getItem(sentKey);
+  if (alreadySent) return;
+
+  // 發送通知
+  var promises = [];
+  items.forEach(function(item) {
+    var lead = item.leads;
+    var dueDate = new Date(item.pawn_due_date);
+    var diffDays = Math.ceil((dueDate - today) / (1000*60*60*24));
+    var diffLabel = diffDays === 0 ? '今日到期' : '還有 ' + diffDays + ' 天到期';
+    var title2 = '⏰ 借款即將到期：' + (lead ? lead.name : '');
+    var body2 = (item.closing_type==='pawn'?'當鋪出款':'不動產借款') + ' · ' + item.pawn_due_date + '（' + diffLabel + '）· 借款 $' + (item.closed_amount||0).toLocaleString();
+
+    // 軟體內通知
+    promises.push(sb.from('notifications').insert({
+      member_id: currentUser.id,
+      type: 'pawn_due',
+      title: title2,
+      body: body2,
+      data: { closing_id: item.id, lead_id: item.lead_id, due_date: item.pawn_due_date }
+    }));
+    // 瀏覽器推播
+    showBrowserNotif(title2, body2);
+  });
+
+  await Promise.all(promises);
+  localStorage.setItem(sentKey, '1');
+  loadNotifCount();
 }
 
 // ══════════════════════════════
@@ -1533,9 +1635,45 @@ async function renderDash() {
     if (thisLeads.length === 0) {
       dashList.innerHTML = '<div style="text-align:center;padding:20px;color:var(--t2)">本月還沒有客戶，點底部「新增」開始</div>';
     } else {
-      var lhtml = '';
-      thisLeads.slice(0,5).forEach(function(l) { lhtml += buildLeadItem(l, false); });
-      dashList.innerHTML = lhtml;
+      dashList.innerHTML = '';
+      thisLeads.slice(0, 8).forEach(function(l) {
+        var item = document.createElement('div');
+        item.style.cssText = 'border:0.5px solid var(--bdr2);border-radius:10px;padding:10px 12px;margin-bottom:6px;cursor:pointer;transition:border-color .15s';
+        item.onmouseover = function(){ this.style.borderColor='var(--acc)'; };
+        item.onmouseout = function(){ this.style.borderColor='var(--bdr2)'; };
+        var bc = statusBadge(l.status);
+        var h = '<div style="display:flex;align-items:center;justify-content:space-between">';
+        h += '<div style="display:flex;align-items:center;gap:8px">';
+        h += '<div style="width:32px;height:32px;border-radius:50%;background:var(--al);color:var(--acc);display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:700">'+(l.name||'?').charAt(0)+'</div>';
+        h += '<div><div style="font-size:14px;font-weight:600">'+(l.name||'—')+'</div>';
+        h += '<div style="font-size:12px;color:var(--t2)">'+(l.work_type||'')+(l.monthly_salary?' · $'+l.monthly_salary.toLocaleString()+'/月':'')+'</div></div>';
+        h += '</div><span class="badge '+bc+'">'+statusText(l.status)+'</span></div>';
+        if (l.required_amount) h += '<div style="font-size:12px;color:var(--t2);margin-top:3px">需求 $'+l.required_amount.toLocaleString()+(l.fund_purpose?' · '+l.fund_purpose:'')+'</div>';
+        h += '<div id="dash-lead-detail-'+l.id+'" style="display:none;margin-top:8px;padding-top:8px;border-top:0.5px solid var(--bdr)"></div>';
+        item.innerHTML = h;
+        item.onclick = function(e) {
+          if (e.target.tagName==='BUTTON'||e.target.closest('button')) return;
+          var detail = item.querySelector('#dash-lead-detail-'+l.id);
+          if (!detail) return;
+          if (detail.style.display==='none') {
+            detail.style.display = 'block';
+            detail.innerHTML =
+              '<div style="display:grid;grid-template-columns:repeat(2,1fr);gap:5px;margin-bottom:8px">' +
+              (l.phone?'<div style="font-size:13px"><span style="color:var(--t3)">電話</span> <a href="tel:'+l.phone+'" style="color:var(--blu);text-decoration:none">'+l.phone+'</a></div>':'') +
+              (l.age?'<div style="font-size:13px"><span style="color:var(--t3)">年齡</span> '+l.age+'歲</div>':'') +
+              (l.address?'<div style="font-size:13px;grid-column:1/-1"><span style="color:var(--t3)">地址</span> '+l.address+'</div>':'') +
+              (l.alert_status&&l.alert_status!=='none'?'<div style="font-size:13px;color:var(--red);grid-column:1/-1">⚠️ '+l.alert_status+'</div>':'') +
+              '</div>' +
+              '<div style="display:flex;gap:6px">' +
+              (l.phone?'<a href="tel:'+l.phone+'" class="btn-sm" style="flex:1;text-align:center;text-decoration:none">📞 撥打</a>':'') +
+              '<button onclick="event.stopPropagation();navTo(\'leads\',null);setTimeout(function(){showLeadDetail(\''+l.id+'\')},300)" class="btn-p" style="flex:1;font-size:13px">查看完整資料 →</button>' +
+              '</div>';
+          } else {
+            detail.style.display = 'none';
+          }
+        };
+        dashList.appendChild(item);
+      });
     }
   }
 }
