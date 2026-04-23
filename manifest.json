@@ -1,0 +1,55 @@
+{
+  "name": "顧問PRO - 貸款評估平台",
+  "short_name": "顧問PRO",
+  "description": "貸款顧問業務管理平台，含客戶管理、AI評估、業務模組等完整功能",
+  "start_url": "/app.html",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#111111",
+  "theme_color": "#C8511A",
+  "lang": "zh-TW",
+  "scope": "/",
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "/screenshot-mobile.png",
+      "sizes": "390x844",
+      "type": "image/png",
+      "form_factor": "narrow"
+    }
+  ],
+  "categories": ["business", "finance", "productivity"],
+  "shortcuts": [
+    {
+      "name": "客戶名單",
+      "short_name": "客戶",
+      "url": "/app.html#leads",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "新增客戶",
+      "short_name": "新增",
+      "url": "/app.html#add-lead",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "儀表板",
+      "short_name": "首頁",
+      "url": "/app.html#dash",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+    }
+  ]
+}
