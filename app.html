@@ -320,6 +320,7 @@ select.fi{-webkit-appearance:auto;appearance:auto;display:block;max-width:100%;w
       <button class="ds-ni" onclick="navTo('add-lead',this)">➕ 新增客戶資料</button>
 
       <div class="ds-lbl">業務模組</div>
+      <button class="ds-ni" onclick="navTo('broker',this)">💼 貸款仲介</button>
       <button class="ds-ni" onclick="navTo('car-dealer',this)">🚙 中古車商</button>
       <button class="ds-ni" onclick="navTo('car-finance',this)">🚗 融資車貸</button>
       <button class="ds-ni" onclick="navTo('pawn',this)">🏛 民間借款</button>
@@ -1173,7 +1174,7 @@ function navTo(key, el) {
   var bn = document.getElementById('bn-' + key);
   if (bn) bn.classList.add('on');
   // 更新桌機 topbar 標題
-  var titles = {'dash':'儀表板','leads':'客戶名單','add-lead':'新增客戶資料','calendar':'行事曆','finance':'收支理財工具','team':'團隊管理','connections':'🤝 對接管理','notifications':'🔔 通知中心','invite':'邀請碼 / 折扣','calc':'貸款試算','review':'照會生成','antifraud':'詐騙辨識','score-rules':'評分規則','prop-thresholds':'貸款項目設定','appearance':'外觀設定','settings':'帳號設定','report':'問題回報','car-dealer':'🚙 中古車商','car-finance':'🚗 融資車貸','pawn':'🏛 民間借款'};
+  var titles = {'dash':'儀表板','leads':'客戶名單','add-lead':'新增客戶資料','calendar':'行事曆','finance':'收支理財工具','team':'團隊管理','connections':'🤝 對接管理','notifications':'🔔 通知中心','invite':'邀請碼 / 折扣','calc':'貸款試算','review':'照會生成','antifraud':'詐騙辨識','score-rules':'評分規則','prop-thresholds':'貸款項目設定','appearance':'外觀設定','settings':'帳號設定','report':'問題回報','car-dealer':'🚙 中古車商','car-finance':'🚗 融資車貸','pawn':'🏛 民間借款','broker':'💼 貸款仲介'};
   var dt = document.getElementById('dt-title'); if (dt) dt.textContent = titles[key] || '';
   var renders = {
     'dash': renderDash, 'leads': renderLeads, 'add-lead': renderAddLead,
@@ -1187,7 +1188,8 @@ function navTo(key, el) {
     'review': renderReviewPage,
     'pawn': renderPawn,
     'connections': renderConnections,
-    'notifications': renderNotifications
+    'notifications': renderNotifications,
+    'broker': renderBroker
   };
   if (renders[key]) renders[key]();
 }
@@ -1217,6 +1219,18 @@ async function renderDash() {
   el.innerHTML = '<div style="text-align:center;padding:30px;color:var(--t2)">載入中…</div>';
   var r = await sb.from('leads').select('*').eq('member_id', currentUser.id).order('created_at', { ascending: false });
   leads = r.data || [];
+
+  // 載入客戶來源（被轉介來的）
+  var refRes = await sb.from('referrals')
+    .select('lead_id, sender:sender_id(id,name)')
+    .eq('receiver_id', currentUser.id)
+    .eq('status', 'pending');
+  if (refRes.data) {
+    refRes.data.forEach(function(ref) {
+      var lead = leads.find(function(l){ return l.id === ref.lead_id; });
+      if (lead && ref.sender) lead.referral_source = ref.sender.name || '業者';
+    });
+  }
 
   var now = new Date();
   var tms = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -6641,6 +6655,171 @@ async function renderNotifications() {
 
 // 🏛 當鋪管理
 // ══════════════════════════════
+// 🔧 共用：模組客戶名單元件
+// ══════════════════════════════
+function buildModuleLeadList(el, moduleKey, options) {
+  options = options || {};
+  var title = options.title || '客戶名單';
+  var emptyText = options.emptyText || '尚無客戶，請先在客戶名單新增';
+
+  // 從 referrals 表取得客戶來源資訊
+  var referralMap = {}; // lead_id → sender name
+
+  var card = document.createElement('div');
+  card.className = 'card';
+
+  var h = '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">';
+  h += '<div class="ct" style="margin-bottom:0">' + title + ' <span style="font-size:13px;color:var(--t2);font-weight:400">（' + leads.length + ' 位）</span></div>';
+  h += '<button onclick="navTo(\'leads\',null)" class="btn-sm">客戶名單 →</button>';
+  h += '</div>';
+
+  // 搜尋欄
+  h += '<input id="module-lead-search" placeholder="搜尋客戶姓名..." style="width:100%;padding:9px 12px;background:var(--inp);border:0.5px solid var(--bdr2);border-radius:9px;color:var(--inpt);font-size:14px;font-family:var(--sans);margin-bottom:10px;box-sizing:border-box">';
+
+  // 快速篩選狀態
+  h += '<div id="module-lead-filters" style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:10px">';
+  [
+    {val:'', label:'全部'},
+    {val:'new', label:'新名單'},
+    {val:'contact', label:'洽談中'},
+    {val:'closed', label:'已成交'},
+  ].forEach(function(f) {
+    h += '<button onclick="filterModuleLeads(\''+f.val+'\')" data-filter="'+f.val+'" style="padding:4px 12px;border-radius:20px;font-size:12px;font-family:var(--sans);cursor:pointer;border:0.5px solid '+(f.val===''?'var(--acc)':'var(--bdr2)')+';background:'+(f.val===''?'var(--al)':'transparent')+';color:'+(f.val===''?'var(--acc)':'var(--t2)')+'">'+f.label+'</button>';
+  });
+  h += '</div>';
+
+  h += '<div id="module-leads-list"></div>';
+  card.innerHTML = h;
+  el.appendChild(card);
+
+  // 搜尋功能
+  var searchEl = card.querySelector('#module-lead-search');
+  if (searchEl) searchEl.addEventListener('input', function() {
+    renderModuleLeadItems(card, leads, this.value, '');
+  });
+
+  // 初始渲染
+  renderModuleLeadItems(card, leads, '', '');
+}
+
+var moduleLeadFilter = '';
+window.filterModuleLeads = function(status) {
+  moduleLeadFilter = status;
+  var card = document.querySelector('#member-content .card');
+  var search = document.getElementById('module-lead-search');
+  var searchVal = search ? search.value : '';
+  // 更新篩選按鈕樣式
+  document.querySelectorAll('[data-filter]').forEach(function(btn) {
+    var on = btn.dataset.filter === status;
+    btn.style.border = on ? '0.5px solid var(--acc)' : '0.5px solid var(--bdr2)';
+    btn.style.background = on ? 'var(--al)' : 'transparent';
+    btn.style.color = on ? 'var(--acc)' : 'var(--t2)';
+  });
+  renderModuleLeadItems(null, leads, searchVal, status);
+};
+
+function renderModuleLeadItems(card, allLeads, search, statusFilter) {
+  var list = document.getElementById('module-leads-list');
+  if (!list) return;
+  var filtered = allLeads.filter(function(l) {
+    var matchName = !search || (l.name||'').toLowerCase().indexOf(search.toLowerCase()) >= 0;
+    var matchStatus = !statusFilter || l.status === statusFilter;
+    return matchName && matchStatus;
+  });
+  if (filtered.length === 0) {
+    list.innerHTML = '<div style="text-align:center;padding:16px;color:var(--t2);font-size:13px">沒有符合的客戶</div>';
+    return;
+  }
+  list.innerHTML = '';
+  filtered.forEach(function(lead) {
+    var item = document.createElement('div');
+    item.style.cssText = 'border:0.5px solid var(--bdr2);border-radius:10px;padding:10px 12px;margin-bottom:6px;cursor:pointer;transition:border-color .15s';
+    item.onmouseover = function(){ this.style.borderColor='var(--acc)'; };
+    item.onmouseout = function(){ this.style.borderColor='var(--bdr2)'; };
+
+    var badgeClass = statusBadge(lead.status);
+    var h = '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">';
+    h += '<div style="display:flex;align-items:center;gap:8px">';
+    h += '<div style="width:34px;height:34px;border-radius:50%;background:var(--al);color:var(--acc);display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:700">' + (lead.name||'?').charAt(0) + '</div>';
+    h += '<div><div style="font-size:15px;font-weight:600">' + (lead.name||'—') + '</div>';
+    h += '<div style="font-size:12px;color:var(--t2)">' + (lead.work_type||'') + (lead.monthly_salary?' · $'+lead.monthly_salary.toLocaleString()+'/月':'') + '</div></div>';
+    h += '</div>';
+    h += '<span class="badge ' + badgeClass + '">' + statusText(lead.status) + '</span>';
+    h += '</div>';
+    // 來源標示
+    if (lead.referral_source) {
+      h += '<div style="font-size:12px;color:var(--blu);margin-bottom:4px">🔀 來源：' + lead.referral_source + '</div>';
+    }
+    if (lead.required_amount) h += '<div style="font-size:12px;color:var(--t2)">需求：$' + lead.required_amount.toLocaleString() + (lead.fund_purpose?' · '+lead.fund_purpose:'') + '</div>';
+    h += '<div id="module-lead-detail-'+lead.id+'" style="display:none;margin-top:8px;padding-top:8px;border-top:0.5px solid var(--bdr)"></div>';
+
+    item.innerHTML = h;
+    item.onclick = function(e) {
+      if (e.target.tagName === 'BUTTON') return;
+      var detail = item.querySelector('#module-lead-detail-' + lead.id);
+      if (!detail) return;
+      if (detail.style.display === 'none') {
+        detail.style.display = 'block';
+        detail.innerHTML =
+          '<div style="display:grid;grid-template-columns:repeat(2,1fr);gap:6px;margin-bottom:8px">' +
+          (lead.phone?'<div style="font-size:13px"><span style="color:var(--t3)">電話</span> '+lead.phone+'</div>':'') +
+          (lead.age?'<div style="font-size:13px"><span style="color:var(--t3)">年齡</span> '+lead.age+'歲</div>':'') +
+          (lead.address?'<div style="font-size:13px;grid-column:1/-1"><span style="color:var(--t3)">地址</span> '+lead.address+'</div>':'') +
+          (lead.alert_status&&lead.alert_status!=='none'?'<div style="font-size:13px;color:var(--red)">⚠️ '+lead.alert_status+'</div>':'') +
+          '</div>' +
+          '<button onclick="navTo(\'leads\',null);setTimeout(function(){showLeadDetail(\''+lead.id+'\')},300)" class="btn-p" style="width:100%;font-size:13px">查看完整資料 →</button>';
+      } else {
+        detail.style.display = 'none';
+      }
+    };
+    list.appendChild(item);
+  });
+}
+
+// ══════════════════════════════
+// 💼 貸款仲介模組
+// ══════════════════════════════
+var brokerTab = 'leads';
+
+function renderBroker() {
+  var el = document.getElementById('member-content');
+  el.innerHTML = '';
+
+  var tabDiv = document.createElement('div');
+  tabDiv.style.cssText = 'display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap';
+  [
+    {key:'leads',       label:'👥 客戶名單'},
+    {key:'partners',    label:'🤝 配合業者'},
+  ].forEach(function(t) {
+    var btn = document.createElement('button');
+    var on = brokerTab === t.key;
+    btn.style.cssText = 'padding:7px 14px;border-radius:20px;font-size:14px;cursor:pointer;border:0.5px solid '+(on?'var(--acc)':'var(--bdr2)')+';background:'+(on?'var(--al)':'transparent')+';color:'+(on?'var(--acc)':'var(--t1)')+';font-family:var(--sans)';
+    btn.textContent = t.label;
+    btn.onclick = (function(k){ return function(){ brokerTab=k; renderBroker(); }; })(t.key);
+    tabDiv.appendChild(btn);
+  });
+  el.appendChild(tabDiv);
+
+  if (brokerTab === 'leads') {
+    buildModuleLeadList(el, 'broker', {title:'💼 我的客戶名單', emptyText:'尚無客戶，點「新增客戶資料」開始'});
+  } else {
+    renderConnections();
+  }
+}
+
+// 各模組整合客戶名單的函數
+function buildModuleLeadSection(el, moduleKey) {
+  var sectionCard = document.createElement('div');
+  sectionCard.className = 'card';
+  sectionCard.style.marginTop = '12px';
+  var h = '<div class="ct">👥 相關客戶</div>';
+  h += '<div style="font-size:13px;color:var(--t2);margin-bottom:10px">點擊客戶可展開查看基本資訊</div>';
+  sectionCard.innerHTML = h;
+  el.appendChild(sectionCard);
+  buildModuleLeadList(sectionCard, moduleKey, {title:'', emptyText:'尚無客戶'});
+}
+
+// ══════════════════════════════
 var pawnLoans = [];
 var pawnTab = 'list'; // list | add | stats
 
@@ -6661,8 +6840,9 @@ function buildPawnUI(el) {
   var tabDiv = document.createElement('div');
   tabDiv.style.cssText = 'display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap;align-items:center';
   [
-    {key:'list',  icon:'📋', label:'借款名單'},
-    {key:'stats', icon:'📊', label:'收益統計'},
+    {key:'list',      icon:'📋', label:'借款名單'},
+    {key:'customers', icon:'👥', label:'客戶名單'},
+    {key:'stats',     icon:'📊', label:'收益統計'},
   ].forEach(function(t) {
     var btn = document.createElement('button');
     var on = pawnTab === t.key;
@@ -6680,6 +6860,7 @@ function buildPawnUI(el) {
   el.appendChild(tabDiv);
 
   if (pawnTab === 'list') buildPawnListTab(el);
+  else if (pawnTab === 'customers') buildModuleLeadList(el, 'pawn', {title:'👥 借款客戶名單'});
   else buildPawnStatsTab(el);
 }
 
@@ -7175,6 +7356,7 @@ function buildCarDealerUI(el) {
   [
     {key:'inventory', icon:'🚙', label:'我的庫存'},
     {key:'market',    icon:'📋', label:'在售車輛表'},
+    {key:'customers', icon:'👥', label:'客戶名單'},
     {key:'connections', icon:'🤝', label:'配合業者'},
   ].forEach(function(t) {
     var btn = document.createElement('button');
@@ -7195,6 +7377,7 @@ function buildCarDealerUI(el) {
 
   if (carDealerTab === 'inventory') buildCarInventoryTab(el);
   else if (carDealerTab === 'market') buildCarMarketTab(el);
+  else if (carDealerTab === 'customers') buildModuleLeadList(el, 'car-dealer', {title:'👥 購車客戶名單'});
   else if (carDealerTab === 'connections') buildCarConnectionsTab(el);
 }
 
@@ -7579,9 +7762,10 @@ function buildCarFinanceUI(el) {
   var tabDiv = document.createElement('div');
   tabDiv.style.cssText = 'display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap';
   [
-    {key:'review',   icon:'📋', label:'照會生成'},
-    {key:'template', icon:'⚙️', label:'範本設定'},
-    {key:'market',   icon:'🚙', label:'配合車行車輛'},
+    {key:'review',    icon:'📋', label:'照會生成'},
+    {key:'customers', icon:'👥', label:'客戶名單'},
+    {key:'template',  icon:'⚙️', label:'範本設定'},
+    {key:'market',    icon:'🚙', label:'配合車行車輛'},
   ].forEach(function(t) {
     var btn = document.createElement('button');
     var on = carFinanceTab === t.key;
@@ -7593,6 +7777,7 @@ function buildCarFinanceUI(el) {
   el.appendChild(tabDiv);
 
   if (carFinanceTab === 'review') buildReviewTab(el);
+  else if (carFinanceTab === 'customers') buildModuleLeadList(el, 'car-finance', {title:'👥 融資客戶名單'});
   else if (carFinanceTab === 'template') buildTemplateTab(el);
   else if (carFinanceTab === 'market') buildMarketViewTab(el);
 }
