@@ -1492,43 +1492,16 @@ async function renderDash() {
   };
   var convRate = total > 0 ? Math.round(closed/total*100) : 0;
 
+  // ── 1. 本週行程 ──
   html += '<div class="card" style="margin-bottom:14px">';
-  html += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">';
-  html += '<div class="ct" style="margin-bottom:0">本月案件進度</div>';
-  html += '<div style="font-size:14px;font-weight:700;color:var(--grn)">成交率 '+convRate+'%</div>';
+  html += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">';
+  html += '<div class="ct" style="margin-bottom:0">📅 本週行程</div>';
+  html += '<button onclick="navTo(\'calendar\',null)" class="btn-sm">查看完整行事曆 →</button>';
   html += '</div>';
-  // 漏斗圖
-  var funnelSteps = [
-    {key:'new',       label:'新名單', val:statusGroups.new,       col:'#888'},
-    {key:'invited',   label:'邀約',   val:statusGroups.invited,   col:'#C8511A'},
-    {key:'submitting',label:'送件',   val:statusGroups.submitting,col:'#B88020'},
-    {key:'approved',  label:'核准',   val:statusGroups.approved,  col:'#2D7AB8'},
-    {key:'closed',    label:'結案',   val:statusGroups.closed,    col:'#2D8A4E'},
-  ];
-  var maxVal = Math.max.apply(null, funnelSteps.map(function(s){return s.val;})) || 1;
-  html += '<div style="display:flex;flex-direction:column;gap:4px">';
-  funnelSteps.forEach(function(step) {
-    var barW = Math.max(8, Math.round(step.val / maxVal * 100));
-    html += '<div style="display:flex;align-items:center;gap:8px">';
-    html += '<div style="font-size:12px;color:var(--t2);width:32px;text-align:right;flex-shrink:0">'+step.label+'</div>';
-    html += '<div style="flex:1;background:var(--inp);border-radius:4px;height:20px;overflow:hidden">';
-    html += '<div style="height:100%;width:'+barW+'%;background:'+step.col+';border-radius:4px;display:flex;align-items:center;padding-left:6px;transition:width .4s">';
-    if (step.val > 0) html += '<span style="font-size:11px;color:#FFF;font-weight:600">'+step.val+'</span>';
-    html += '</div></div>';
-    html += '<div style="font-size:13px;font-weight:600;width:24px;color:'+step.col+'">'+step.val+'</div>';
-    html += '</div>';
-  });
-  html += '</div>';
-  // 其他狀態
-  if (statusGroups.rejected > 0 || statusGroups.lost > 0) {
-    html += '<div style="display:flex;gap:8px;margin-top:8px;padding-top:8px;border-top:0.5px solid var(--bdr)">';
-    if (statusGroups.rejected > 0) html += '<span style="font-size:12px;color:var(--red)">無法承作 '+statusGroups.rejected+'</span>';
-    if (statusGroups.lost > 0) html += '<span style="font-size:12px;color:var(--t3)">失聯 '+statusGroups.lost+'</span>';
-    html += '</div>';
-  }
+  html += '<div id="dash-week-events"><div style="text-align:center;padding:10px;color:var(--t2);font-size:13px"><div class="spinner" style="margin:0 auto 6px"></div>載入中...</div></div>';
   html += '</div>';
 
-  // ── 四格統計卡 ──
+  // ── 2. 四格統計卡 ──
   html += '<div class="stat-grid" style="margin-bottom:14px">';
   html += '<div class="stat-card"><div class="stat-l">本月名單</div><div class="stat-v">' + total + '</div><div class="stat-s">'+arrowSpan(total,lmL)+' vs 上月</div></div>';
   html += '<div class="stat-card"><div class="stat-l">本月成交</div><div class="stat-v" style="color:var(--grn)">' + closed + '</div><div class="stat-s">'+arrowSpan(closed,lmC)+' vs 上月</div></div>';
@@ -1536,7 +1509,7 @@ async function renderDash() {
   html += '<div class="stat-card"><div class="stat-l">不動產名單</div><div class="stat-v">' + propL + '</div><div class="stat-s">含三胎 ' + thisLeads.filter(function(l){return l.property_loan3>0;}).length + ' 筆</div></div>';
   html += '</div>';
 
-  // ── 業績收入比較（四欄大卡片風格）──
+  // ── 3. 業績收入比較（四欄大卡片風格）──
   html += '<div class="card" style="margin-bottom:14px">';
   html += '<div class="ct">業績收入比較</div>';
   html += '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px">';
@@ -1656,6 +1629,47 @@ async function renderDash() {
   if (bot && window.innerWidth >= 768) {
     bot.style.gridTemplateColumns = '1fr 1fr';
   }
+
+  // ── 載入本週行程 ──
+  (async function() {
+    var weekEl = document.getElementById('dash-week-events');
+    if (!weekEl) return;
+    var today = new Date();
+    var todayStr = today.toISOString().split('T')[0];
+    var in7 = new Date(today.getTime() + 7*24*60*60*1000).toISOString().split('T')[0];
+    var evRes = await sb.from('schedules')
+      .select('*')
+      .eq('member_id', currentUser.id)
+      .gte('event_date', todayStr)
+      .lte('event_date', in7)
+      .order('event_date', {ascending: true})
+      .limit(10);
+    var events = evRes.data || [];
+    if (events.length === 0) {
+      weekEl.innerHTML = '<div style="text-align:center;padding:14px;color:var(--t2);font-size:13px">本週尚無行程<br><button onclick="navTo(\'calendar\',null)" style="margin-top:8px;padding:6px 16px;border-radius:7px;border:0.5px solid var(--bdr2);background:transparent;color:var(--acc);cursor:pointer;font-family:var(--sans);font-size:13px">+ 新增行程</button></div>';
+      return;
+    }
+    var dayNames = ['日','一','二','三','四','五','六'];
+    var html2 = '';
+    events.forEach(function(ev) {
+      var d = new Date(ev.event_date + 'T00:00:00');
+      var isToday = ev.event_date === todayStr;
+      var dayLabel = isToday ? '今天' : (d.getMonth()+1)+'/'+d.getDate()+'（'+dayNames[d.getDay()]+'）';
+      var typeColors = {meeting:'var(--acc)', followup:'#2D7AB8', document:'#B88020', other:'var(--t2)'};
+      var col = typeColors[ev.event_type] || 'var(--t2)';
+      html2 += '<div onclick="navTo(\'calendar\',null)" style="display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:9px;margin-bottom:5px;background:var(--inp);cursor:pointer;border:0.5px solid '+(isToday?'var(--acc)':'transparent')+'">';
+      html2 += '<div style="text-align:center;min-width:44px;flex-shrink:0"><div style="font-size:11px;color:'+(isToday?'var(--acc)':'var(--t2)')+'">'+dayLabel+'</div>';
+      if (ev.event_time) html2 += '<div style="font-size:13px;font-weight:600;color:var(--t0)">'+ev.event_time.slice(0,5)+'</div>';
+      html2 += '</div>';
+      html2 += '<div style="width:3px;height:36px;border-radius:2px;background:'+col+';flex-shrink:0"></div>';
+      html2 += '<div style="flex:1;min-width:0"><div style="font-size:14px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+( ev.title||'行程')+'</div>';
+      if (ev.description) html2 += '<div style="font-size:12px;color:var(--t2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+ev.description+'</div>';
+      html2 += '</div>';
+      if (isToday) html2 += '<span style="font-size:11px;padding:2px 6px;border-radius:10px;background:var(--al);color:var(--acc);flex-shrink:0">今天</span>';
+      html2 += '</div>';
+    });
+    weekEl.innerHTML = html2;
+  })();
 
   var dashList = document.getElementById('dash-list');
   if (dashList) {
