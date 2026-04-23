@@ -407,7 +407,10 @@ select.fi{-webkit-appearance:auto;appearance:auto;display:block;max-width:100%;w
 
       <!-- 業務模組 -->
       <div style="font-size:11px;color:var(--t3);font-weight:600;letter-spacing:0.5px;margin-bottom:8px;text-transform:uppercase">其他業務</div>
-      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:16px">
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:16px">
+        <button onclick="hideMobileMoreMenu();navTo('broker',null)" style="display:flex;flex-direction:column;align-items:center;gap:5px;padding:14px 6px;background:var(--al);border:0.5px solid rgba(200,81,26,.2);border-radius:12px;cursor:pointer;font-family:var(--sans)">
+          <span style="font-size:26px">💼</span><span style="font-size:12px;color:var(--acc);font-weight:500">貸款仲介</span>
+        </button>
         <button onclick="hideMobileMoreMenu();navTo('car-dealer',null)" style="display:flex;flex-direction:column;align-items:center;gap:5px;padding:14px 6px;background:var(--al);border:0.5px solid rgba(200,81,26,.2);border-radius:12px;cursor:pointer;font-family:var(--sans)">
           <span style="font-size:26px">🚙</span><span style="font-size:12px;color:var(--acc);font-weight:500">中古車商</span>
         </button>
@@ -3245,8 +3248,8 @@ function renderFinance() {
     return '<span style="color:'+(v>=0?'var(--grn)':'var(--red)')+'\">'+(v>=0?'▲':'▼')+Math.abs(v)+'%</span>';
   }
 
-  var tabs = ['overview','expenses','income','remind'].map(function(t) {
-    var label = {overview:'📊 本月總覽', expenses:'💸 支出管理', income:'💰 收入設定', remind:'🔔 繳款提醒'}[t];
+  var tabs = ['overview','business','expenses','income','remind'].map(function(t) {
+    var label = {overview:'📊 本月總覽', business:'💼 業務收入', expenses:'💸 支出管理', income:'💰 收入設定', remind:'🔔 繳款提醒'}[t];
     var on = financeTab===t;
     return '<button onclick="financeTab=\'' + t + '\';renderFinance()" style="padding:7px 14px;border-radius:20px;font-size:14px;cursor:pointer;border:0.5px solid '+(on?'var(--acc)':'var(--bdr2)')+';background:'+(on?'var(--al)':'transparent')+';color:'+(on?'var(--acc)':'var(--t1)')+';font-family:var(--sans)">' + label + '</button>';
   }).join('');
@@ -3417,6 +3420,107 @@ function renderFinance() {
     content += '<div style="display:flex;gap:6px;margin-top:8px"><button class="btn-sm" onclick="document.getElementById(\'add-extra-form\').style.display=\'none\'">取消</button>';
     content += '<button class="btn-p" onclick="saveExtra()" style="flex:1">新增</button></div></div>';
     content += '</div>';
+
+  // ──────────────────────────────────
+  } else if (financeTab === 'business') {
+    // 從 lead_closings 整合各業務收入
+    content += '<div class="card"><div class="ct">💼 業務收入總覽</div>';
+    content += '<div style="font-size:13px;color:var(--t2);margin-bottom:12px">整合所有業務模組的結案收入</div>';
+
+    // 統計各業務類型
+    var typeStats = {};
+    var typeLabels = {
+      'car_loan':'🚗 汽車貸款', 'credit_loan':'🏦 信用貸款',
+      'bike_loan':'🛵 機車貸款', 'phone_loan':'📱 手機商品貸',
+      'pawn':'🏛 當鋪出款', 'property':'🏠 不動產抵押',
+      'other':'📝 其他'
+    };
+    var totalMyIncome2 = 0;
+
+    // 本月結案的收入（從 leads 的 dealData）
+    var thisMonthLeads = leads.filter(function(l){
+      var d = new Date(l.created_at||l.updated_at||0);
+      return l.status==='closed' && d >= tms;
+    });
+
+    // 從 leadClosings 統計
+    var allClosingItems = [];
+    Object.keys(leadClosings).forEach(function(leadId) {
+      (leadClosings[leadId]||[]).forEach(function(item) {
+        allClosingItems.push(item);
+      });
+    });
+
+    // 本月結案項目
+    var thisMonthClosings = allClosingItems.filter(function(item) {
+      var d = new Date(item.created_at||0);
+      return d >= tms;
+    });
+
+    // 計算各業務收入
+    allClosingItems.forEach(function(item) {
+      var type = item.closing_type || 'other';
+      if (!typeStats[type]) typeStats[type] = {count:0, total:0, myIncome:0};
+      typeStats[type].count++;
+      var myIncome3 = 0;
+      if (item.closing_type === 'pawn' && item.closed_amount) {
+        myIncome3 = Math.round(item.closed_amount * (item.my_rate||0) / 100);
+      } else if (item.closing_type === 'property' && item.closed_amount && item.pawn_monthly_rate) {
+        myIncome3 = Math.round(item.closed_amount * (item.my_rate||0) / 100);
+      } else {
+        myIncome3 = item.closed_amount ? Math.round(item.closed_amount * (item.my_rate||100) / 100) : 0;
+      }
+      typeStats[type].myIncome += myIncome3;
+      totalMyIncome2 += myIncome3;
+    });
+
+    // 總覽卡
+    content += '<div style="display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:14px">';
+    content += '<div style="background:var(--gl);border-radius:8px;padding:12px;text-align:center"><div style="font-size:12px;color:var(--t2);margin-bottom:4px">全部結案項目</div><div style="font-size:22px;font-weight:800;color:var(--grn)">'+allClosingItems.length+'</div><div style="font-size:11px;color:var(--t3)">筆</div></div>';
+    content += '<div style="background:var(--gl);border-radius:8px;padding:12px;text-align:center"><div style="font-size:12px;color:var(--t2);margin-bottom:4px">我的總收入</div><div style="font-size:20px;font-weight:800;color:var(--grn)">$'+totalMyIncome2.toLocaleString()+'</div></div>';
+    content += '</div>';
+
+    // 各業務分類
+    if (Object.keys(typeStats).length === 0) {
+      content += '<div style="text-align:center;padding:16px;color:var(--t2)">尚無結案收入記錄<br><span style="font-size:12px">在客戶詳情的「結案項目」新增後會顯示在這裡</span></div>';
+    } else {
+      Object.keys(typeStats).forEach(function(type) {
+        var stat = typeStats[type];
+        content += '<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:0.5px solid var(--bdr)">';
+        content += '<div><div style="font-size:14px;font-weight:500">'+(typeLabels[type]||type)+'</div>';
+        content += '<div style="font-size:12px;color:var(--t2)">'+stat.count+' 筆結案</div></div>';
+        content += '<div style="text-align:right"><div style="font-size:15px;font-weight:700;color:var(--grn)">$'+stat.myIncome.toLocaleString()+'</div>';
+        content += '<div style="font-size:11px;color:var(--t3)">我的收入</div></div>';
+        content += '</div>';
+      });
+    }
+
+    content += '</div>';
+
+    // 民間借款每月利息收入統計
+    var pawnItems = allClosingItems.filter(function(i){ return i.closing_type==='pawn'||i.closing_type==='property'; });
+    if (pawnItems.length > 0) {
+      content += '<div class="card"><div class="ct">🏛 民間借款 / 不動產月利息收入</div>';
+      var totalMonthlyInterest = 0;
+      pawnItems.forEach(function(item) {
+        if (item.closed_amount && item.pawn_monthly_rate) {
+          var monthly = Math.round(item.closed_amount * item.my_rate / 100);
+          totalMonthlyInterest += monthly;
+          var lead = leads.find(function(l){ return l.id === item.lead_id; });
+          content += '<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:0.5px solid var(--bdr)">';
+          content += '<div><div style="font-size:14px">'+(lead?lead.name:'—')+'</div>';
+          content += '<div style="font-size:12px;color:var(--t2)">$'+item.closed_amount.toLocaleString()+' × '+item.pawn_monthly_rate+'%</div></div>';
+          content += '<div style="text-align:right"><div style="font-size:14px;font-weight:600;color:var(--grn)">$'+monthly.toLocaleString()+'</div>';
+          content += '<div style="font-size:11px;color:var(--t3)">每月我的利息</div></div>';
+          content += '</div>';
+        }
+      });
+      content += '<div style="display:flex;justify-content:space-between;padding:10px 0;font-weight:600">';
+      content += '<span style="color:var(--grn)">每月利息總收入</span>';
+      content += '<span style="font-size:16px;color:var(--grn)">$'+totalMonthlyInterest.toLocaleString()+'</span>';
+      content += '</div>';
+      content += '</div>';
+    }
 
   // ──────────────────────────────────
   } else if (financeTab === 'expenses') {
@@ -5361,6 +5465,19 @@ function submitReport() {
 // ══════════════════════════════
 // 帳號設定
 // ══════════════════════════════
+function showCustomerFormQR() {
+  var container = document.getElementById('qr-container');
+  if (!container) return;
+  if (container.style.display !== 'none') { container.style.display = 'none'; return; }
+  var formUrl = 'https://guwen-pro.vercel.app/customer_form.html?m=' + (currentUser ? currentUser.id : '');
+  container.style.display = 'block';
+  container.innerHTML =
+    '<div style="background:#FFF;display:inline-block;padding:12px;border-radius:10px;margin-bottom:8px">' +
+    '<img src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=' + encodeURIComponent(formUrl) + '" width="200" height="200">' +
+    '</div><br>' +
+    '<div style="font-size:12px;color:var(--t2)">客戶掃描後可直接填寫資料</div>';
+}
+
 function renderSettings() {
   var m = currentMember || {};
   var el = document.getElementById('member-content');
@@ -5376,6 +5493,22 @@ function renderSettings() {
   }
 
   var html = '';
+
+  // 📋 客戶填寫連結
+  var formUrl = 'https://guwen-pro.vercel.app/customer_form.html?m=' + (currentUser ? currentUser.id : '');
+  html += '<div class="card">';
+  html += '<div class="ct">📋 客戶資料填寫連結</div>';
+  html += '<div style="font-size:13px;color:var(--t2);margin-bottom:10px">分享給客戶，讓他們自行填寫基本資料，填完後自動通知您</div>';
+  html += '<div style="display:flex;gap:6px;margin-bottom:10px">';
+  html += '<input id="form-url-input" value="'+formUrl+'" readonly style="flex:1;padding:8px 10px;background:var(--inp);border:0.5px solid var(--bdr2);border-radius:8px;color:var(--t2);font-size:12px;font-family:monospace">';
+  html += '<button onclick="navigator.clipboard.writeText(\''+formUrl+'\').then(function(){alert(\'已複製連結！\')})" class="btn-sm">複製</button>';
+  html += '</div>';
+  html += '<div style="display:flex;gap:8px;flex-wrap:wrap">';
+  html += '<button onclick="showCustomerFormQR()" style="padding:8px 16px;border-radius:8px;border:0.5px solid var(--bdr2);background:transparent;color:var(--t1);cursor:pointer;font-family:var(--sans);font-size:13px">📱 顯示 QR Code</button>';
+  html += '<button onclick="window.open(\'https://line.me/R/share?text='+encodeURIComponent('請點選連結填寫貸款諮詢資料：\n'+formUrl)+'\',\'_blank\')" style="padding:8px 16px;border-radius:8px;border:none;background:#06C755;color:#FFF;cursor:pointer;font-family:var(--sans);font-size:13px;font-weight:600">📱 LINE 分享</button>';
+  html += '</div>';
+  html += '<div id="qr-container" style="display:none;margin-top:12px;text-align:center"></div>';
+  html += '</div>';
 
   // 帳號資訊
   html += '<div class="card">';
@@ -6628,7 +6761,7 @@ async function renderNotifications() {
     card.innerHTML = '<div class="ct">🔔 通知中心</div><div style="text-align:center;padding:20px;color:var(--t2)">目前沒有通知</div>';
   } else {
     var h = '<div class="ct">🔔 通知中心</div>';
-    var typeIcons = { connection_request:'🤝', connection_accepted:'✅', pawn_due:'🏛', car_reserved:'🚙', referral_received:'🔀', default:'📢' };
+    var typeIcons = { connection_request:'🤝', connection_accepted:'✅', pawn_due:'🏛', car_reserved:'🚙', referral_received:'🔀', new_customer_form:'📋', property_doc_shared:'🏠', default:'📢' };
     notifs.forEach(function(n) {
       var isNew = !n.is_read;
       var icon = typeIcons[n.type] || typeIcons.default;
@@ -6641,6 +6774,9 @@ async function renderNotifications() {
       if (n.type === 'connection_request') {
         h += '<button id="notif-go-conn-' + n.id + '" style="font-size:12px;padding:4px 10px;border-radius:6px;border:0.5px solid var(--acc);background:var(--al);color:var(--acc);cursor:pointer;font-family:var(--sans);white-space:nowrap;align-self:center">前往處理</button>';
       }
+      if (n.type === 'new_customer_form') {
+        h += '<button id="notif-go-lead-' + n.id + '" style="font-size:12px;padding:4px 10px;border-radius:6px;border:0.5px solid var(--grn);background:var(--gl);color:var(--grn);cursor:pointer;font-family:var(--sans);white-space:nowrap;align-self:center">查看客戶</button>';
+      }
       h += '</div>';
     });
     card.innerHTML = h;
@@ -6648,6 +6784,13 @@ async function renderNotifications() {
     notifs.forEach(function(n) {
       var btn = card.querySelector('#notif-go-conn-' + n.id);
       if (btn) btn.onclick = function(){ navTo('connections', null); };
+      var leadBtn = card.querySelector('#notif-go-lead-' + n.id);
+      if (leadBtn) leadBtn.onclick = function(){
+        navTo('leads', null);
+        if (n.data && n.data.lead_id) {
+          setTimeout(function(){ showLeadDetail(n.data.lead_id); }, 400);
+        }
+      };
     });
   }
   el.appendChild(card);
