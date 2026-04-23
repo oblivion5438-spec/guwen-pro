@@ -54,6 +54,9 @@ html,body{height:100%;background:var(--bg);color:var(--t0);font-family:var(--san
 [style*="font-size:13px"]{font-size:14px!important}
 [style*="font-size:11px"]{font-size:12px!important}
 [style*="font-size:10px"]{font-size:11px!important}
+/* 手機側欄選單項目 */
+.mob-sb-item{display:flex;align-items:center;gap:10px;width:100%;padding:11px 12px;border-radius:9px;border:none;background:transparent;color:var(--t1);font-size:15px;font-family:var(--sans);cursor:pointer;text-align:left;transition:background .12s;margin-bottom:2px}
+.mob-sb-item:active,.mob-sb-item:hover{background:var(--inp)}
 input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}
 input[type=number]{-moz-appearance:textfield}
 
@@ -105,9 +108,7 @@ select.fi{-webkit-appearance:auto;appearance:auto;display:block;max-width:100%;w
 .avatar{width:30px;height:30px;border-radius:50%;background:var(--al);color:var(--acc);display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:600;cursor:pointer}
 
 /* ── BOTTOM NAV ── */
-.bottom-nav{background:var(--bg);border-top:0.5px solid var(--bdr);display:flex;flex-shrink:0;padding-bottom:env(safe-area-inset-bottom)}
-.bn-item{flex:1;display:flex;flex-direction:column;align-items:center;padding:8px 4px 6px;cursor:pointer;border:none;background:none;font-family:var(--sans);color:var(--t3);font-size:16px;gap:3px;transition:color .15s}
-.bn-item.on{color:var(--acc)}
+.bn-item{display:none}
 .bn-icon{font-size:20px;line-height:1}
 
 /* ── CONTENT ── */
@@ -351,10 +352,12 @@ select.fi{-webkit-appearance:auto;appearance:auto;display:block;max-width:100%;w
       <button class="ds-ni" onclick="navTo('add-lead',this)">➕ 新增客戶資料</button>
 
       <div class="ds-lbl">業務模組</div>
-      <button class="ds-ni" onclick="navTo('broker',this)">💼 貸款仲介</button>
-      <button class="ds-ni" onclick="navTo('car-dealer',this)">🚙 中古車商</button>
-      <button class="ds-ni" onclick="navTo('car-finance',this)">🚗 融資車貸</button>
-      <button class="ds-ni" onclick="navTo('pawn',this)">🏛 民間借款</button>
+      <div id="sidebar-business-modules">
+        <button class="ds-ni" onclick="navTo('broker',this)">💼 貸款仲介</button>
+        <button class="ds-ni" onclick="navTo('car-dealer',this)">🚙 中古車商</button>
+        <button class="ds-ni" onclick="navTo('car-finance',this)">🚗 融資車貸</button>
+        <button class="ds-ni" onclick="navTo('pawn',this)">🏛 民間借款</button>
+      </div>
       <button class="ds-ni" onclick="navTo('review',this)">📋 照會生成</button>
       <button class="ds-ni" onclick="navTo('connections',this)">🤝 對接管理 <span id="conn-badge" style="display:none;background:var(--red);color:#FFF;font-size:11px;padding:1px 6px;border-radius:10px;margin-left:4px">0</span></button>
       <button class="ds-ni" onclick="navTo('notifications',this)">🔔 通知中心 <span id="notif-badge" style="display:none;background:var(--red);color:#FFF;font-size:11px;padding:1px 6px;border-radius:10px;margin-left:4px">0</span></button>
@@ -387,11 +390,82 @@ select.fi{-webkit-appearance:auto;appearance:auto;display:block;max-width:100%;w
   <div class="desktop-main">
     <!-- 手機 topbar -->
     <div class="topbar">
-      <div class="top-logo">顧問<span>PRO</span></div>
+      <!-- 漢堡選單按鈕 -->
+      <button onclick="toggleMobileSidebar()" style="background:transparent;border:none;cursor:pointer;padding:6px;color:var(--t1);display:flex;flex-direction:column;gap:5px;justify-content:center">
+        <div style="width:22px;height:2px;background:var(--t1);border-radius:2px"></div>
+        <div style="width:22px;height:2px;background:var(--t1);border-radius:2px"></div>
+        <div style="width:22px;height:2px;background:var(--t1);border-radius:2px"></div>
+      </button>
+      <div class="top-logo" style="position:absolute;left:50%;transform:translateX(-50%)">顧問<span>PRO</span></div>
       <div class="top-right">
-        <span class="badge b-acc" id="plan-badge">基本版</span>
         <button onclick="showGlobalSearch()" style="background:transparent;border:none;cursor:pointer;font-size:20px;padding:4px;color:var(--t2)">🔍</button>
         <div class="avatar" id="member-avatar" onclick="navTo('settings',null)">顧</div>
+      </div>
+    </div>
+
+    <!-- 手機側欄遮罩 -->
+    <div id="mob-sidebar-overlay" onclick="closeMobileSidebar()" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.6);z-index:9990;backdrop-filter:blur(2px)"></div>
+
+    <!-- 手機左側滑出側欄 -->
+    <div id="mob-sidebar" style="position:fixed;top:0;left:-300px;width:280px;height:100%;background:var(--card);z-index:9991;overflow-y:auto;transition:left .25s cubic-bezier(.4,0,.2,1);box-shadow:4px 0 30px rgba(0,0,0,.5);display:flex;flex-direction:column">
+
+      <!-- 側欄頂部 -->
+      <div style="padding:50px 16px 16px;border-bottom:0.5px solid var(--bdr);flex-shrink:0">
+        <div style="display:flex;align-items:center;justify-content:space-between">
+          <div style="font-size:22px;font-weight:900;color:var(--t1)">顧問<span style="color:var(--acc)">PRO</span></div>
+          <button onclick="closeMobileSidebar()" style="background:var(--inp);border:none;border-radius:50%;width:32px;height:32px;font-size:18px;cursor:pointer;color:var(--t2);display:flex;align-items:center;justify-content:center">✕</button>
+        </div>
+        <div id="mob-sb-member" style="display:flex;align-items:center;gap:10px;margin-top:12px">
+          <div style="width:38px;height:38px;border-radius:50%;background:var(--al);color:var(--acc);display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:700;flex-shrink:0" id="mob-sb-avatar">顧</div>
+          <div><div style="font-size:14px;font-weight:600" id="mob-sb-name">顧問</div>
+          <div style="font-size:12px;color:var(--t2)" id="mob-sb-plan">試用版</div></div>
+        </div>
+      </div>
+
+      <!-- 側欄選單 -->
+      <div style="flex:1;padding:12px 10px;overflow-y:auto">
+
+        <div style="font-size:11px;color:var(--t3);font-weight:600;letter-spacing:0.5px;padding:8px 8px 4px;text-transform:uppercase">客戶管理</div>
+        <button class="mob-sb-item" onclick="mobNav('dash')">📊 儀表板</button>
+        <button class="mob-sb-item" onclick="mobNav('leads')">👥 客戶名單</button>
+        <button class="mob-sb-item" onclick="mobNav('add-lead')">➕ 新增客戶資料</button>
+
+        <div style="font-size:11px;color:var(--t3);font-weight:600;letter-spacing:0.5px;padding:12px 8px 4px;text-transform:uppercase">業務模組</div>
+        <button class="mob-sb-item" onclick="mobNav('broker')">💼 貸款仲介</button>
+        <button class="mob-sb-item" onclick="mobNav('car-dealer')">🚙 中古車商</button>
+        <button class="mob-sb-item" onclick="mobNav('car-finance')">🚗 融資車貸</button>
+        <button class="mob-sb-item" onclick="mobNav('pawn')">🏛 民間借款</button>
+        <button class="mob-sb-item" onclick="mobNav('review')">📋 照會生成</button>
+        <button class="mob-sb-item" onclick="mobNav('connections')">🤝 對接管理</button>
+        <button class="mob-sb-item" onclick="mobNav('notifications')">
+          🔔 通知中心 <span id="mob-sb-notif-badge" style="display:none;background:var(--red);color:#FFF;font-size:10px;padding:1px 6px;border-radius:10px;margin-left:auto"></span>
+        </button>
+
+        <div style="font-size:11px;color:var(--t3);font-weight:600;letter-spacing:0.5px;padding:12px 8px 4px;text-transform:uppercase">行程與財務</div>
+        <button class="mob-sb-item" onclick="mobNav('calendar')">📅 行事曆</button>
+        <button class="mob-sb-item" onclick="mobNav('finance')">💰 收支理財工具</button>
+        <button class="mob-sb-item" onclick="mobNav('team')">🏢 團隊管理</button>
+
+        <div style="font-size:11px;color:var(--t3);font-weight:600;letter-spacing:0.5px;padding:12px 8px 4px;text-transform:uppercase">其他工具</div>
+        <button class="mob-sb-item" onclick="mobNav('calc')">🧮 貸款試算</button>
+        <button class="mob-sb-item" onclick="mobNav('antifraud')">🛡️ 詐騙辨識</button>
+        <button class="mob-sb-item" onclick="mobNav('invite')">🎁 邀請碼 / 折扣</button>
+        <button class="mob-sb-item" onclick="mobNav('biz-card')">🪪 顧問名片</button>
+        <button class="mob-sb-item" onclick="mobNav('monthly-report')">📋 月報匯出</button>
+
+        <div style="font-size:11px;color:var(--t3);font-weight:600;letter-spacing:0.5px;padding:12px 8px 4px;text-transform:uppercase">系統設定</div>
+        <button class="mob-sb-item" onclick="mobNav('score-rules')">🎯 評分規則</button>
+        <button class="mob-sb-item" onclick="mobNav('prop-thresholds')">🏠 不動產評分規則</button>
+        <button class="mob-sb-item" onclick="mobNav('appearance')">🎨 外觀設定</button>
+        <button class="mob-sb-item" onclick="mobNav('settings')">⚙️ 帳號設定</button>
+        <button class="mob-sb-item" onclick="mobNav('upgrade')" style="color:var(--acc);font-weight:600">⭐ 升級方案</button>
+        <button class="mob-sb-item" onclick="mobNav('report')">🚩 問題回報</button>
+
+      </div>
+
+      <!-- 底部登出 -->
+      <div style="padding:12px 10px;border-top:0.5px solid var(--bdr);flex-shrink:0">
+        <button onclick="closeMobileSidebar();doLogout()" style="width:100%;padding:12px;background:rgba(192,64,48,.12);border:0.5px solid rgba(192,64,48,.3);border-radius:10px;color:var(--red);font-size:14px;font-weight:600;cursor:pointer;font-family:var(--sans)">🚪 登出</button>
       </div>
     </div>
     <!-- 桌機 topbar -->
@@ -413,28 +487,6 @@ select.fi{-webkit-appearance:auto;appearance:auto;display:block;max-width:100%;w
       <!-- 內容由 JS 動態渲染 -->
     </div>
 
-    <!-- 手機底部導航 -->
-    <div class="bottom-nav">
-      <button class="bn-item on" id="bn-dash" onclick="navTo('dash',this)">
-        <div class="bn-icon">📊</div>儀表板
-      </button>
-      <button class="bn-item" id="bn-leads" onclick="navTo('leads',this)">
-        <div class="bn-icon">👥</div>名單
-      </button>
-      <button class="bn-item" id="bn-add-lead" onclick="navTo('add-lead',this)">
-        <div class="bn-icon">➕</div>新增
-      </button>
-      <button class="bn-item" id="bn-calendar" onclick="navTo('calendar',this)">
-        <div class="bn-icon">📅</div>行事曆
-      </button>
-      <button class="bn-item" id="bn-review" onclick="navTo('review',this)">
-        <div class="bn-icon">📋</div>照會
-      </button>
-      <button class="bn-item" id="bn-more" onclick="showMobileMoreMenu()">
-        <div class="bn-icon">⋯</div>更多
-      </button>
-    </div>
-
     <!-- 手機更多選單 -->
     <div id="mobile-more-menu" style="display:none;position:fixed;bottom:0;left:0;right:0;background:var(--card);border-top:0.5px solid var(--bdr);z-index:9000;padding:12px 16px 36px;border-radius:16px 16px 0 0">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
@@ -444,7 +496,7 @@ select.fi{-webkit-appearance:auto;appearance:auto;display:block;max-width:100%;w
 
       <!-- 業務模組 -->
       <div style="font-size:11px;color:var(--t3);font-weight:600;letter-spacing:0.5px;margin-bottom:8px;text-transform:uppercase">其他業務</div>
-      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:16px">
+      <div id="mobile-business-grid" style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:16px">
         <button onclick="hideMobileMoreMenu();navTo('broker',null)" style="display:flex;flex-direction:column;align-items:center;gap:5px;padding:14px 6px;background:var(--al);border:0.5px solid rgba(200,81,26,.2);border-radius:12px;cursor:pointer;font-family:var(--sans)">
           <span style="font-size:26px">💼</span><span style="font-size:12px;color:var(--acc);font-weight:500">貸款仲介</span>
         </button>
@@ -1220,6 +1272,8 @@ async function loadMember() {
     var dtPlan = document.getElementById('dt-plan-badge'); if(dtPlan){dtPlan.textContent=planLabel;dtPlan.className='badge '+planBadge;}
     var dtAv = document.getElementById('dt-avatar'); if(dtAv) dtAv.textContent=firstChar;
     var dtName = document.getElementById('dt-name'); if(dtName) dtName.textContent=r.data.name+(r.data.company?' · '+r.data.company:'');
+    // 更新業務模組側欄
+    updateBusinessModules(r.data.business_roles || []);
   }
   // 啟動 Realtime 訂閱通知角標
   startNotifRealtime();
@@ -1229,6 +1283,62 @@ async function loadMember() {
   }
   // 請求瀏覽器推播權限
   requestPushPermission();
+}
+
+// ── 業務模組動態顯示 ──
+var ALL_MODULES = [
+  { key:'broker',      label:'💼 貸款仲介', icon:'💼', short:'貸款仲介' },
+  { key:'car-dealer',  label:'🚙 中古車商', icon:'🚙', short:'中古車商' },
+  { key:'car-finance', label:'🚗 融資車貸', icon:'🚗', short:'融資車貸' },
+  { key:'pawn',        label:'🏛 民間借款', icon:'🏛', short:'民間借款' },
+];
+
+function updateBusinessModules(roles) {
+  // 沒有設定業務類型 → 顯示全部
+  var showAll = !roles || roles.length === 0;
+
+  // 過濾出要顯示的模組（系統內建的）
+  var visible = showAll
+    ? ALL_MODULES
+    : ALL_MODULES.filter(function(m){ return roles.indexOf(m.key) >= 0; });
+
+  // 自訂業務類型（存在 business_roles 裡，不是系統 key 的）
+  var customRoles = showAll ? [] : roles.filter(function(r){
+    return !ALL_MODULES.find(function(m){ return m.key === r; });
+  });
+
+  // 更新桌機側欄
+  var sidebar = document.getElementById('sidebar-business-modules');
+  if (sidebar) {
+    var html = '';
+    visible.forEach(function(m) {
+      html += '<button class="ds-ni" onclick="navTo(\''+m.key+'\',this)">'+m.label+'</button>';
+    });
+    customRoles.forEach(function(r) {
+      html += '<button class="ds-ni" onclick="alert(\''+r+' 功能開發中\')">📋 '+r+'</button>';
+    });
+    if (visible.length === 0 && customRoles.length === 0) {
+      html = '<div style="font-size:12px;color:var(--t3);padding:6px 12px">請在帳號設定選擇業務類型</div>';
+    }
+    sidebar.innerHTML = html;
+  }
+
+  // 更新手機更多選單
+  var mobileGrid = document.getElementById('mobile-business-grid');
+  if (mobileGrid) {
+    var mh = '';
+    visible.forEach(function(m) {
+      mh += '<button onclick="hideMobileMoreMenu();navTo(\''+m.key+'\',null)" style="display:flex;flex-direction:column;align-items:center;gap:5px;padding:14px 6px;background:var(--al);border:0.5px solid rgba(200,81,26,.2);border-radius:12px;cursor:pointer;font-family:var(--sans)">';
+      mh += '<span style="font-size:26px">'+m.icon+'</span><span style="font-size:12px;color:var(--acc);font-weight:500">'+m.short+'</span>';
+      mh += '</button>';
+    });
+    customRoles.forEach(function(r) {
+      mh += '<button onclick="hideMobileMoreMenu();alert(\''+r+' 功能開發中\')" style="display:flex;flex-direction:column;align-items:center;gap:5px;padding:14px 6px;background:var(--al);border:0.5px solid rgba(200,81,26,.2);border-radius:12px;cursor:pointer;font-family:var(--sans)">';
+      mh += '<span style="font-size:26px">📋</span><span style="font-size:12px;color:var(--acc);font-weight:500">'+r+'</span>';
+      mh += '</button>';
+    });
+    mobileGrid.innerHTML = mh;
+  }
 }
 
 function startNotifRealtime() {
@@ -1396,6 +1506,53 @@ async function doRegister() {
   showOk('🎉 帳號建立成功！7 天免費試用已開始\n請檢查 Email 確認信後登入。');
 }
 
+function toggleMobileSidebar() {
+  var sb = document.getElementById('mob-sidebar');
+  var overlay = document.getElementById('mob-sidebar-overlay');
+  if (!sb) return;
+  var isOpen = sb.style.left === '0px';
+  if (isOpen) { closeMobileSidebar(); } else { openMobileSidebar(); }
+}
+
+function openMobileSidebar() {
+  var sb = document.getElementById('mob-sidebar');
+  var overlay = document.getElementById('mob-sidebar-overlay');
+  if (!sb) return;
+  // 更新側欄會員資訊
+  if (currentMember) {
+    var nameEl = document.getElementById('mob-sb-name');
+    var planEl = document.getElementById('mob-sb-plan');
+    var avatarEl = document.getElementById('mob-sb-avatar');
+    if (nameEl) nameEl.textContent = currentMember.name || '顧問';
+    if (planEl) planEl.textContent = ({trial:'試用版',pro:'專業版',team:'團隊版'}[currentMember.plan] || '試用版');
+    if (avatarEl) avatarEl.textContent = (currentMember.name||'顧').charAt(0);
+  }
+  // 更新通知角標
+  var notifBadge = document.getElementById('mob-sb-notif-badge');
+  var mainBadge = document.getElementById('notif-badge');
+  if (notifBadge && mainBadge && mainBadge.style.display !== 'none') {
+    notifBadge.textContent = mainBadge.textContent;
+    notifBadge.style.display = 'inline';
+  }
+  sb.style.left = '0px';
+  overlay.style.display = 'block';
+  document.body.style.overflow = 'hidden';
+}
+
+function closeMobileSidebar() {
+  var sb = document.getElementById('mob-sidebar');
+  var overlay = document.getElementById('mob-sidebar-overlay');
+  if (!sb) return;
+  sb.style.left = '-300px';
+  overlay.style.display = 'none';
+  document.body.style.overflow = '';
+}
+
+function mobNav(key) {
+  closeMobileSidebar();
+  setTimeout(function() { navTo(key, null); }, 80);
+}
+
 function showMobileMoreMenu() {
   var menu = document.getElementById('mobile-more-menu');
   var overlay = document.getElementById('mobile-more-overlay');
@@ -1423,9 +1580,6 @@ function navTo(key, el) {
   currentNav = key;
   document.querySelectorAll('.ds-ni').forEach(function(n) { n.classList.remove('on'); });
   if (el && el.classList && el.classList.contains('ds-ni')) el.classList.add('on');
-  document.querySelectorAll('.bn-item').forEach(function(n) { n.classList.remove('on'); });
-  var bn = document.getElementById('bn-' + key);
-  if (bn) bn.classList.add('on');
   // 更新桌機 topbar 標題
   var titles = {'dash':'儀表板','leads':'客戶名單','add-lead':'新增客戶資料','calendar':'行事曆','finance':'收支理財工具','team':'團隊管理','connections':'🤝 對接管理','notifications':'🔔 通知中心','invite':'邀請碼 / 折扣','calc':'貸款試算','review':'照會生成','antifraud':'詐騙辨識','score-rules':'評分規則','prop-thresholds':'不動產評分規則','appearance':'外觀設定','settings':'帳號設定','report':'問題回報','car-dealer':'🚙 中古車商','car-finance':'🚗 融資車貸','pawn':'🏛 民間借款','broker':'💼 貸款仲介','biz-card':'🪪 顧問名片','monthly-report':'📋 月報匯出','upgrade':'⭐ 升級方案'};
   var dt = document.getElementById('dt-title'); if (dt) dt.textContent = titles[key] || '';
@@ -6706,9 +6860,20 @@ function renderSettings() {
     {key:'car-finance',label:'🚗 融資車貸', desc:'車輛貸款融資業務'},
     {key:'pawn',       label:'🏛 民間借款', desc:'民間借貸/當鋪業務'},
   ];
+  // 自訂業務類型（不在系統清單裡的）
+  var customRoles = myRoles.filter(function(r){
+    return !roleDefs.find(function(d){ return d.key === r; });
+  });
+
   html += '<div class="card">';
   html += '<div class="ct">業務身份設定</div>';
-  html += '<div style="font-size:13px;color:var(--t2);margin-bottom:10px">選擇您的業務類型，側欄會優先顯示相關模組</div>';
+  html += '<div style="font-size:13px;color:var(--t2);margin-bottom:10px">勾選您的業務類型，側欄只會顯示勾選的模組</div>';
+
+  // 未勾選提示
+  if (myRoles.length === 0) {
+    html += '<div style="background:var(--yl);border:0.5px solid rgba(184,128,32,.3);border-radius:8px;padding:8px 12px;margin-bottom:10px;font-size:13px;color:var(--yel)">⚠️ 尚未選擇業務類型，目前顯示所有模組</div>';
+  }
+
   html += '<div style="display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:12px">';
   roleDefs.forEach(function(r) {
     var on = myRoles.indexOf(r.key) >= 0;
@@ -6718,6 +6883,25 @@ function renderSettings() {
     html += '</label>';
   });
   html += '</div>';
+
+  // 自訂業務類型
+  html += '<div style="border-top:0.5px solid var(--bdr);padding-top:12px;margin-bottom:12px">';
+  html += '<div style="font-size:13px;font-weight:600;margin-bottom:8px;color:var(--t2)">自訂業務類型</div>';
+  html += '<div id="custom-roles-list">';
+  customRoles.forEach(function(r, i) {
+    html += '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">';
+    html += '<div style="flex:1;padding:8px 10px;background:var(--al);border:0.5px solid var(--acc);border-radius:8px;font-size:13px">📋 '+r+'</div>';
+    html += '<button onclick="removeCustomRole(\''+r+'\')" style="padding:5px 10px;background:transparent;border:0.5px solid rgba(192,64,48,.3);border-radius:6px;color:var(--red);cursor:pointer;font-family:var(--sans);font-size:12px">刪除</button>';
+    html += '</div>';
+  });
+  html += '</div>';
+  html += '<div style="display:flex;gap:8px;margin-top:6px">';
+  html += '<input id="custom-role-input" class="fi" placeholder="輸入自訂業務名稱，例：保險顧問" style="flex:1;padding:8px 10px">';
+  html += '<button onclick="addCustomRole()" class="btn-sm" style="flex-shrink:0">+ 新增</button>';
+  html += '</div>';
+  html += '<div style="font-size:12px;color:var(--t3);margin-top:6px">自訂業務類型會顯示在側欄，目前為展示名稱（無對應功能頁面）</div>';
+  html += '</div>';
+
   html += '<button id="save-roles-btn" class="btn-p">儲存業務身份</button>';
   html += '</div>';
 
@@ -6804,12 +6988,40 @@ function renderSettings() {
   var saveRolesBtn = el.querySelector('#save-roles-btn');
   if (saveRolesBtn) saveRolesBtn.onclick = async function() {
     var newRoles = [];
+    // 系統內建勾選的
     el.querySelectorAll('[data-role]:checked').forEach(function(cb){ newRoles.push(cb.dataset.role); });
+    // 自訂業務類型
+    var customItems = el.querySelectorAll('#custom-roles-list [data-custom-role]');
+    customItems.forEach(function(item){ newRoles.push(item.dataset.customRole); });
     await sb.from('members').update({business_roles: newRoles}).eq('id', currentUser.id);
     if (currentMember) currentMember.business_roles = newRoles;
+    updateBusinessModules(newRoles);
     this.textContent = '✓ 已儲存';
     setTimeout(function(){ if(saveRolesBtn) saveRolesBtn.textContent = '儲存業務身份'; }, 2000);
   };
+}
+
+function addCustomRole() {
+  var input = document.getElementById('custom-role-input');
+  if (!input || !input.value.trim()) { alert('請輸入業務名稱'); return; }
+  var name = input.value.trim();
+  var list = document.getElementById('custom-roles-list');
+  if (!list) return;
+  var div = document.createElement('div');
+  div.style.cssText = 'display:flex;align-items:center;gap:8px;margin-bottom:6px';
+  div.setAttribute('data-custom-role', name);
+  div.innerHTML = '<div style="flex:1;padding:8px 10px;background:var(--al);border:0.5px solid var(--acc);border-radius:8px;font-size:13px">📋 '+name+'</div>' +
+    '<button onclick="this.closest(\'[data-custom-role]\').remove()" style="padding:5px 10px;background:transparent;border:0.5px solid rgba(192,64,48,.3);border-radius:6px;color:var(--red);cursor:pointer;font-family:var(--sans);font-size:12px">刪除</button>';
+  list.appendChild(div);
+  input.value = '';
+}
+
+function removeCustomRole(name) {
+  var list = document.getElementById('custom-roles-list');
+  if (!list) return;
+  list.querySelectorAll('[data-custom-role]').forEach(function(el) {
+    if (el.dataset.customRole === name) el.remove();
+  });
 }
 function setBilling(type) {
   currentBilling = type;
