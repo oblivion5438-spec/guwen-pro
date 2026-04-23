@@ -97,6 +97,129 @@ async function init() {
     document.getElementById('agent-info').textContent = '填寫資料給：' + memberName;
   }
 
+  renderPrivacyConsent();
+}
+
+function renderPrivacyConsent() {
+  var el = document.getElementById('main-content');
+  var h = '';
+  h += '<div class="card" style="border:0.5px solid rgba(200,81,26,.3)">';
+  h += '<div style="text-align:center;margin-bottom:14px">';
+  h += '<div style="font-size:32px;margin-bottom:8px">📋</div>';
+  h += '<div style="font-size:18px;font-weight:700;margin-bottom:4px">個人資料告知事項</div>';
+  h += '<div style="font-size:13px;color:var(--t2)">依據個人資料保護法第8條</div>';
+  h += '</div>';
+
+  // 法條告知
+  h += '<div style="background:var(--inp);border-radius:10px;padding:14px;margin-bottom:12px">';
+  h += '<div style="font-size:14px;font-weight:600;margin-bottom:10px">一、蒐集目的</div>';
+  h += '<div style="font-size:13px;color:var(--t2);line-height:1.8">為提供貸款諮詢、評估及媒合服務，'+memberName+'（以下稱「本公司」）依據個人資料保護法相關規定，蒐集您的個人資料。</div>';
+  h += '</div>';
+
+  h += '<div style="background:var(--inp);border-radius:10px;padding:14px;margin-bottom:12px">';
+  h += '<div style="font-size:14px;font-weight:600;margin-bottom:10px">二、蒐集的個人資料類別</div>';
+  h += '<div style="font-size:13px;color:var(--t2);line-height:1.8">包含但不限於：姓名、身分證字號、出生年月日、聯絡電話、居住地址、工作資訊、收入狀況、信用狀況等，屬於個人資料保護法第2條所定之個人資料。</div>';
+  h += '</div>';
+
+  h += '<div style="background:var(--inp);border-radius:10px;padding:14px;margin-bottom:12px">';
+  h += '<div style="font-size:14px;font-weight:600;margin-bottom:10px">三、利用期間、地區、對象及方式</div>';
+  var items = [
+    ['利用期間', '服務期間及法令規定期間內'],
+    ['利用地區', '中華民國台灣境內'],
+    ['利用對象', '本公司及依法令規定或有正當理由之第三方金融機構'],
+    ['利用方式', '以電話、書面、電子郵件或其他合法方式進行貸款評估及媒合'],
+  ];
+  items.forEach(function(item) {
+    h += '<div style="display:flex;gap:8px;padding:5px 0;border-bottom:0.5px solid var(--bdr);font-size:13px">';
+    h += '<div style="color:var(--t3);min-width:70px">'+item[0]+'</div>';
+    h += '<div style="color:var(--t2)">'+item[1]+'</div>';
+    h += '</div>';
+  });
+  h += '</div>';
+
+  h += '<div style="background:var(--inp);border-radius:10px;padding:14px;margin-bottom:12px">';
+  h += '<div style="font-size:14px;font-weight:600;margin-bottom:10px">四、您的權利</div>';
+  h += '<div style="font-size:13px;color:var(--t2);line-height:1.8">依個人資料保護法第3條，您可向本公司行使以下權利：</div>';
+  h += '<div style="margin-top:8px;display:flex;flex-direction:column;gap:5px">';
+  ['查詢或請求閱覽', '製給複製本', '請求補充或更正', '請求停止蒐集、處理或利用', '請求刪除'].forEach(function(r) {
+    h += '<div style="display:flex;align-items:center;gap:6px;font-size:13px;color:var(--t2)"><span style="color:var(--grn)">✓</span>'+r+'</div>';
+  });
+  h += '</div></div>';
+
+  h += '<div style="background:var(--inp);border-radius:10px;padding:14px;margin-bottom:12px">';
+  h += '<div style="font-size:14px;font-weight:600;margin-bottom:10px">五、資料安全</div>';
+  h += '<div style="font-size:13px;color:var(--t2);line-height:1.8">本公司採用加密技術保護您的個人資料，並採取適當安全措施防止資料遭未經授權之存取、洩露或破壞。本服務資料儲存於 Supabase 安全雲端平台，並採用 SSL/TLS 加密傳輸。</div>';
+  h += '</div>';
+
+  h += '<div style="background:var(--inp);border-radius:10px;padding:14px;margin-bottom:12px">';
+  h += '<div style="font-size:14px;font-weight:600;margin-bottom:10px">六、不提供之後果</div>';
+  h += '<div style="font-size:13px;color:var(--t2);line-height:1.8">您得自由選擇是否提供個人資料。若您不提供完整資料，本公司將可能無法為您進行完整的貸款評估及媒合服務。</div>';
+  h += '</div>';
+
+  h += '<div style="background:var(--inp);border-radius:10px;padding:14px;margin-bottom:12px">';
+  h += '<div style="font-size:14px;font-weight:600;margin-bottom:10px">七、相關法規</div>';
+  h += '<div style="font-size:13px;color:var(--t2);line-height:1.8">';
+  h += '本告知事項依據下列法規制定：<br>';
+  h += '• 個人資料保護法（民國 112 年修正）<br>';
+  h += '• 個人資料保護法施行細則<br>';
+  h += '• 金融監督管理委員會相關規定';
+  h += '</div></div>';
+
+  // 注意事項
+  h += '<div style="background:rgba(184,128,32,.1);border:0.5px solid rgba(184,128,32,.3);border-radius:10px;padding:12px;margin-bottom:14px">';
+  h += '<div style="font-size:13px;font-weight:600;color:var(--yel);margin-bottom:6px">⚠️ 注意事項</div>';
+  h += '<div style="font-size:12px;color:var(--t2);line-height:1.8">';
+  h += '• 填寫前請確認您是透過合法顧問取得本連結<br>';
+  h += '• 本表單僅供貸款諮詢初步評估，不代表核貸保證<br>';
+  h += '• 正規業者不會要求預先繳交任何費用<br>';
+  h += '• 如有疑慮請撥打 165 反詐騙專線確認';
+  h += '</div></div>';
+
+  // 勾選同意
+  h += '<div style="padding:14px;background:var(--gl);border:0.5px solid rgba(45,138,78,.3);border-radius:10px;margin-bottom:14px">';
+  h += '<label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer">';
+  h += '<input type="checkbox" id="consent-check" style="width:20px;height:20px;accent-color:var(--grn);flex-shrink:0;margin-top:2px">';
+  h += '<div style="font-size:13px;line-height:1.8">本人已詳細閱讀上述個人資料告知事項，<strong>同意並授權</strong> '+memberName+' 依上述目的蒐集、處理及利用本人之個人資料，並了解本人享有個人資料保護法第3條所賦予之各項權利。</div>';
+  h += '</label></div>';
+
+  h += '<button id="consent-btn" disabled onclick="startForm()" style="width:100%;padding:14px;background:var(--t3);color:#FFF;border:none;border-radius:10px;cursor:not-allowed;font-family:var(--sans);font-size:16px;font-weight:700;transition:all .2s">勾選同意後即可填寫資料</button>';
+  h += '</div>';
+
+  el.innerHTML = h;
+
+  // 勾選才啟用按鈕
+  var checkbox = document.getElementById('consent-check');
+  var btn = document.getElementById('consent-btn');
+  if (checkbox && btn) {
+    checkbox.onchange = function() {
+      if (this.checked) {
+        btn.disabled = false;
+        btn.style.background = 'var(--grn)';
+        btn.style.cursor = 'pointer';
+        btn.textContent = '✓ 同意並開始填寫資料 →';
+      } else {
+        btn.disabled = true;
+        btn.style.background = 'var(--t3)';
+        btn.style.cursor = 'not-allowed';
+        btn.textContent = '勾選同意後即可填寫資料';
+      }
+    };
+  }
+}
+
+function startForm() {
+  // 記錄同意時間戳和版本
+  formData.consent_at = new Date().toISOString();
+  formData.consent_version = '2025-v1';
+  formData.consent_text = '個人資料保護法第8條告知事項，同意'+memberName+'蒐集、處理及利用個人資料';
+  // 記錄同意事件到 Supabase
+  sb.from('consent_logs').insert({
+    member_id: memberId,
+    consent_at: formData.consent_at,
+    consent_version: formData.consent_version,
+    purpose: '貸款諮詢評估及媒合服務',
+    ip_hint: navigator.userAgent ? navigator.userAgent.substring(0,50) : ''
+  }).then(function(){});
   renderStep(1);
 }
 
@@ -306,6 +429,10 @@ async function submitForm() {
       alert_status: formData.alert_status || 'none',
       status: 'new',
       source: 'customer_form',
+      consent_at: formData.consent_at || new Date().toISOString(),
+      consent_version: formData.consent_version || '2025-v1',
+      consent_at: formData.consent_at || new Date().toISOString(),
+      consent_version: formData.consent_version || '2024-v1',
     };
 
     var res = await sb.from('leads').insert(payload).select().single();
@@ -320,23 +447,240 @@ async function submitForm() {
       data: { lead_id: res.data.id }
     });
 
-    // 顯示成功畫面
-    document.getElementById('main-content').innerHTML =
-      '<div class="success">' +
-      '<div class="icon">✅</div>' +
-      '<div style="font-size:22px;font-weight:800;margin-bottom:8px">資料送出成功！</div>' +
-      '<div style="font-size:15px;color:var(--t2);margin-bottom:24px">' + memberName + ' 已收到您的資料<br>我們會盡快與您聯繫</div>' +
-      '<div style="background:var(--card);border-radius:12px;padding:14px;text-align:left">' +
-      '<div style="font-size:13px;color:var(--t2);margin-bottom:8px">送出資料摘要</div>' +
-      '<div style="font-size:14px;margin-bottom:4px">👤 ' + (formData.name||'—') + '</div>' +
-      '<div style="font-size:14px;margin-bottom:4px">📞 ' + (formData.phone||'—') + '</div>' +
-      (formData.required_amount?'<div style="font-size:14px;margin-bottom:4px">💰 需求 $'+formData.required_amount.toLocaleString()+'</div>':'') +
-      '</div>' +
-      '</div>';
+    // 顯示完整結果頁
+    showResultPage(res.data.id);
 
   } catch (err) {
     alert('送出失敗：' + err.message);
     if (btn) { btn.disabled = false; btn.textContent = '✓ 送出資料'; }
+  }
+}
+
+function calcScore() {
+  var score = 100;
+  var items = [];
+
+  // 薪轉加分
+  if (formData.has_salary_transfer) { score += 10; items.push({label:'有薪轉', pts:'+10', ok:true}); }
+  else { score -= 5; items.push({label:'無薪轉', pts:'-5', ok:false}); }
+
+  // 月薪
+  var sal = formData.monthly_salary || 0;
+  if (sal >= 50000) { score += 15; items.push({label:'月薪 $'+sal.toLocaleString(), pts:'+15', ok:true}); }
+  else if (sal >= 30000) { score += 5; items.push({label:'月薪 $'+sal.toLocaleString(), pts:'+5', ok:true}); }
+  else if (sal > 0) { score -= 10; items.push({label:'月薪 $'+sal.toLocaleString(), pts:'-10', ok:false}); }
+
+  // 信用卡
+  var cc = formData.credit_card_age || '';
+  if (cc === '5年以上') { score += 15; items.push({label:'信用卡5年以上', pts:'+15', ok:true}); }
+  else if (cc === '2~5年') { score += 10; items.push({label:'信用卡2~5年', pts:'+10', ok:true}); }
+  else if (cc === '1~2年') { score += 5; items.push({label:'信用卡1~2年', pts:'+5', ok:true}); }
+  else if (cc === '未滿1年') { score -= 5; items.push({label:'信用卡未滿1年', pts:'-5', ok:false}); }
+  else if (cc === '無信用卡') { score -= 10; items.push({label:'無信用卡', pts:'-10', ok:false}); }
+
+  // 婉拒次數
+  var bankRej = formData.bank_reject_count || 0;
+  var finRej = formData.fin_reject_count || 0;
+  if (bankRej === 0 && finRej === 0) { score += 10; items.push({label:'無婉拒記錄', pts:'+10', ok:true}); }
+  else if (bankRej + finRej >= 3) { score -= 20; items.push({label:'婉拒'+(bankRej+finRej)+'次', pts:'-20', ok:false}); }
+  else { score -= 10; items.push({label:'婉拒'+(bankRej+finRej)+'次', pts:'-10', ok:false}); }
+
+  // 遲繳
+  var late = formData.late_pay_days || 0;
+  if (late === 0) { score += 10; items.push({label:'無遲繳記錄', pts:'+10', ok:true}); }
+  else if (late <= 7) { score -= 10; items.push({label:'遲繳7天以內', pts:'-10', ok:false}); }
+  else if (late <= 14) { score -= 20; items.push({label:'遲繳7~14天', pts:'-20', ok:false}); }
+  else { score -= 30; items.push({label:'遲繳'+late+'天以上', pts:'-30', ok:false}); }
+
+  // 不動產
+  if (formData.has_property) { score += 10; items.push({label:'名下有不動產', pts:'+10', ok:true}); }
+
+  // 警示
+  if (formData.alert_status && formData.alert_status !== 'none') {
+    score -= 40; items.push({label:'有'+formData.alert_status, pts:'-40', ok:false});
+  }
+
+  // 居住狀況
+  if (formData.housing_status === 'self_own') { score += 5; items.push({label:'自有房', pts:'+5', ok:true}); }
+  else if (formData.housing_status === 'rent') { score -= 5; items.push({label:'租屋', pts:'-5', ok:false}); }
+
+  score = Math.max(0, Math.min(100, score));
+  return { score: score, items: items };
+}
+
+function getScoreColor(score) {
+  if (score >= 80) return '#2D8A4E';
+  if (score >= 60) return '#B88020';
+  return '#C04030';
+}
+function getScoreLabel(score) {
+  if (score >= 80) return '優良';
+  if (score >= 60) return '普通';
+  if (score >= 40) return '偏低';
+  return '較差';
+}
+
+function showResultPage(leadId) {
+  var result = calcScore();
+  var score = result.score;
+  var scoreColor = getScoreColor(score);
+  var scoreLabel = getScoreLabel(score);
+  var salary = formData.monthly_salary || 0;
+  var reqAmt = formData.required_amount || 0;
+
+  // 貸款試算（簡易）
+  var maxLoan = salary > 0 ? salary * 22 : 0;
+  var monthlyPmt12 = reqAmt > 0 ? Math.round(reqAmt * 0.009 * Math.pow(1.009,12)/(Math.pow(1.009,12)-1)) : 0;
+  var monthlyPmt36 = reqAmt > 0 ? Math.round(reqAmt * 0.009 * Math.pow(1.009,36)/(Math.pow(1.009,36)-1)) : 0;
+  var monthlyPmt60 = reqAmt > 0 ? Math.round(reqAmt * 0.009 * Math.pow(1.009,60)/(Math.pow(1.009,60)-1)) : 0;
+
+  // 防詐警示
+  var fraudWarnings = [
+    { icon:'🚫', title:'不要預先繳費', desc:'合法金融機構不會在放款前要求任何費用，包括「手續費」、「保證金」、「開帳費」等' },
+    { icon:'🔒', title:'保護個人資料', desc:'不要隨意提供身分證、存摺、帳號密碼給陌生人，正規業者只需基本資料做初步評估' },
+    { icon:'📞', title:'查證業者資格', desc:'可至金融監督管理委員會網站查詢業者是否合法登記，或撥打165反詐騙專線確認' },
+    { icon:'⚠️', title:'警惕低利誘惑', desc:'標榜「超低利率」、「無需審核」、「當天放款」往往是詐騙前兆，請提高警覺' },
+  ];
+
+  var el = document.getElementById('main-content');
+  var h = '';
+
+  // 送出成功提示
+  h += '<div style="background:var(--gl);border:0.5px solid rgba(45,138,78,.3);border-radius:12px;padding:14px;margin-bottom:12px;text-align:center">';
+  h += '<div style="font-size:24px;margin-bottom:4px">✅</div>';
+  h += '<div style="font-size:16px;font-weight:700;margin-bottom:4px">資料送出成功！</div>';
+  h += '<div style="font-size:13px;color:var(--t2)">'+memberName+' 已收到您的資料，我們會盡快聯繫您</div>';
+  h += '</div>';
+
+  // AI 評估結果
+  h += '<div class="card">';
+  h += '<div class="ct">🤖 AI 初步評估結果</div>';
+  h += '<div style="text-align:center;margin-bottom:16px">';
+  // 圓形分數
+  h += '<div style="position:relative;display:inline-block;width:120px;height:120px;margin-bottom:8px">';
+  h += '<svg width="120" height="120" style="transform:rotate(-90deg)">';
+  h += '<circle cx="60" cy="60" r="50" fill="none" stroke="var(--inp)" stroke-width="10"/>';
+  var circ = 2 * Math.PI * 50;
+  var dash = circ * score / 100;
+  h += '<circle cx="60" cy="60" r="50" fill="none" stroke="'+scoreColor+'" stroke-width="10" stroke-dasharray="'+dash+' '+circ+'" stroke-linecap="round"/>';
+  h += '</svg>';
+  h += '<div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);text-align:center">';
+  h += '<div style="font-size:30px;font-weight:900;color:'+scoreColor+'">'+score+'</div>';
+  h += '<div style="font-size:12px;color:'+scoreColor+'">'+scoreLabel+'</div>';
+  h += '</div></div>';
+  h += '<div style="font-size:13px;color:var(--t2)">綜合信用評估分數（滿分100）</div>';
+  h += '</div>';
+  // 評分明細
+  h += '<div style="font-size:13px;font-weight:600;margin-bottom:8px;color:var(--t2)">評分依據</div>';
+  result.items.forEach(function(item) {
+    h += '<div style="display:flex;align-items:center;justify-content:space-between;padding:6px 0;border-bottom:0.5px solid var(--bdr)">';
+    h += '<span style="font-size:13px">'+(item.ok?'✅':'❌')+' '+item.label+'</span>';
+    h += '<span style="font-size:13px;font-weight:600;color:'+(item.ok?'var(--grn)':'var(--red)')+'">'+item.pts+'</span>';
+    h += '</div>';
+  });
+  h += '<div style="margin-top:10px;padding:8px 10px;background:var(--inp);border-radius:8px;font-size:12px;color:var(--t3)">⚠️ 此評估為初步參考，實際核貸結果依各金融機構審核為準</div>';
+  h += '</div>';
+
+  // 貸款試算
+  if (reqAmt > 0 || salary > 0) {
+    h += '<div class="card">';
+    h += '<div class="ct">🧮 貸款試算</div>';
+    if (maxLoan > 0) {
+      h += '<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:0.5px solid var(--bdr)">';
+      h += '<span style="font-size:13px;color:var(--t2)">估計最高可貸</span>';
+      h += '<span style="font-size:15px;font-weight:700;color:var(--acc)">$'+maxLoan.toLocaleString()+'</span>';
+      h += '</div>';
+    }
+    if (reqAmt > 0) {
+      h += '<div style="font-size:13px;font-weight:600;margin:10px 0 6px;color:var(--t2)">申請金額 $'+reqAmt.toLocaleString()+' 月付款估算</div>';
+      [
+        {label:'12期（1年）', pmt:monthlyPmt12},
+        {label:'36期（3年）', pmt:monthlyPmt36},
+        {label:'60期（5年）', pmt:monthlyPmt60},
+      ].forEach(function(r) {
+        h += '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 10px;background:var(--inp);border-radius:8px;margin-bottom:6px">';
+        h += '<span style="font-size:13px">'+r.label+'</span>';
+        h += '<span style="font-size:15px;font-weight:700">$'+r.pmt.toLocaleString()+'/月</span>';
+        h += '</div>';
+      });
+      h += '<div style="font-size:11px;color:var(--t3);margin-top:4px">* 以年利率約10.8%估算，實際利率依銀行核定為準</div>';
+    }
+    h += '</div>';
+  }
+
+  // 防詐提醒
+  h += '<div class="card">';
+  h += '<div class="ct">🛡️ 防詐騙提醒</div>';
+  h += '<div style="font-size:13px;color:var(--t2);margin-bottom:10px">貸款諮詢前請務必注意以下事項</div>';
+  fraudWarnings.forEach(function(w) {
+    h += '<div style="display:flex;gap:10px;padding:10px;background:var(--inp);border-radius:8px;margin-bottom:8px">';
+    h += '<div style="font-size:22px;flex-shrink:0">'+w.icon+'</div>';
+    h += '<div><div style="font-size:14px;font-weight:600;margin-bottom:3px">'+w.title+'</div>';
+    h += '<div style="font-size:12px;color:var(--t2);line-height:1.6">'+w.desc+'</div></div>';
+    h += '</div>';
+  });
+  h += '<div style="text-align:center;margin-top:8px">';
+  h += '<a href="tel:165" style="display:inline-block;padding:8px 20px;background:var(--red);color:#FFF;border-radius:20px;font-size:13px;font-weight:600;text-decoration:none">📞 165 反詐騙專線</a>';
+  h += '</div>';
+  h += '</div>';
+
+  // 預約聯繫時間
+  h += '<div class="card">';
+  h += '<div class="ct">📅 預約諮詢時間</div>';
+  h += '<div style="font-size:13px;color:var(--t2);margin-bottom:12px">選擇您方便的聯繫時段，顧問會在該時段與您聯繫</div>';
+  h += '<div style="font-size:13px;font-weight:600;margin-bottom:6px">偏好聯繫方式</div>';
+  h += '<div style="display:flex;gap:8px;margin-bottom:12px">';
+  ['📞 電話', '💬 LINE', '📱 簡訊'].forEach(function(m, i) {
+    h += '<label style="flex:1;display:flex;align-items:center;justify-content:center;gap:4px;padding:8px;background:var(--inp);border-radius:8px;cursor:pointer;font-size:13px">';
+    h += '<input type="radio" name="contact-method" value="'+m+'" style="accent-color:var(--acc)"'+(i===0?' checked':'')+'>'+m;
+    h += '</label>';
+  });
+  h += '</div>';
+  h += '<div style="font-size:13px;font-weight:600;margin-bottom:6px">方便聯繫時段</div>';
+  h += '<div style="display:grid;grid-template-columns:repeat(2,1fr);gap:6px;margin-bottom:12px">';
+  ['早上（9~12點）','下午（12~17點）','傍晚（17~19點）','晚上（19~21點）'].forEach(function(t) {
+    h += '<label style="display:flex;align-items:center;gap:6px;padding:8px;background:var(--inp);border-radius:8px;cursor:pointer;font-size:13px">';
+    h += '<input type="checkbox" class="time-slot" value="'+t+'" style="accent-color:var(--acc)">'+t;
+    h += '</label>';
+  });
+  h += '</div>';
+  h += '<div style="margin-bottom:12px">';
+  h += '<div style="font-size:13px;font-weight:600;margin-bottom:6px">備註給顧問</div>';
+  h += '<textarea id="appt-note" rows="2" placeholder="例如：週末方便、希望先了解利率..." style="width:100%;padding:10px;background:var(--inp);border:0.5px solid var(--bdr2);border-radius:9px;color:var(--inpt);font-size:14px;font-family:var(--sans);resize:none;outline:none"></textarea>';
+  h += '</div>';
+  h += '<button onclick="submitAppointment(\''+leadId+'\')" class="btn-p">📅 確認預約時段</button>';
+  h += '<div id="appt-result" style="margin-top:8px"></div>';
+  h += '</div>';
+
+  el.innerHTML = h;
+  window.scrollTo(0, 0);
+}
+
+async function submitAppointment(leadId) {
+  var method = document.querySelector('input[name="contact-method"]:checked');
+  var methodVal = method ? method.value : '';
+  var slots = [];
+  document.querySelectorAll('.time-slot:checked').forEach(function(cb){ slots.push(cb.value); });
+  var note = document.getElementById('appt-note') ? document.getElementById('appt-note').value.trim() : '';
+
+  if (slots.length === 0) { alert('請選擇至少一個方便聯繫時段'); return; }
+
+  // 更新 lead 備註
+  var apptText = '【預約聯繫】方式：'+methodVal+' · 時段：'+slots.join('、')+(note?' · '+note:'');
+  await sb.from('leads').update({ fund_purpose: (formData.fund_purpose||'')}).eq('id', leadId);
+
+  // 通知會員
+  await sb.from('notifications').insert({
+    member_id: memberId,
+    type: 'appointment_set',
+    title: '📅 客戶預約聯繫時段',
+    body: (formData.name||'客戶') + ' 預約：' + slots.join('、') + '（' + methodVal + '）',
+    data: { lead_id: leadId, method: methodVal, slots: slots, note: note }
+  });
+
+  var result = document.getElementById('appt-result');
+  if (result) {
+    result.innerHTML = '<div style="text-align:center;padding:10px;background:var(--gl);border-radius:8px;color:var(--grn);font-weight:600">✅ 預約成功！顧問會在您選擇的時段聯繫您</div>';
   }
 }
 
