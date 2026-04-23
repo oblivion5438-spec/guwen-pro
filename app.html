@@ -313,27 +313,38 @@ select.fi{-webkit-appearance:auto;appearance:auto;display:block;max-width:100%;w
       <div style="font-size:12px;color:var(--t3);font-weight:400;margin-top:2px">貸款評估平台</div>
     </div>
     <div class="ds-navs">
-      <div class="ds-lbl">會員後台</div>
+
+      <div class="ds-lbl">客戶管理</div>
       <button class="ds-ni on" onclick="navTo('dash',this)">📊 儀表板</button>
       <button class="ds-ni" onclick="navTo('leads',this)">👥 客戶名單</button>
       <button class="ds-ni" onclick="navTo('add-lead',this)">➕ 新增客戶資料</button>
+
+      <div class="ds-lbl">業務模組</div>
+      <button class="ds-ni" onclick="navTo('car-dealer',this)">🚙 中古車商</button>
+      <button class="ds-ni" onclick="navTo('car-finance',this)">🚗 融資車貸</button>
+      <button class="ds-ni" onclick="navTo('pawn',this)">🏛 民間借款</button>
+      <button class="ds-ni" onclick="navTo('review',this)">📋 照會生成</button>
+      <button class="ds-ni" onclick="navTo('connections',this)">🤝 對接管理 <span id="conn-badge" style="display:none;background:var(--red);color:#FFF;font-size:11px;padding:1px 6px;border-radius:10px;margin-left:4px">0</span></button>
+      <button class="ds-ni" onclick="navTo('notifications',this)">🔔 通知中心 <span id="notif-badge" style="display:none;background:var(--red);color:#FFF;font-size:11px;padding:1px 6px;border-radius:10px;margin-left:4px">0</span></button>
+
+      <div class="ds-lbl">行程與財務</div>
       <button class="ds-ni" onclick="navTo('calendar',this)">📅 行事曆</button>
       <button class="ds-ni" onclick="navTo('finance',this)">💰 收支理財工具</button>
       <button class="ds-ni" onclick="navTo('team',this)">🏢 團隊管理</button>
-      <button class="ds-ni" onclick="navTo('connections',this)">🤝 對接管理 <span id="conn-badge" style="display:none;background:var(--red);color:#FFF;font-size:11px;padding:1px 6px;border-radius:10px;margin-left:4px">0</span></button>
-      <button class="ds-ni" onclick="navTo('notifications',this)">🔔 通知中心 <span id="notif-badge" style="display:none;background:var(--red);color:#FFF;font-size:11px;padding:1px 6px;border-radius:10px;margin-left:4px">0</span></button>
-      <button class="ds-ni" onclick="navTo('invite',this)">🎁 邀請碼 / 折扣</button>
+
+      <div class="ds-lbl">其他工具</div>
       <button class="ds-ni" onclick="navTo('calc',this)">🧮 貸款試算</button>
-      <button class="ds-ni" onclick="navTo('review',this)">📋 照會生成</button>
       <button class="ds-ni" onclick="navTo('antifraud',this)">🛡️ 詐騙辨識</button>
-      <div class="ds-lbl">評估項目</div>
+      <button class="ds-ni" onclick="navTo('invite',this)">🎁 邀請碼 / 折扣</button>
+
+      <div class="ds-lbl">系統設定</div>
       <button class="ds-ni" onclick="navTo('score-rules',this)">🎯 評分規則</button>
       <button class="ds-ni" onclick="navTo('prop-thresholds',this)">🏠 貸款項目設定</button>
-      <div class="ds-lbl">系統</div>
       <button class="ds-ni" onclick="navTo('appearance',this)">🎨 外觀設定</button>
       <button class="ds-ni" onclick="navTo('settings',this)">⚙️ 帳號設定</button>
       <button class="ds-ni" onclick="navTo('report',this)">🚩 問題回報</button>
-      <button class="ds-ni" onclick="doLogout()" style="color:var(--red);margin-top:8px">🚪 登出</button>
+      <button class="ds-ni" onclick="doLogout()" style="color:var(--red);margin-top:4px">🚪 登出</button>
+
     </div>
   </div>
 
@@ -350,12 +361,7 @@ select.fi{-webkit-appearance:auto;appearance:auto;display:block;max-width:100%;w
     <!-- 桌機 topbar -->
     <div id="desktop-topbar" style="display:none;align-items:center;justify-content:space-between;padding:12px 20px;border-bottom:0.5px solid var(--bdr);background:var(--bg);flex-shrink:0">
       <div style="font-size:15px;color:var(--t2)" id="dt-title">儀表板</div>
-      <div style="display:flex;align-items:center;gap:8px">
-        <!-- 業務快捷按鈕 -->
-        <button onclick="navTo('car-dealer',null)" id="topbar-car-dealer" style="padding:5px 12px;border-radius:20px;font-size:13px;font-family:var(--sans);cursor:pointer;border:0.5px solid var(--bdr2);background:transparent;color:var(--t2)">🚙 中古車商</button>
-        <button onclick="navTo('car-finance',null)" id="topbar-car-finance" style="padding:5px 12px;border-radius:20px;font-size:13px;font-family:var(--sans);cursor:pointer;border:0.5px solid var(--bdr2);background:transparent;color:var(--t2)">🚗 融資車貸</button>
-        <button onclick="navTo('pawn',null)" id="topbar-pawn" style="padding:5px 12px;border-radius:20px;font-size:13px;font-family:var(--sans);cursor:pointer;border:0.5px solid var(--bdr2);background:transparent;color:var(--t2)">🏛 民間借款</button>
-        <div style="width:0.5px;height:20px;background:var(--bdr2)"></div>
+      <div style="display:flex;align-items:center;gap:10px">
         <span class="badge b-acc" id="dt-plan-badge">進階版</span>
         <div style="display:flex;align-items:center;gap:8px;cursor:pointer" onclick="navTo('settings',null)">
           <div style="width:32px;height:32px;border-radius:50%;background:var(--al);color:var(--acc);display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700" id="dt-avatar">顧</div>
@@ -380,16 +386,71 @@ select.fi{-webkit-appearance:auto;appearance:auto;display:block;max-width:100%;w
       <button class="bn-item" id="bn-add-lead" onclick="navTo('add-lead',this)">
         <div class="bn-icon">➕</div>新增
       </button>
-      <button class="bn-item" id="bn-finance" onclick="navTo('finance',this)">
-        <div class="bn-icon">💰</div>理財
+      <button class="bn-item" id="bn-calendar" onclick="navTo('calendar',this)">
+        <div class="bn-icon">📅</div>行事曆
       </button>
-      <button class="bn-item" id="bn-calc" onclick="navTo('calc',this)">
-        <div class="bn-icon">🧮</div>試算
+      <button class="bn-item" id="bn-review" onclick="navTo('review',this)">
+        <div class="bn-icon">📋</div>照會
       </button>
-      <button class="bn-item" id="bn-settings" onclick="navTo('settings',this)">
-        <div class="bn-icon">⚙️</div>設定
+      <button class="bn-item" id="bn-more" onclick="showMobileMoreMenu()">
+        <div class="bn-icon">⋯</div>更多
       </button>
     </div>
+
+    <!-- 手機更多選單 -->
+    <div id="mobile-more-menu" style="display:none;position:fixed;bottom:0;left:0;right:0;background:var(--card);border-top:0.5px solid var(--bdr);z-index:9000;padding:12px 16px 36px;border-radius:16px 16px 0 0">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+        <div style="font-size:16px;font-weight:600">更多功能</div>
+        <button onclick="hideMobileMoreMenu()" style="background:var(--inp);border:none;border-radius:50%;width:30px;height:30px;font-size:18px;cursor:pointer;color:var(--t2)">✕</button>
+      </div>
+
+      <!-- 業務模組 -->
+      <div style="font-size:11px;color:var(--t3);font-weight:600;letter-spacing:0.5px;margin-bottom:8px;text-transform:uppercase">其他業務</div>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:16px">
+        <button onclick="hideMobileMoreMenu();navTo('car-dealer',null)" style="display:flex;flex-direction:column;align-items:center;gap:5px;padding:14px 6px;background:var(--al);border:0.5px solid rgba(200,81,26,.2);border-radius:12px;cursor:pointer;font-family:var(--sans)">
+          <span style="font-size:26px">🚙</span><span style="font-size:12px;color:var(--acc);font-weight:500">中古車商</span>
+        </button>
+        <button onclick="hideMobileMoreMenu();navTo('car-finance',null)" style="display:flex;flex-direction:column;align-items:center;gap:5px;padding:14px 6px;background:var(--al);border:0.5px solid rgba(200,81,26,.2);border-radius:12px;cursor:pointer;font-family:var(--sans)">
+          <span style="font-size:26px">🚗</span><span style="font-size:12px;color:var(--acc);font-weight:500">融資車貸</span>
+        </button>
+        <button onclick="hideMobileMoreMenu();navTo('pawn',null)" style="display:flex;flex-direction:column;align-items:center;gap:5px;padding:14px 6px;background:var(--al);border:0.5px solid rgba(200,81,26,.2);border-radius:12px;cursor:pointer;font-family:var(--sans)">
+          <span style="font-size:26px">🏛</span><span style="font-size:12px;color:var(--acc);font-weight:500">民間借款</span>
+        </button>
+      </div>
+
+      <!-- 分隔線 -->
+      <div style="height:0.5px;background:var(--bdr);margin-bottom:14px"></div>
+
+      <!-- 工具與設定 -->
+      <div style="font-size:11px;color:var(--t3);font-weight:600;letter-spacing:0.5px;margin-bottom:8px;text-transform:uppercase">工具與設定</div>
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px">
+        <button onclick="hideMobileMoreMenu();navTo('connections',null)" style="display:flex;flex-direction:column;align-items:center;gap:4px;padding:10px 4px;background:var(--inp);border:none;border-radius:10px;cursor:pointer;font-family:var(--sans)">
+          <span style="font-size:20px">🤝</span><span style="font-size:10px;color:var(--t2)">對接管理</span>
+        </button>
+        <button onclick="hideMobileMoreMenu();navTo('notifications',null)" style="display:flex;flex-direction:column;align-items:center;gap:4px;padding:10px 4px;background:var(--inp);border:none;border-radius:10px;cursor:pointer;font-family:var(--sans)">
+          <span style="font-size:20px">🔔</span><span style="font-size:10px;color:var(--t2)">通知中心</span>
+        </button>
+        <button onclick="hideMobileMoreMenu();navTo('finance',null)" style="display:flex;flex-direction:column;align-items:center;gap:4px;padding:10px 4px;background:var(--inp);border:none;border-radius:10px;cursor:pointer;font-family:var(--sans)">
+          <span style="font-size:20px">💰</span><span style="font-size:10px;color:var(--t2)">收支理財</span>
+        </button>
+        <button onclick="hideMobileMoreMenu();navTo('team',null)" style="display:flex;flex-direction:column;align-items:center;gap:4px;padding:10px 4px;background:var(--inp);border:none;border-radius:10px;cursor:pointer;font-family:var(--sans)">
+          <span style="font-size:20px">🏢</span><span style="font-size:10px;color:var(--t2)">團隊管理</span>
+        </button>
+        <button onclick="hideMobileMoreMenu();navTo('calc',null)" style="display:flex;flex-direction:column;align-items:center;gap:4px;padding:10px 4px;background:var(--inp);border:none;border-radius:10px;cursor:pointer;font-family:var(--sans)">
+          <span style="font-size:20px">🧮</span><span style="font-size:10px;color:var(--t2)">貸款試算</span>
+        </button>
+        <button onclick="hideMobileMoreMenu();navTo('score-rules',null)" style="display:flex;flex-direction:column;align-items:center;gap:4px;padding:10px 4px;background:var(--inp);border:none;border-radius:10px;cursor:pointer;font-family:var(--sans)">
+          <span style="font-size:20px">🎯</span><span style="font-size:10px;color:var(--t2)">評分規則</span>
+        </button>
+        <button onclick="hideMobileMoreMenu();navTo('settings',null)" style="display:flex;flex-direction:column;align-items:center;gap:4px;padding:10px 4px;background:var(--inp);border:none;border-radius:10px;cursor:pointer;font-family:var(--sans)">
+          <span style="font-size:20px">⚙️</span><span style="font-size:10px;color:var(--t2)">帳號設定</span>
+        </button>
+        <button onclick="doLogout()" style="display:flex;flex-direction:column;align-items:center;gap:4px;padding:10px 4px;background:var(--inp);border:none;border-radius:10px;cursor:pointer;font-family:var(--sans)">
+          <span style="font-size:20px">🚪</span><span style="font-size:10px;color:var(--red)">登出</span>
+        </button>
+      </div>
+    </div>
+    <div id="mobile-more-overlay" onclick="hideMobileMoreMenu()" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.5);z-index:8999"></div>
   </div>
 </div>
 
@@ -1081,6 +1142,19 @@ async function doRegister() {
   showOk('帳號建立成功！請檢查 Email 確認信後登入。');
 }
 
+function showMobileMoreMenu() {
+  var menu = document.getElementById('mobile-more-menu');
+  var overlay = document.getElementById('mobile-more-overlay');
+  if (menu) menu.style.display = 'block';
+  if (overlay) overlay.style.display = 'block';
+}
+function hideMobileMoreMenu() {
+  var menu = document.getElementById('mobile-more-menu');
+  var overlay = document.getElementById('mobile-more-overlay');
+  if (menu) menu.style.display = 'none';
+  if (overlay) overlay.style.display = 'none';
+}
+
 async function doLogout() {
   await sb.auth.signOut();
   currentUser = null; currentMember = null; leads = [];
@@ -1098,15 +1172,6 @@ function navTo(key, el) {
   document.querySelectorAll('.bn-item').forEach(function(n) { n.classList.remove('on'); });
   var bn = document.getElementById('bn-' + key);
   if (bn) bn.classList.add('on');
-  // 右上角業務按鈕高亮
-  ['car-dealer','car-finance','pawn'].forEach(function(k) {
-    var btn = document.getElementById('topbar-' + k);
-    if (!btn) return;
-    var on = k === key;
-    btn.style.border = on ? '0.5px solid var(--acc)' : '0.5px solid var(--bdr2)';
-    btn.style.background = on ? 'var(--al)' : 'transparent';
-    btn.style.color = on ? 'var(--acc)' : 'var(--t2)';
-  });
   // 更新桌機 topbar 標題
   var titles = {'dash':'儀表板','leads':'客戶名單','add-lead':'新增客戶資料','calendar':'行事曆','finance':'收支理財工具','team':'團隊管理','connections':'🤝 對接管理','notifications':'🔔 通知中心','invite':'邀請碼 / 折扣','calc':'貸款試算','review':'照會生成','antifraud':'詐騙辨識','score-rules':'評分規則','prop-thresholds':'貸款項目設定','appearance':'外觀設定','settings':'帳號設定','report':'問題回報','car-dealer':'🚙 中古車商','car-finance':'🚗 融資車貸','pawn':'🏛 民間借款'};
   var dt = document.getElementById('dt-title'); if (dt) dt.textContent = titles[key] || '';
@@ -7447,14 +7512,113 @@ async function saveReviewTemplate(fields, card) {
   alert('✓ 範本已儲存');
 }
 
-function buildMarketViewTab(el) {
+async function buildMarketViewTab(el) {
   var card = document.createElement('div');
   card.className = 'card';
-  card.innerHTML =
-    '<div class="ct">🚙 配合車行在售車輛</div>' +
-    '<div style="font-size:13px;color:var(--t2);margin-bottom:12px">顯示配合車行上架的可售車輛，點選可帶入照會資料</div>' +
-    '<div style="text-align:center;padding:20px;color:var(--t2)">🔗 建立配合關係後即可瀏覽車行庫存<br><br><button onclick="carFinanceTab=\'review\';buildCarFinanceUI(document.getElementById(\'member-content\'))" class="btn-sm">← 返回照會生成</button></div>';
+  card.innerHTML = '<div class="ct">🚙 配合車行在售車輛</div><div style="text-align:center;padding:16px;color:var(--t2)"><div class="spinner" style="margin:0 auto 8px"></div>載入中...</div>';
   el.appendChild(card);
+
+  // 載入配合業者
+  var connRes = await sb.from('business_connections')
+    .select('requester_id, receiver_id')
+    .or('requester_id.eq.'+currentUser.id+',receiver_id.eq.'+currentUser.id)
+    .eq('status','accepted');
+  var partnerIds = (connRes.data||[]).map(function(c){
+    return c.requester_id === currentUser.id ? c.receiver_id : c.requester_id;
+  });
+
+  if (partnerIds.length === 0) {
+    card.innerHTML =
+      '<div class="ct">🚙 配合車行在售車輛</div>' +
+      '<div style="text-align:center;padding:24px;color:var(--t2)">尚未與任何車行建立配合關係<br><button onclick="navTo(\'connections\',null)" class="btn-sm" style="margin-top:10px">前往建立對接</button></div>';
+    return;
+  }
+
+  // 載入配合車行的在售車輛
+  var carRes = await sb.from('car_inventory')
+    .select('*, member:member_id(id,name,company_name,address,phone)')
+    .in('member_id', partnerIds)
+    .eq('status','available')
+    .eq('is_public', true)
+    .order('created_at', {ascending:false});
+  var cars = carRes.data || [];
+
+  var h = '<div class="ct">🚙 配合車行在售車輛 <span style="font-size:13px;color:var(--t2);font-weight:400">（' + cars.length + ' 台）</span></div>';
+  h += '<div style="font-size:13px;color:var(--t2);margin-bottom:12px">以下為配合車行上架的在售車輛，點選「帶入照會」可直接帶入照會生成</div>';
+
+  if (cars.length === 0) {
+    h += '<div style="text-align:center;padding:20px;color:var(--t2)">配合車行目前無在售車輛</div>';
+  } else {
+    cars.forEach(function(car) {
+      var dealer = car.member || {};
+      var dealerName = dealer.company_name || dealer.name || '車行';
+      var dealerAddr = dealer.address || '';
+      var dealerPhone = dealer.phone || '';
+      h += '<div style="border:0.5px solid var(--bdr2);border-radius:10px;padding:12px;margin-bottom:10px">';
+      // 車行資訊
+      h += '<div style="display:flex;align-items:center;gap:6px;margin-bottom:8px;padding-bottom:8px;border-bottom:0.5px solid var(--bdr)">';
+      h += '<div style="width:30px;height:30px;border-radius:50%;background:var(--al);color:var(--acc);display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700">' + dealerName.charAt(0) + '</div>';
+      h += '<div><div style="font-size:13px;font-weight:600">' + dealerName + '</div>';
+      if (dealerAddr) h += '<div style="font-size:11px;color:var(--t3)">' + dealerAddr + '</div>';
+      h += '</div>';
+      if (dealerPhone) h += '<a href="tel:'+dealerPhone+'" style="margin-left:auto;font-size:12px;color:var(--blu);text-decoration:none">📞 ' + dealerPhone + '</a>';
+      h += '</div>';
+      // 車輛資訊
+      h += '<div style="font-size:15px;font-weight:700;margin-bottom:6px">' + (car.brand||'') + ' ' + (car.model||'') + ' <span style="font-size:13px;color:var(--t2);font-weight:400">' + (car.year||'') + '年</span></div>';
+      h += '<div style="font-size:12px;color:var(--t3);margin-bottom:8px">' + (car.cc||'')+'cc · '+(car.color||'')+(car.mileage?' · '+car.mileage.toLocaleString()+'km':'') + '</div>';
+      // 照片
+      if (car.photos && car.photos.length > 0) {
+        h += '<div style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:8px">';
+        car.photos.slice(0,4).forEach(function(url) {
+          h += '<img src="'+url+'" style="width:72px;height:54px;object-fit:cover;border-radius:6px;cursor:pointer" onclick="window.open(\''+url+'\',\'_blank\')">';
+        });
+        h += '</div>';
+      }
+      // 價格
+      h += '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:8px">';
+      if (car.book_price) h += '<div style="background:var(--inp);border-radius:6px;padding:6px;text-align:center"><div style="font-size:10px;color:var(--t3)">天書</div><div style="font-size:13px;font-weight:600">$'+car.book_price.toLocaleString()+'</div></div>';
+      if (car.authority_price) h += '<div style="background:var(--inp);border-radius:6px;padding:6px;text-align:center"><div style="font-size:10px;color:var(--t3)">權威</div><div style="font-size:13px;font-weight:600">$'+car.authority_price.toLocaleString()+'</div></div>';
+      if (car.loanable_amount) h += '<div style="background:var(--al);border-radius:6px;padding:6px;text-align:center"><div style="font-size:10px;color:var(--t3)">可貸</div><div style="font-size:13px;font-weight:700;color:var(--acc)">$'+car.loanable_amount.toLocaleString()+'</div></div>';
+      h += '</div>';
+      if (car.features) h += '<div style="font-size:12px;color:var(--t2);margin-bottom:8px">🔧 ' + car.features + '</div>';
+      // 帶入照會按鈕
+      h += '<button id="mv-import-'+car.id+'" style="width:100%;padding:8px;background:var(--acc);color:#FFF;border:none;border-radius:8px;cursor:pointer;font-family:var(--sans);font-size:13px;font-weight:600">📋 帶入照會資料</button>';
+      h += '</div>';
+    });
+  }
+  card.innerHTML = h;
+
+  // DOM 綁定帶入照會按鈕
+  cars.forEach(function(car) {
+    var btn = card.querySelector('#mv-import-' + car.id);
+    if (!btn) return;
+    var dealer = car.member || {};
+    var dealerName = dealer.company_name || dealer.name || '';
+    var dealerAddr = dealer.address || '';
+    btn.onclick = function() {
+      // 切換到照會生成 tab
+      carFinanceTab = 'review';
+      buildCarFinanceUI(document.getElementById('member-content'));
+      // 延遲帶入（等 DOM 渲染）
+      setTimeout(function() {
+        var setVal = function(id, val) { var el = document.getElementById(id); if(el && val) el.value = val; };
+        setVal('rv-car-model', (car.brand||'')+' '+(car.model||''));
+        setVal('rv-car-year', car.year||'');
+        setVal('rv-mileage', car.mileage?car.mileage.toLocaleString()+' km':'');
+        setVal('rv-features', car.features||'');
+        setVal('rv-dealer-name', dealerName);
+        setVal('rv-dealer-addr', dealerAddr);
+        if (car.loanable_amount) setVal('rv-amount', (car.loanable_amount/10000).toFixed(1));
+        if (car.authority_price) setVal('rv-buy-price', (car.authority_price/10000).toFixed(1));
+        // 顯示成功提示
+        var hint = document.createElement('div');
+        hint.style.cssText = 'position:fixed;top:20px;left:50%;transform:translateX(-50%);background:var(--grn);color:#FFF;padding:10px 20px;border-radius:20px;font-size:14px;z-index:9999;font-family:var(--sans)';
+        hint.textContent = '✓ 已帶入「' + (car.brand||'') + ' ' + (car.model||'') + '」資料';
+        document.body.appendChild(hint);
+        setTimeout(function(){ hint.remove(); }, 2500);
+      }, 300);
+    };
+  });
 }
 
 function renderCalc() {
