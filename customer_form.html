@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="theme-color" content="#111111">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>顧問PRO · 資料填寫</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+:root{
+  --bg:#111;--bg2:#1A1A1A;--card:#242424;
+  --bdr:rgba(255,255,255,.08);--bdr2:rgba(255,255,255,.15);
+  --inp:#2E2E2E;--inpt:#EEE;
+  --t0:#FFF;--t1:#CCC;--t2:#888;--t3:#555;
+  --acc:#C8511A;--al:rgba(200,81,26,.12);
+  --grn:#2D8A4E;--gl:rgba(45,138,78,.12);
+  --red:#C04030;
+  --sans:-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans TC',sans-serif;
+}
+body{background:var(--bg);color:var(--t0);font-family:var(--sans);min-height:100vh;padding:0 0 40px}
+.top{background:var(--bg2);padding:16px;border-bottom:0.5px solid var(--bdr);display:flex;align-items:center;gap:10px}
+.logo{font-size:20px;font-weight:800;color:var(--t0)}
+.logo span{color:var(--acc)}
+.agent-info{font-size:13px;color:var(--t2)}
+.wrap{max-width:520px;margin:0 auto;padding:16px}
+.card{background:var(--card);border-radius:12px;padding:16px;margin-bottom:12px}
+.ct{font-size:16px;font-weight:700;margin-bottom:12px;color:var(--t0)}
+.sl{font-size:12px;color:var(--t3);font-weight:600;letter-spacing:.04em;margin:12px 0 6px;text-transform:uppercase}
+.frow{margin-bottom:8px}
+.flbl{font-size:12px;color:var(--t2);margin-bottom:4px}
+.fi{width:100%;padding:10px 12px;background:var(--inp);border:0.5px solid var(--bdr2);border-radius:9px;color:var(--inpt);font-size:15px;font-family:var(--sans);outline:none;-webkit-appearance:none}
+.fi:focus{border-color:var(--acc)}
+select.fi{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%23888' stroke-width='1.5' fill='none'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 12px center;padding-right:32px}
+.frow2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.btn-p{padding:14px;background:var(--acc);color:#FFF;border:none;border-radius:10px;cursor:pointer;font-family:var(--sans);font-size:16px;font-weight:700;width:100%;transition:opacity .15s}
+.btn-p:active{opacity:.8}
+.btn-p:disabled{opacity:.5;cursor:not-allowed}
+.step-dot{width:8px;height:8px;border-radius:50%;background:var(--bdr2)}
+.step-dot.on{background:var(--acc)}
+.steps{display:flex;gap:6px;justify-content:center;margin:16px 0}
+.success{text-align:center;padding:40px 20px}
+.success .icon{font-size:64px;margin-bottom:16px}
+</style>
+</head>
+<body>
+
+<div class="top">
+  <div>
+    <div class="logo">顧問<span>PRO</span></div>
+    <div class="agent-info" id="agent-info">載入中...</div>
+  </div>
+</div>
+
+<div class="wrap" id="main-content">
+  <div style="text-align:center;padding:40px;color:var(--t2)">
+    <div style="font-size:32px;margin-bottom:12px">⏳</div>
+    <div>載入中...</div>
+  </div>
+</div>
+
+<script>
+const SURL = 'https://lslrxtqfshenzswgkvms.supabase.co';
+const SKEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxzbHJ4dHFmc2hlbnpzd2drdm1zIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY3NTY3ODEsImV4cCI6MjA5MjMzMjc4MX0.Jsi6GM7q4OGeIFee1hvFNkq_jFFXPSPpiILg6sy5Aao';
+const sb = supabase.createClient(SURL, SKEY);
+
+var memberId = null;
+var memberName = '';
+var step = 1;
+var totalSteps = 3;
+var formData = {};
+
+// 從 URL 取得 member ID
+function getMemberId() {
+  var params = new URLSearchParams(window.location.search);
+  return params.get('m') || params.get('member') || params.get('id');
+}
+
+async function init() {
+  var mid = getMemberId();
+  if (!mid) {
+    document.getElementById('main-content').innerHTML =
+      '<div class="card" style="text-align:center;padding:24px">' +
+      '<div style="font-size:48px;margin-bottom:12px">❌</div>' +
+      '<div style="font-size:16px;font-weight:600;margin-bottom:8px">連結無效</div>' +
+      '<div style="font-size:13px;color:var(--t2)">請向您的顧問取得正確的填寫連結</div>' +
+      '</div>';
+    return;
+  }
+  memberId = mid;
+
+  // 載入會員資訊
+  var res = await sb.from('members').select('name,company_name').eq('id', mid).maybeSingle();
+  if (res.data) {
+    memberName = res.data.company_name || res.data.name || '顧問';
+    document.getElementById('agent-info').textContent = '填寫資料給：' + memberName;
+  }
+
+  renderStep(1);
+}
+
+function renderStep(s) {
+  step = s;
+  var el = document.getElementById('main-content');
+
+  // 步驟點
+  var dots = '';
+  for (var i = 1; i <= totalSteps; i++) {
+    dots += '<div class="step-dot' + (i <= step ? ' on' : '') + '"></div>';
+  }
+
+  var stepTitle = ['', '基本資料', '工作財務', '信用狀況'][step];
+  var stepSubtitle = ['', '姓名、電話、地址等', '工作單位、月薪等', '信用卡、申請記錄等'][step];
+
+  var h = '<div class="steps">' + dots + '</div>';
+  h += '<div style="text-align:center;margin-bottom:14px">';
+  h += '<div style="font-size:18px;font-weight:700">步驟 ' + step + '／' + totalSteps + '：' + stepTitle + '</div>';
+  h += '<div style="font-size:13px;color:var(--t2);margin-top:4px">' + stepSubtitle + '</div>';
+  h += '</div>';
+
+  if (step === 1) {
+    h += '<div class="card">';
+    h += '<div class="ct">👤 基本資料</div>';
+    h += '<div class="frow"><div class="flbl">姓名 *</div><input class="fi" id="f-name" placeholder="真實姓名" value="'+(formData.name||'')+'"></div>';
+    h += '<div class="frow"><div class="flbl">手機號碼 *</div><input class="fi" id="f-phone" type="tel" placeholder="09XX-XXX-XXX" value="'+(formData.phone||'')+'"></div>';
+    h += '<div class="frow"><div class="flbl">身分證字號</div><input class="fi" id="f-idno" placeholder="A123456789" value="'+(formData.id_number||'')+'"></div>';
+    h += '<div class="frow"><div class="flbl">出生年份</div><input class="fi" id="f-birth" type="number" placeholder="1990" value="'+(formData.birth_year||'')+'"></div>';
+    h += '<div class="sl">居住資訊</div>';
+    h += '<div class="frow"><div class="flbl">居住地址</div><input class="fi" id="f-addr" placeholder="縣市、區域..." value="'+(formData.address||'')+'"></div>';
+    h += '<div class="frow"><div class="flbl">居住狀況</div>';
+    h += '<select class="fi" id="f-housing">';
+    [['','請選擇'],['self_own','自有（本人名下）'],['self_live','自住（非本人名下）'],['family','親屬房子'],['rent','租屋'],['other','其他']].forEach(function(o){
+      h += '<option value="'+o[0]+'"'+(formData.housing_status===o[0]?' selected':'')+'>'+o[1]+'</option>';
+    });
+    h += '</select></div>';
+    h += '<div class="sl">需求</div>';
+    h += '<div class="frow2">';
+    h += '<div class="frow"><div class="flbl">需求資金（元）</div><input class="fi" id="f-amt" type="number" placeholder="500000" value="'+(formData.required_amount||'')+'"></div>';
+    h += '<div class="frow"><div class="flbl">資金用途</div><input class="fi" id="f-purpose" placeholder="週轉、購車..." value="'+(formData.fund_purpose||'')+'"></div>';
+    h += '</div>';
+    h += '</div>';
+    h += '<button class="btn-p" onclick="nextStep(1)">下一步 →</button>';
+
+  } else if (step === 2) {
+    h += '<div class="card">';
+    h += '<div class="ct">💼 工作財務</div>';
+    h += '<div class="frow"><div class="flbl">工作狀況</div>';
+    h += '<select class="fi" id="f-work">';
+    [['','請選擇'],['employed','受雇員工'],['self_employed','自行創業'],['freelance','自由業'],['part_time','兼職'],['unemployed','待業中'],['retired','退休']].forEach(function(o){
+      h += '<option value="'+o[0]+'"'+(formData.work_type===o[0]?' selected':'')+'>'+o[1]+'</option>';
+    });
+    h += '</select></div>';
+    h += '<div class="frow"><div class="flbl">公司名稱</div><input class="fi" id="f-company" placeholder="公司或行號名稱" value="'+(formData.company_name||'')+'"></div>';
+    h += '<div class="frow"><div class="flbl">公司電話</div><input class="fi" id="f-company-phone" type="tel" placeholder="02-XXXX-XXXX" value="'+(formData.company_phone||'')+'"></div>';
+    h += '<div class="frow"><div class="flbl">公司地址</div><input class="fi" id="f-company-addr" placeholder="縣市、區域..." value="'+(formData.company_address||'')+'"></div>';
+    h += '<div class="frow2">';
+    h += '<div class="frow"><div class="flbl">月收入（元）</div><input class="fi" id="f-salary" type="number" placeholder="40000" value="'+(formData.monthly_salary||'')+'"></div>';
+    h += '<div class="frow"><div class="flbl">薪資入帳</div>';
+    h += '<select class="fi" id="f-transfer">';
+    h += '<option value="">請選擇</option>';
+    h += '<option value="true"'+(formData.has_salary_transfer===true?' selected':'')+'>有薪轉</option>';
+    h += '<option value="false"'+(formData.has_salary_transfer===false?' selected':'')+'>無薪轉</option>';
+    h += '</select></div>';
+    h += '</div>';
+    h += '<div class="sl">駕照</div>';
+    h += '<div style="display:flex;gap:8px">';
+    h += '<label style="flex:1;display:flex;align-items:center;gap:8px;padding:10px;background:var(--inp);border-radius:8px;cursor:pointer"><input type="checkbox" id="f-car-lic" '+(formData.has_car_license?'checked':'')+' style="width:18px;height:18px;accent-color:var(--acc)"><span>汽車駕照</span></label>';
+    h += '<label style="flex:1;display:flex;align-items:center;gap:8px;padding:10px;background:var(--inp);border-radius:8px;cursor:pointer"><input type="checkbox" id="f-bike-lic" '+(formData.has_bike_license?'checked':'')+' style="width:18px;height:18px;accent-color:var(--acc)"><span>機車駕照</span></label>';
+    h += '</div>';
+    h += '</div>';
+    h += '<div style="display:flex;gap:8px">';
+    h += '<button class="btn-p" onclick="renderStep(1)" style="background:var(--inp);color:var(--t1);flex:0 0 auto;width:80px">← 上一步</button>';
+    h += '<button class="btn-p" onclick="nextStep(2)" style="flex:1">下一步 →</button>';
+    h += '</div>';
+
+  } else if (step === 3) {
+    h += '<div class="card">';
+    h += '<div class="ct">📊 信用狀況</div>';
+    h += '<div class="frow"><div class="flbl">信用卡持卡時間</div>';
+    h += '<select class="fi" id="f-cc">';
+    [['','請選擇'],['無信用卡','無信用卡'],['未滿1年','未滿1年'],['1~2年','1~2年'],['2~5年','2~5年'],['5年以上','5年以上']].forEach(function(o){
+      h += '<option value="'+o[0]+'"'+(formData.credit_card_age===o[0]?' selected':'')+'>'+o[1]+'</option>';
+    });
+    h += '</select></div>';
+    h += '<div class="frow2">';
+    h += '<div class="frow"><div class="flbl">銀行婉拒次數</div><input class="fi" id="f-bank-rej" type="number" min="0" placeholder="0" value="'+(formData.bank_reject_count||'')+'"></div>';
+    h += '<div class="frow"><div class="flbl">融資婉拒次數</div><input class="fi" id="f-fin-rej" type="number" min="0" placeholder="0" value="'+(formData.fin_reject_count||'')+'"></div>';
+    h += '</div>';
+    h += '<div class="frow"><div class="flbl">最長遲繳天數</div>';
+    h += '<select class="fi" id="f-late">';
+    [['0','無遲繳'],['7','7天以內'],['14','7~14天'],['30','14~30天'],['60','1個月以上']].forEach(function(o){
+      h += '<option value="'+o[0]+'"'+(String(formData.late_pay_days)===o[0]?' selected':'')+'>'+o[1]+'</option>';
+    });
+    h += '</select></div>';
+    h += '<div class="frow"><div class="flbl">名下是否有不動產</div>';
+    h += '<select class="fi" id="f-property">';
+    h += '<option value="">請選擇</option>';
+    h += '<option value="true"'+(formData.has_property===true?' selected':'')+'>有</option>';
+    h += '<option value="false"'+(formData.has_property===false?' selected':'')+'>無</option>';
+    h += '</select></div>';
+    h += '<div class="frow"><div class="flbl">警示協商狀況</div>';
+    h += '<select class="fi" id="f-alert">';
+    [['none','無'],['alert','有警示'],['negotiation','有協商']].forEach(function(o){
+      h += '<option value="'+o[0]+'"'+(formData.alert_status===o[0]?' selected':'')+'>'+o[1]+'</option>';
+    });
+    h += '</select></div>';
+    h += '<div class="frow"><div class="flbl">備註（其他說明）</div><textarea class="fi" id="f-note" rows="3" placeholder="如有其他需要說明的情況，請在此填寫..." style="resize:none">'+(formData.note||'')+'</textarea></div>';
+    h += '</div>';
+    h += '<div style="font-size:12px;color:var(--t3);margin-bottom:12px;text-align:center">填寫的資料僅用於貸款諮詢評估，不會用於其他用途</div>';
+    h += '<div style="display:flex;gap:8px">';
+    h += '<button class="btn-p" onclick="renderStep(2)" style="background:var(--inp);color:var(--t1);flex:0 0 auto;width:80px">← 上一步</button>';
+    h += '<button class="btn-p" id="submit-btn" onclick="submitForm()" style="flex:1">✓ 送出資料</button>';
+    h += '</div>';
+  }
+
+  el.innerHTML = h;
+  window.scrollTo(0, 0);
+}
+
+function getVal(id) {
+  var el = document.getElementById(id);
+  return el ? el.value.trim() : '';
+}
+function getCheck(id) {
+  var el = document.getElementById(id);
+  return el ? el.checked : false;
+}
+
+function nextStep(from) {
+  if (from === 1) {
+    var name = getVal('f-name');
+    var phone = getVal('f-phone');
+    if (!name) { alert('請填寫姓名'); return; }
+    if (!phone) { alert('請填寫手機號碼'); return; }
+    var birthYear = parseInt(getVal('f-birth')) || 0;
+    var age = birthYear > 1900 ? new Date().getFullYear() - birthYear : 0;
+    Object.assign(formData, {
+      name: name,
+      phone: phone,
+      id_number: getVal('f-idno'),
+      birth_year: getVal('f-birth'),
+      age: age || null,
+      address: getVal('f-addr'),
+      housing_status: getVal('f-housing'),
+      required_amount: parseInt(getVal('f-amt')) || null,
+      fund_purpose: getVal('f-purpose'),
+    });
+    renderStep(2);
+  } else if (from === 2) {
+    var transferVal = getVal('f-transfer');
+    Object.assign(formData, {
+      work_type: getVal('f-work'),
+      company_name: getVal('f-company'),
+      company_phone: getVal('f-company-phone'),
+      company_address: getVal('f-company-addr'),
+      monthly_salary: parseInt(getVal('f-salary')) || null,
+      has_salary_transfer: transferVal === 'true' ? true : transferVal === 'false' ? false : null,
+      has_car_license: getCheck('f-car-lic'),
+      has_bike_license: getCheck('f-bike-lic'),
+    });
+    renderStep(3);
+  }
+}
+
+async function submitForm() {
+  var propertyVal = getVal('f-property');
+  Object.assign(formData, {
+    credit_card_age: getVal('f-cc'),
+    bank_reject_count: parseInt(getVal('f-bank-rej')) || 0,
+    fin_reject_count: parseInt(getVal('f-fin-rej')) || 0,
+    late_pay_days: parseInt(getVal('f-late')) || 0,
+    has_property: propertyVal === 'true' ? true : propertyVal === 'false' ? false : null,
+    alert_status: getVal('f-alert') || 'none',
+    note: getVal('f-note'),
+  });
+
+  var btn = document.getElementById('submit-btn');
+  if (btn) { btn.disabled = true; btn.textContent = '送出中...'; }
+
+  try {
+    // 建立 lead 記錄
+    var payload = {
+      member_id: memberId,
+      name: formData.name,
+      phone: formData.phone,
+      id_number_hash: formData.id_number || null,
+      age: formData.age || null,
+      address: formData.address || null,
+      housing_status: formData.housing_status || null,
+      required_amount: formData.required_amount || null,
+      fund_purpose: formData.fund_purpose || null,
+      work_type: formData.work_type || null,
+      company_name: formData.company_name || null,
+      company_phone: formData.company_phone || null,
+      company_address: formData.company_address || null,
+      monthly_salary: formData.monthly_salary || null,
+      has_salary_transfer: formData.has_salary_transfer,
+      has_car_license: formData.has_car_license || false,
+      has_bike_license: formData.has_bike_license || false,
+      credit_card_age: formData.credit_card_age || null,
+      bank_reject_count: formData.bank_reject_count || 0,
+      fin_reject_count: formData.fin_reject_count || 0,
+      late_pay_days: formData.late_pay_days || 0,
+      has_property: formData.has_property,
+      alert_status: formData.alert_status || 'none',
+      status: 'new',
+      source: 'customer_form',
+    };
+
+    var res = await sb.from('leads').insert(payload).select().single();
+    if (res.error) throw new Error(res.error.message);
+
+    // 通知會員有新客戶填寫
+    await sb.from('notifications').insert({
+      member_id: memberId,
+      type: 'new_customer_form',
+      title: '📋 新客戶填寫資料',
+      body: (formData.name||'客戶') + ' 已填寫完成，需求 ' + (formData.required_amount ? '$'+formData.required_amount.toLocaleString() : '未填'),
+      data: { lead_id: res.data.id }
+    });
+
+    // 顯示成功畫面
+    document.getElementById('main-content').innerHTML =
+      '<div class="success">' +
+      '<div class="icon">✅</div>' +
+      '<div style="font-size:22px;font-weight:800;margin-bottom:8px">資料送出成功！</div>' +
+      '<div style="font-size:15px;color:var(--t2);margin-bottom:24px">' + memberName + ' 已收到您的資料<br>我們會盡快與您聯繫</div>' +
+      '<div style="background:var(--card);border-radius:12px;padding:14px;text-align:left">' +
+      '<div style="font-size:13px;color:var(--t2);margin-bottom:8px">送出資料摘要</div>' +
+      '<div style="font-size:14px;margin-bottom:4px">👤 ' + (formData.name||'—') + '</div>' +
+      '<div style="font-size:14px;margin-bottom:4px">📞 ' + (formData.phone||'—') + '</div>' +
+      (formData.required_amount?'<div style="font-size:14px;margin-bottom:4px">💰 需求 $'+formData.required_amount.toLocaleString()+'</div>':'') +
+      '</div>' +
+      '</div>';
+
+  } catch (err) {
+    alert('送出失敗：' + err.message);
+    if (btn) { btn.disabled = false; btn.textContent = '✓ 送出資料'; }
+  }
+}
+
+init();
+</script>
+</body>
+</html>
