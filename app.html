@@ -2294,10 +2294,34 @@ function renderClosingList(leadId) {
     // 分潤
     h += '<div style="font-size:12px;color:var(--grn);font-weight:500">我的收入：$' + myIncome.toLocaleString() + ' (' + (item.my_rate||100) + '%)' + (item.closing_type==='pawn'?' 月利息分潤':'') + '</div>';
     if (item.note) h += '<div style="font-size:12px;color:var(--t3);margin-top:3px">📝 ' + item.note + '</div>';
+    // 不動產文件顯示
+    if (item.closing_type === 'property' && item.property_docs && item.property_docs.length > 0) {
+      var docLabels = {house_photos:'屋況照', land_reg:'土地謄本', build_reg:'建物謄本', id_card:'雙證件', financial_doc:'財力證明'};
+      h += '<div style="margin-top:6px;display:flex;gap:4px;flex-wrap:wrap">';
+      item.property_docs.forEach(function(doc) {
+        var isPdf = doc.url.toLowerCase().indexOf('.pdf') >= 0;
+        if (isPdf) {
+          h += '<a href="'+doc.url+'" target="_blank" style="font-size:11px;padding:3px 7px;background:var(--inp);border-radius:5px;color:var(--blu);text-decoration:none">📄 '+(docLabels[doc.type]||doc.type)+'</a>';
+        } else {
+          h += '<img src="'+doc.url+'" style="width:48px;height:36px;object-fit:cover;border-radius:4px;cursor:pointer" onclick="window.open(\''+doc.url+'\',\'_blank\')" title="'+(docLabels[doc.type]||doc.type)+'">';
+        }
+      });
+      h += '</div>';
+    }
+    // 操作按鈕
+    h += '<div style="display:flex;gap:5px;margin-top:6px;flex-wrap:wrap">';
+    h += '<button id="edit-closing-'+item.id+'" style="font-size:12px;padding:3px 8px;border-radius:5px;border:0.5px solid var(--bdr2);background:transparent;color:var(--t1);cursor:pointer;font-family:var(--sans)">✏️ 編輯</button>';
+    if (item.closing_type === 'property' && item.property_docs && item.property_docs.length > 0) {
+      h += '<button id="share-closing-'+item.id+'" style="font-size:12px;padding:3px 8px;border-radius:5px;border:0.5px solid rgba(42,106,184,.3);background:transparent;color:var(--blu);cursor:pointer;font-family:var(--sans)">🔀 轉傳文件</button>';
+    }
+    h += '<button id="del-closing-'+item.id+'" style="font-size:12px;padding:3px 8px;border-radius:5px;border:0.5px solid rgba(192,64,48,.3);background:transparent;color:var(--red);cursor:pointer;font-family:var(--sans)">🗑 刪除</button>';
+    h += '</div>';
     h += '';
     div.innerHTML = h;
     var editBtn = div.querySelector('#edit-closing-' + item.id);
     if (editBtn) editBtn.onclick = function(){ showAddClosingModal(leadId, item); };
+    var shareBtn = div.querySelector('#share-closing-' + item.id);
+    if (shareBtn) shareBtn.onclick = function(){ showPropertyDocShareModal(leadId, item); };
     var delBtn = div.querySelector('#del-closing-' + item.id);
     if (delBtn) delBtn.onclick = function(){ deleteClosingItem(leadId, item.id); };
     container.appendChild(div);
@@ -2441,6 +2465,43 @@ function showAddClosingModal(leadId, editItem) {
   h += '<div class="frow"><div class="flbl">服務費金額（自動）</div><input class="fi" id="cl-service-amt" type="number" readonly placeholder="自動計算" style="background:var(--bg2);color:var(--acc);font-weight:600"></div></div>';
   // 摘要
   h += '<div id="cl-prop-summary" style="margin-top:8px;display:none;background:var(--gl);border:0.5px solid rgba(45,138,78,.3);border-radius:8px;padding:10px;font-size:13px;line-height:1.8"></div>';
+
+  // 文件上傳區塊（不動產用）
+  h += '<div class="sl">文件上傳</div>';
+  h += '<div style="font-size:12px;color:var(--t2);margin-bottom:8px">支援 JPG、PNG、PDF，可多張上傳</div>';
+  var docTypes2 = [
+    {key:'house_photos',  label:'🏠 屋況照片',    accept:'image/*', multiple:true},
+    {key:'land_reg',      label:'📄 土地謄本',     accept:'.pdf,image/*', multiple:false},
+    {key:'build_reg',     label:'📄 建物謄本',     accept:'.pdf,image/*', multiple:false},
+    {key:'id_card',       label:'🪪 雙證件',       accept:'image/*', multiple:true},
+    {key:'financial_doc', label:'💳 財力/存摺影本', accept:'image/*,.pdf', multiple:true},
+  ];
+  var existingDocs = item.property_docs || [];
+  docTypes2.forEach(function(dt2) {
+    var docsOfType = existingDocs.filter(function(d){ return d.type === dt2.key; });
+    h += '<div style="margin-bottom:8px;padding:8px 10px;background:var(--inp);border-radius:8px">';
+    h += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">';
+    h += '<span style="font-size:13px;font-weight:500">' + dt2.label + '</span>';
+    h += '<label style="padding:4px 10px;background:var(--acc);color:#FFF;border-radius:6px;cursor:pointer;font-size:12px;font-family:var(--sans)">';
+    h += '上傳 <input type="file" data-doctype="'+dt2.key+'" accept="'+dt2.accept+'" '+(dt2.multiple?'multiple':'')+' class="prop-doc-input" style="display:none"></label>';
+    h += '</div>';
+    if (docsOfType.length > 0) {
+      h += '<div style="display:flex;gap:5px;flex-wrap:wrap">';
+      docsOfType.forEach(function(doc) {
+        var isPdf = doc.url.toLowerCase().indexOf('.pdf') >= 0;
+        if (isPdf) {
+          h += '<a href="'+doc.url+'" target="_blank" style="display:inline-flex;align-items:center;gap:4px;padding:4px 8px;background:var(--bg2);border-radius:5px;font-size:12px;color:var(--blu);text-decoration:none">📄 '+doc.name+'</a>';
+        } else {
+          h += '<img src="'+doc.url+'" style="width:60px;height:45px;object-fit:cover;border-radius:5px;cursor:pointer" onclick="window.open(\''+doc.url+'\',\'_blank\')">';
+        }
+      });
+      h += '</div>';
+    } else {
+      h += '<div style="font-size:12px;color:var(--t3)">尚未上傳</div>';
+    }
+    h += '<div id="prop-upload-hint-'+dt2.key+'" style="font-size:12px;color:var(--grn);margin-top:4px"></div>';
+    h += '</div>';
+  });
   h += '</div>';
 
   // 分潤
@@ -2754,6 +2815,37 @@ function showAddClosingModal(leadId, editItem) {
   };
 
   box.querySelector('#cl-cancel').onclick = function(){ modal.remove(); };
+
+  // 文件上傳綁定（不動產）
+  box.querySelectorAll('.prop-doc-input').forEach(function(input) {
+    input.onchange = async function(e) {
+      var docType = this.dataset.doctype;
+      var files = Array.from(e.target.files);
+      if (!files.length) return;
+      var hint = box.querySelector('#prop-upload-hint-' + docType);
+      if (hint) hint.textContent = '⏳ 上傳中...';
+      var closingId = editId || ('temp_' + Date.now());
+      var newDocs = [];
+      for (var i = 0; i < files.length; i++) {
+        var file = files[i];
+        var ext = file.name.split('.').pop();
+        var path = 'property/' + closingId + '/' + docType + '_' + Date.now() + '_' + i + '.' + ext;
+        var res = await sb.storage.from('property-docs').upload(path, file, {upsert: true});
+        if (!res.error) {
+          var urlRes = sb.storage.from('property-docs').getPublicUrl(path);
+          newDocs.push({ type: docType, url: urlRes.data.publicUrl, name: file.name });
+        }
+      }
+      // 存到 item 的 property_docs
+      if (!item.property_docs) item.property_docs = [];
+      item.property_docs = item.property_docs.concat(newDocs);
+      if (hint) hint.textContent = '✓ 已上傳 ' + newDocs.length + ' 個檔案';
+      // 如果有 editId，立即更新 DB
+      if (editId) {
+        await sb.from('lead_closings').update({property_docs: item.property_docs}).eq('id', editId);
+      }
+    };
+  });
   modal.onclick = function(e){ if(e.target===modal) modal.remove(); };
   box.querySelector('#cl-save').onclick = function(){ saveClosingItem(leadId, isEdit ? item.id : null, modal, box); };
 }
@@ -2826,6 +2918,7 @@ async function saveClosingItem(leadId, editId, modal, box) {
     pawn_lock_months: isProp ? gi('cl-lock-months') : null,
     pawn_penalty_rate: isProp ? gf('cl-penalty-rate') : null,
     pawn_service_rate: isProp ? gf('cl-service-rate') : null,
+    property_docs: isProp ? (item.property_docs || []) : [],
     split_type: 'custom',
     my_rate: gf('cl-my-rate') || 0,
     company_rate: gf('cl-company-rate') || 0,
@@ -2859,6 +2952,139 @@ async function saveClosingItem(leadId, editId, modal, box) {
   if (res.error) { alert('儲存失敗：'+res.error.message); return; }
   modal.remove();
   renderClosingList(leadId);
+}
+
+async function showPropertyDocShareModal(leadId, item) {
+  var lead = leads.find(function(l){ return l.id === leadId; });
+  var docs = item.property_docs || [];
+  var docLabels = {house_photos:'🏠 屋況照片', land_reg:'📄 土地謄本', build_reg:'📄 建物謄本', id_card:'🪪 雙證件', financial_doc:'💳 財力/存摺影本'};
+
+  // 載入配合業者
+  var connRes = await sb.from('business_connections')
+    .select('*, requester:requester_id(id,name,email), receiver:receiver_id(id,name,email)')
+    .or('requester_id.eq.'+currentUser.id+',receiver_id.eq.'+currentUser.id)
+    .eq('status','accepted');
+  var partners = (connRes.data||[]).map(function(c){
+    return c.requester_id === currentUser.id ? c.receiver : c.requester;
+  }).filter(Boolean);
+
+  var modal = document.createElement('div');
+  modal.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.75);z-index:9999;display:flex;align-items:flex-start;justify-content:center;padding:16px;overflow-y:auto';
+  var box = document.createElement('div');
+  box.style.cssText = 'background:var(--card);border-radius:16px;padding:18px;width:100%;max-width:520px;margin:auto';
+
+  var h = '<div style="font-size:17px;font-weight:700;margin-bottom:4px">🔀 轉傳不動產文件</div>';
+  h += '<div style="font-size:13px;color:var(--t2);margin-bottom:14px">' + (lead?lead.name:'') + ' · 選擇要分享的文件和傳送方式</div>';
+
+  // 選擇業者
+  h += '<div style="font-size:13px;font-weight:600;margin-bottom:6px">① 選擇配合業者</div>';
+  if (partners.length === 0) {
+    h += '<div style="font-size:13px;color:var(--t2);padding:8px;background:var(--inp);border-radius:7px;margin-bottom:12px">尚無配合業者</div>';
+  } else {
+    h += '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px">';
+    partners.forEach(function(p) {
+      h += '<label style="display:flex;align-items:center;gap:6px;padding:6px 12px;border-radius:20px;border:0.5px solid var(--bdr2);cursor:pointer;font-size:13px">';
+      h += '<input type="checkbox" name="doc-partner" value="'+p.id+'" data-name="'+(p.name||p.email||'').replace(/"/g,'')+'"> '+(p.name||p.email||'—');
+      h += '</label>';
+    });
+    h += '</div>';
+  }
+
+  // 選擇文件
+  h += '<div style="font-size:13px;font-weight:600;margin-bottom:6px">② 選擇要分享的文件</div>';
+  var typeGroups = {};
+  docs.forEach(function(doc){ if (!typeGroups[doc.type]) typeGroups[doc.type]=[]; typeGroups[doc.type].push(doc); });
+  Object.keys(typeGroups).forEach(function(type) {
+    h += '<label style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--inp);border-radius:7px;margin-bottom:6px;cursor:pointer">';
+    h += '<input type="checkbox" class="doc-type-check" data-type="'+type+'" checked style="accent-color:var(--acc);width:16px;height:16px">';
+    h += '<span style="font-size:13px">' + (docLabels[type]||type) + ' <span style="color:var(--t3)">（'+typeGroups[type].length+'個）</span></span>';
+    h += '</label>';
+  });
+
+  // 基本資訊也一起帶
+  h += '<div style="font-size:13px;font-weight:600;margin:10px 0 6px">③ 附上客戶基本資料</div>';
+  h += '<label style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--inp);border-radius:7px;margin-bottom:12px;cursor:pointer">';
+  h += '<input type="checkbox" id="doc-share-basic" checked style="accent-color:var(--acc);width:16px;height:16px"><span style="font-size:13px">附上客戶基本資訊（姓名、電話、需求金額）</span>';
+  h += '</label>';
+
+  h += '<div style="display:flex;gap:8px;flex-wrap:wrap">';
+  h += '<button id="doc-cancel" class="btn-sm">取消</button>';
+  h += '<button id="doc-notify" class="btn-p" style="flex:1">🔔 軟體內通知業者</button>';
+  h += '<button id="doc-line" style="flex:1;padding:11px;background:#06C755;color:#FFF;border:none;border-radius:9px;cursor:pointer;font-family:var(--sans);font-size:14px;font-weight:600">📱 生成 LINE 傳送</button>';
+  h += '</div>';
+
+  box.innerHTML = h;
+  modal.appendChild(box);
+  document.body.appendChild(modal);
+
+  box.querySelector('#doc-cancel').onclick = function(){ modal.remove(); };
+  modal.onclick = function(e){ if(e.target===modal) modal.remove(); };
+
+  // 軟體內通知
+  box.querySelector('#doc-notify').onclick = async function() {
+    var selected = box.querySelectorAll('input[name="doc-partner"]:checked');
+    if (!selected.length) { alert('請選擇至少一位業者'); return; }
+    var selectedTypes = [];
+    box.querySelectorAll('.doc-type-check:checked').forEach(function(cb){ selectedTypes.push(cb.dataset.type); });
+    var selectedDocs = docs.filter(function(d){ return selectedTypes.indexOf(d.type) >= 0; });
+    var promises = [];
+    selected.forEach(function(cb) {
+      var body = (lead?lead.name:'') + ' 的不動產文件已分享（' + selectedDocs.length + ' 個文件）';
+      promises.push(sb.from('notifications').insert({
+        member_id: cb.value, type: 'property_doc_shared',
+        title: '收到不動產文件', body: body,
+        data: { docs: selectedDocs, lead_id: leadId }
+      }));
+    });
+    await Promise.all(promises);
+    modal.remove();
+    alert('✓ 已通知 ' + selected.length + ' 位業者');
+  };
+
+  // 生成 LINE
+  box.querySelector('#doc-line').onclick = function() {
+    var selectedTypes = [];
+    box.querySelectorAll('.doc-type-check:checked').forEach(function(cb){ selectedTypes.push(cb.dataset.type); });
+    var selectedDocs = docs.filter(function(d){ return selectedTypes.indexOf(d.type) >= 0; });
+    var withBasic = box.querySelector('#doc-share-basic') && box.querySelector('#doc-share-basic').checked;
+    var lines = ['═══════════════════════', '🏠 不動產文件資料', '═══════════════════════'];
+    if (withBasic && lead) {
+      lines.push('客戶：' + (lead.name||'—'));
+      if (lead.phone) lines.push('電話：' + lead.phone);
+      if (lead.required_amount) lines.push('需求金額：$' + lead.required_amount.toLocaleString());
+    }
+    // 不動產資訊
+    if (item.prop_valuation) lines.push('不動產估價：$' + item.prop_valuation.toLocaleString());
+    if (item.closed_amount) lines.push('借款金額：$' + item.closed_amount.toLocaleString());
+    lines.push('───────────────────────');
+    lines.push('📎 文件連結');
+    selectedDocs.forEach(function(doc) {
+      lines.push((docLabels[doc.type]||doc.type) + '：' + doc.url);
+    });
+    lines.push('═══════════════════════');
+    lines.push('傳送時間：' + new Date().toLocaleString('zh-TW'));
+    var text = lines.join('\n');
+    modal.remove();
+    // 預覽
+    var prevModal = document.createElement('div');
+    prevModal.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.75);z-index:9999;display:flex;align-items:flex-start;justify-content:center;padding:16px;overflow-y:auto';
+    var prevBox = document.createElement('div');
+    prevBox.style.cssText = 'background:var(--card);border-radius:16px;padding:18px;width:100%;max-width:520px;margin:auto';
+    prevBox.innerHTML =
+      '<div style="font-size:16px;font-weight:700;margin-bottom:10px">📋 傳送內容預覽</div>' +
+      '<div style="background:var(--inp);border-radius:10px;padding:12px;font-family:monospace;font-size:12px;line-height:1.8;white-space:pre-wrap;max-height:50vh;overflow-y:auto">' + text + '</div>' +
+      '<div style="display:flex;gap:8px;margin-top:12px">' +
+      '<button id="prev-close" class="btn-sm">關閉</button>' +
+      '<button id="prev-copy" class="btn-p" style="flex:1">📋 複製</button>' +
+      '<button id="prev-line" style="flex:1;padding:11px;background:#06C755;color:#FFF;border:none;border-radius:9px;cursor:pointer;font-family:var(--sans);font-size:14px;font-weight:600">📱 LINE</button>' +
+      '</div>';
+    prevModal.appendChild(prevBox);
+    document.body.appendChild(prevModal);
+    prevBox.querySelector('#prev-close').onclick = function(){ prevModal.remove(); };
+    prevModal.onclick = function(e){ if(e.target===prevModal) prevModal.remove(); };
+    prevBox.querySelector('#prev-copy').onclick = function(){ navigator.clipboard.writeText(text).then(function(){ alert('已複製！'); }); };
+    prevBox.querySelector('#prev-line').onclick = function(){ window.open('https://line.me/R/share?text='+encodeURIComponent(text),'_blank'); };
+  };
 }
 
 async function deleteClosingItem(leadId, itemId) {
