@@ -10594,8 +10594,93 @@ function shareLeadLine(id) {
   var lead = leads.find(function(l) { return l.id === id; });
   if (!lead) return;
   var s = calcScores(lead);
-  var text = '【顧問PRO評估結果】\n客戶：' + lead.name + '\n銀行信貸：' + s.bank + '%\n機車：' + s.bike + '%\n需求：$' + ((lead.required_amount||0).toLocaleString()) + '\n\n顧問PRO 專業評估';
-  window.open('https://line.me/R/share?text=' + encodeURIComponent(text), '_blank');
+
+  var housingMap = {self_own:'自有',self_live:'自住(非本人)',family:'親屬房',rent:'租屋',other:'其他'};
+  var lines = [];
+
+  lines.push('━━━━━━━━━━━━━━━');
+  lines.push('📋 【顧問PRO 客戶評估】');
+  lines.push('━━━━━━━━━━━━━━━');
+
+  // 基本資料
+  lines.push('👤 基本資料');
+  lines.push('姓名：' + (lead.name || '—'));
+  if (lead.age) lines.push('年齡：' + lead.age + ' 歲');
+  if (lead.phone) lines.push('電話：' + lead.phone);
+  if (lead.address) lines.push('地址：' + lead.address);
+  if (lead.housing_status) lines.push('居住：' + (housingMap[lead.housing_status] || lead.housing_status));
+
+  // 工作資訊
+  lines.push('');
+  lines.push('💼 工作資訊');
+  if (lead.work_type) lines.push('職業：' + lead.work_type);
+  if (lead.company_name) lines.push('公司：' + lead.company_name);
+  if (lead.monthly_salary) lines.push('月薪：$' + lead.monthly_salary.toLocaleString());
+  lines.push('薪轉：' + (lead.has_salary_transfer ? '✅ 有' : '❌ 無'));
+  if (lead.labor_insurance_years) lines.push('勞保：' + lead.labor_insurance_years);
+
+  // 信用狀況
+  lines.push('');
+  lines.push('📊 信用狀況');
+  if (lead.credit_card_age) lines.push('信用卡：' + lead.credit_card_age);
+  lines.push('銀行婉拒：' + (lead.bank_reject_count || 0) + ' 次');
+  lines.push('融資婉拒：' + (lead.fin_reject_count || 0) + ' 次');
+  lines.push('遲繳天數：' + (lead.late_pay_days || 0) + ' 天');
+  if (lead.alert_status && lead.alert_status !== 'none') lines.push('警示：' + lead.alert_status);
+  lines.push('有車（汽）：' + (lead.has_car_license ? '✅' : '❌'));
+  lines.push('有車（機）：' + (lead.has_bike_license ? '✅' : '❌'));
+
+  // 不動產
+  if (lead.has_property) {
+    lines.push('');
+    lines.push('🏠 不動產');
+    if (lead.property_valuation) lines.push('估價：$' + lead.property_valuation.toLocaleString());
+    if (lead.property_loan1) lines.push('一胎：$' + lead.property_loan1.toLocaleString());
+    if (lead.property_loan2) lines.push('二胎：$' + lead.property_loan2.toLocaleString());
+    if (lead.property_loan3) lines.push('三胎：$' + lead.property_loan3.toLocaleString());
+  }
+
+  // 貸款需求
+  lines.push('');
+  lines.push('💰 貸款需求');
+  if (lead.required_amount) lines.push('需求金額：$' + lead.required_amount.toLocaleString());
+  if (lead.fund_purpose) lines.push('資金用途：' + lead.fund_purpose);
+
+  // AI 評估
+  lines.push('');
+  lines.push('🤖 AI 評估機率');
+  lines.push('銀行信貸：' + (s.bankBlocked ? '❌封鎖' : s.bank + '%'));
+  lines.push('汽車貸款：' + (s.carBlocked ? '❌封鎖' : s.car + '%'));
+  lines.push('機車貸款：' + s.bike + '%');
+  lines.push('手機貸款：' + s.phone + '%');
+
+  // 結案資訊
+  var closingItems = leadClosings[id] || [];
+  if (closingItems.length > 0) {
+    var cTypeMap = {car_loan:'汽車貸款',credit_loan:'信用貸款',bike_loan:'機車貸款',phone_loan:'手機貸',pawn:'當鋪',property:'不動產',other:'其他'};
+    lines.push('');
+    lines.push('✅ 結案項目');
+    closingItems.forEach(function(ci) {
+      var t = cTypeMap[ci.closing_type] || ci.closing_type;
+      var row = t;
+      if (ci.institution) row += ' · ' + ci.institution;
+      if (ci.closed_amount) row += ' · $' + ci.closed_amount.toLocaleString();
+      lines.push(row);
+    });
+  }
+
+  // 顧問備註
+  if (lead.advisor_note) {
+    lines.push('');
+    lines.push('📝 顧問備註');
+    lines.push(lead.advisor_note);
+  }
+
+  lines.push('');
+  lines.push('━━━━━━━━━━━━━━━');
+  lines.push('by 顧問PRO · 貸款評估平台');
+
+  window.open('https://line.me/R/share?text=' + encodeURIComponent(lines.join('\n')), '_blank');
 }
 
 // ══════════════════════════════
