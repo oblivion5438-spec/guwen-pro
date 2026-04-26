@@ -9895,16 +9895,67 @@ function generateReview() {
   lines.push('生成時間：'+new Date().toLocaleString('zh-TW'));
 
   var text = lines.join('\n');
+  window._reviewText = text;
+
   var output = document.getElementById('review-output');
-  if (output) {
-    output.innerHTML =
-      '<div style="background:var(--inp);border-radius:10px;padding:14px;font-family:monospace;font-size:13px;line-height:1.8;white-space:pre-wrap;color:var(--t1);margin-bottom:8px">' + text + '</div>' +
-      '<div style="display:flex;gap:8px">' +
-      '<button onclick="navigator.clipboard.writeText('+JSON.stringify(text)+').then(function(){alert(\'已複製！可貼到 LINE 傳送\')})" class="btn-p" style="flex:1">📋 複製照會內容</button>' +
-      '<button onclick="exportReviewPDF('+JSON.stringify(text)+')" class="btn-sm" style="white-space:nowrap">📄 PDF</button>' +
-      '<button onclick="shareReviewToLine('+JSON.stringify(text)+')" class="btn-grn" style="flex:1">📱 分享到 LINE</button>' +
-      '</div>';
-  }
+  if (!output) return;
+
+  // 清空並重建
+  output.innerHTML = '';
+
+  // 文字顯示區
+  var pre = document.createElement('div');
+  pre.style.cssText = 'background:var(--inp);border-radius:10px;padding:14px;font-family:monospace;font-size:13px;line-height:1.8;white-space:pre-wrap;color:var(--t1);margin-bottom:8px';
+  pre.textContent = text;
+  output.appendChild(pre);
+
+  // 按鈕區
+  var btnRow = document.createElement('div');
+  btnRow.style.cssText = 'display:flex;gap:8px';
+
+  // 複製按鈕
+  var copyBtn = document.createElement('button');
+  copyBtn.className = 'btn-p';
+  copyBtn.style.flex = '1';
+  copyBtn.textContent = '📋 複製';
+  copyBtn.addEventListener('click', function() {
+    navigator.clipboard.writeText(window._reviewText).then(function() {
+      alert('✅ 已複製！可貼到 LINE 傳送');
+    }).catch(function() {
+      // 備用方法
+      var ta = document.createElement('textarea');
+      ta.value = window._reviewText;
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+      alert('✅ 已複製！');
+    });
+  });
+
+  // PDF 按鈕
+  var pdfBtn = document.createElement('button');
+  pdfBtn.className = 'btn-sm';
+  pdfBtn.style.whiteSpace = 'nowrap';
+  pdfBtn.textContent = '📄 PDF';
+  pdfBtn.addEventListener('click', function() {
+    exportReviewPDF(window._reviewText);
+  });
+
+  // LINE 按鈕
+  var lineBtn = document.createElement('button');
+  lineBtn.className = 'btn-grn';
+  lineBtn.style.flex = '1';
+  lineBtn.textContent = '📱 LINE';
+  lineBtn.addEventListener('click', function() {
+    var url = 'https://line.me/R/share?text=' + encodeURIComponent(window._reviewText);
+    window.open(url, '_blank');
+  });
+
+  btnRow.appendChild(copyBtn);
+  btnRow.appendChild(pdfBtn);
+  btnRow.appendChild(lineBtn);
+  output.appendChild(btnRow);
 }
 
 function shareReviewToLine(text) {
