@@ -2414,14 +2414,17 @@ function renderAddLead() {
     var n = i + 1;
     ph += '<div style="font-size:13px;font-weight:500;color:var(--t2);margin:10px 0 5px;border-bottom:0.5px solid var(--bdr);padding-bottom:3px">' + t + '</div>';
     ph += '<div class="frow2">';
-    ph += '<div class="frow"><div class="flbl">借款類型</div><select class="fi" id="n-prop'+n+'-ltype"><option value="">選擇</option><option value="bank">銀行</option><option value="finance">融資公司</option><option value="civil">民間（私人）</option></select></div>';
-    ph += '<div class="frow"><div class="flbl">借款機構名稱</div><input class="fi" id="n-prop' + n + '-inst" placeholder="例：台灣銀行"></div>';
+    ph += '<div class="frow"><div class="flbl">借款類型</div><select class="fi" id="n-prop'+n+'-ltype" onchange="toggleNewPropLoanType('+n+')"><option value="">選擇</option><option value="bank">銀行</option><option value="finance">融資</option><option value="civil">民間</option></select></div>';
+    // 機構名稱（銀行/融資）
+    ph += '<div class="frow" id="n-prop'+n+'-inst-wrap" style="display:none"><div class="flbl">借款機構名稱</div><input class="fi" id="n-prop' + n + '-inst" placeholder="例：台灣銀行"></div>';
     ph += '</div>';
+    // 月利息（民間）
+    ph += '<div class="frow" id="n-prop'+n+'-rate-wrap" style="display:none;margin-top:6px"><div class="flbl">月利息（%）</div><input class="fi" id="n-prop' + n + '-rate" type="number" step="0.01" placeholder="例：3" inputmode="decimal"></div>';
     ph += '<div class="frow2">';
     ph += '<div class="frow"><div class="flbl">貸款餘額（元）</div><input class="fi" id="n-prop' + n + '-amt" type="number" placeholder="0" inputmode="numeric" oninput="updatePropRatio()"></div>';
     ph += '<div class="frow"><div class="flbl">月繳（元）</div><input class="fi" id="n-prop' + n + '-pay" type="number" placeholder="0" inputmode="numeric"></div>';
     ph += '</div>';
-    ph += '<div class="frow"><div class="flbl">違約金（元）</div><input class="fi" id="n-prop' + n + '-penalty" type="number" placeholder="0" inputmode="numeric"></div>';
+    ph += '<div class="frow"><div class="flbl">違約金（元）</div><input class="fi" id="n-prop' + n + '-penalty" type="number" placeholder="未填寫顯示「無」" inputmode="numeric"></div>';
   });
   ph += '<div id="prop-ratio-display" style="margin-top:8px"></div>';
   propSec.innerHTML = ph;
@@ -2932,6 +2935,28 @@ function validateIDFieldEdit(el, leadId) {
   if (err) err.style.display = invalid ? 'block' : 'none';
 }
 
+// 切換不動產借款類型 → 顯示對應欄位（銀行/融資 → 機構名稱；民間 → 月利息）
+function togglePropLoanType(leadId, n) {
+  var ltypeEl = document.getElementById('ef-prop'+n+'-ltype-'+leadId);
+  if (!ltypeEl) return;
+  var v = ltypeEl.value;
+  var instWrap = document.getElementById('ef-prop'+n+'-inst-wrap-'+leadId);
+  var rateWrap = document.getElementById('ef-prop'+n+'-rate-wrap-'+leadId);
+  if (instWrap) instWrap.style.display = (v === 'bank' || v === 'finance') ? 'flex' : 'none';
+  if (rateWrap) rateWrap.style.display = (v === 'civil') ? 'flex' : 'none';
+}
+
+// 新增客戶頁：切換不動產借款類型
+function toggleNewPropLoanType(n) {
+  var ltypeEl = document.getElementById('n-prop'+n+'-ltype');
+  if (!ltypeEl) return;
+  var v = ltypeEl.value;
+  var instWrap = document.getElementById('n-prop'+n+'-inst-wrap');
+  var rateWrap = document.getElementById('n-prop'+n+'-rate-wrap');
+  if (instWrap) instWrap.style.display = (v === 'bank' || v === 'finance') ? 'flex' : 'none';
+  if (rateWrap) rateWrap.style.display = (v === 'civil') ? 'flex' : 'none';
+}
+
 function calcAgeFromROC(yId, mId, dId, hiddenId, displayId) {
   var yEl = document.getElementById(yId);
   var mEl = document.getElementById(mId);
@@ -3161,9 +3186,9 @@ async function saveLead() {
 
   // 不動產每胎詳細資料
   var propLoansNew = JSON.stringify([
-    { inst: gv('n-prop1-inst'), pay: gi('n-prop1-pay'), penalty: gi('n-prop1-penalty') },
-    { inst: gv('n-prop2-inst'), pay: gi('n-prop2-pay'), penalty: gi('n-prop2-penalty') },
-    { inst: gv('n-prop3-inst'), pay: gi('n-prop3-pay'), penalty: gi('n-prop3-penalty') },
+    { ltype: gv('n-prop1-ltype'), inst: gv('n-prop1-inst'), rate: parseFloat(gi('n-prop1-rate'))||0, pay: gi('n-prop1-pay'), penalty: gi('n-prop1-penalty') },
+    { ltype: gv('n-prop2-ltype'), inst: gv('n-prop2-inst'), rate: parseFloat(gi('n-prop2-rate'))||0, pay: gi('n-prop2-pay'), penalty: gi('n-prop2-penalty') },
+    { ltype: gv('n-prop3-ltype'), inst: gv('n-prop3-inst'), rate: parseFloat(gi('n-prop3-rate'))||0, pay: gi('n-prop3-pay'), penalty: gi('n-prop3-penalty') },
   ]);
 
   var payload = {
@@ -3552,16 +3577,22 @@ function showLeadDetail(id) {
   [['一胎', lead.property_loan1||''],['二胎（若有）', lead.property_loan2||''],['三胎（若有）', lead.property_loan3||'']].forEach(function(t, i) {
     var n = i + 1;
     var pl = propLoans[i] || {};
+    var ltype = pl.ltype || '';
+    var isCivil = ltype === 'civil';
+    var hasType = !!ltype;
     html += '<div style="font-size:13px;font-weight:600;color:var(--t2);margin:10px 0 5px;border-bottom:0.5px solid var(--bdr);padding-bottom:3px">' + t[0] + '</div>';
-    html += '<div class="frow2"><div class="frow"><div class="flbl">借款類型</div><select class="fi" id="ef-prop'+n+'-ltype-'+id+'">';
-    [['','選擇'],['bank','銀行'],['finance','融資公司'],['civil','民間（私人）']].forEach(function(o){
-      html += '<option value="'+o[0]+'"'+((pl.ltype||'')===o[0]?' selected':'')+'>'+o[1]+'</option>';
+    html += '<div class="frow2"><div class="frow"><div class="flbl">借款類型</div><select class="fi" id="ef-prop'+n+'-ltype-'+id+'" onchange="togglePropLoanType(\''+id+'\','+n+')">';
+    [['','選擇'],['bank','銀行'],['finance','融資'],['civil','民間']].forEach(function(o){
+      html += '<option value="'+o[0]+'"'+(ltype===o[0]?' selected':'')+'>'+o[1]+'</option>';
     });
     html += '</select></div>';
-    html += '<div class="frow"><div class="flbl">借款機構名稱</div><input class="fi" id="ef-prop'+n+'-inst-'+id+'" placeholder="例：台灣銀行" value="'+(pl.inst||'')+'"></div></div>';
+    // 機構名稱（銀行/融資 顯示）
+    html += '<div class="frow" id="ef-prop'+n+'-inst-wrap-'+id+'" style="display:'+(hasType && !isCivil ? 'flex' : 'none')+'"><div class="flbl">借款機構名稱</div><input class="fi" id="ef-prop'+n+'-inst-'+id+'" placeholder="例：台灣銀行" value="'+(pl.inst||'')+'"></div></div>';
+    // 月利息（民間 顯示）
+    html += '<div class="frow" id="ef-prop'+n+'-rate-wrap-'+id+'" style="display:'+(isCivil ? 'flex' : 'none')+';margin-top:6px"><div class="flbl">月利息（%）</div><input class="fi" id="ef-prop'+n+'-rate-'+id+'" type="number" step="0.01" placeholder="例：3" value="'+(pl.rate||'')+'" inputmode="decimal"></div>';
     html += '<div class="frow2"><div class="frow"><div class="flbl">貸款餘額（元）</div><input class="fi" id="ef-prop'+n+'-'+id+'" type="number" value="'+(t[1])+'" placeholder="0" inputmode="numeric"></div>';
     html += '<div class="frow"><div class="flbl">月繳（元）</div><input class="fi" id="ef-prop'+n+'-pay-'+id+'" type="number" value="'+(pl.pay||'')+'" placeholder="0" inputmode="numeric"></div></div>';
-    html += '<div class="frow"><div class="flbl">違約金（元）</div><input class="fi" id="ef-prop'+n+'-penalty-'+id+'" type="number" value="'+(pl.penalty||'')+'" placeholder="0" inputmode="numeric"></div>';
+    html += '<div class="frow"><div class="flbl">違約金（元）</div><input class="fi" id="ef-prop'+n+'-penalty-'+id+'" type="number" value="'+(pl.penalty||'')+'" placeholder="未填寫顯示「無」" inputmode="numeric"></div>';
   });
   html += '</div>';
 
@@ -3972,12 +4003,36 @@ async function saveLeadEdit(id) {
     var el = document.getElementById('ef-' + suffix + '-' + id);
     return el ? el.value : '';
   };
+
+  // 出生日期：直接從民國年/月/日三個欄位組裝（避免 hidden input 不同步）
+  var bdayValue = null;
+  var rocY = parseInt(gv('bday-y'));
+  var rocM = parseInt(gv('bday-m'));
+  var rocD = parseInt(gv('bday-d'));
+  if (rocY && rocM && rocD) {
+    var pad = function(n){ return n < 10 ? '0'+n : n; };
+    bdayValue = (rocY + 1911) + '-' + pad(rocM) + '-' + pad(rocD);
+  } else if (gv('birthday')) {
+    bdayValue = gv('birthday');  // 退回 hidden input 的值
+  }
+
+  // 年齡：如有出生日期，重算；否則沿用原值
+  var ageValue = parseInt(gv('age')) || null;
+  if (bdayValue) {
+    var bd = new Date(bdayValue);
+    var today = new Date();
+    var calcAge = today.getFullYear() - bd.getFullYear();
+    var mDiff = today.getMonth() - bd.getMonth();
+    if (mDiff < 0 || (mDiff === 0 && today.getDate() < bd.getDate())) calcAge--;
+    if (calcAge >= 0 && calcAge <= 120) ageValue = calcAge;
+  }
+
   var idno = gv('idno').trim().toUpperCase();
   var payload = {
     name:               gv('name').trim() || null,
     id_number_hash:     idno || null,
-    birthday:           gv('birthday') || null,
-    age:                parseInt(gv('age')) || null,
+    birthday:           bdayValue,
+    age:                ageValue,
     work_type: [gv('company'), gv('position')].filter(Boolean).join(' · ') || null,
     alert_status:       gv('alert') || 'none',
     address:            gv('addr') || null,
@@ -4009,14 +4064,17 @@ async function saveLeadEdit(id) {
     prop_loans: JSON.stringify([
       { ltype: document.getElementById('ef-prop1-ltype-'+id) ? document.getElementById('ef-prop1-ltype-'+id).value : '',
         inst: document.getElementById('ef-prop1-inst-'+id) ? document.getElementById('ef-prop1-inst-'+id).value : '',
+        rate: parseFloat(document.getElementById('ef-prop1-rate-'+id) ? document.getElementById('ef-prop1-rate-'+id).value : '') || 0,
         pay: parseFloat(document.getElementById('ef-prop1-pay-'+id) ? document.getElementById('ef-prop1-pay-'+id).value : '') || 0,
         penalty: parseFloat(document.getElementById('ef-prop1-penalty-'+id) ? document.getElementById('ef-prop1-penalty-'+id).value : '') || 0 },
       { ltype: document.getElementById('ef-prop2-ltype-'+id) ? document.getElementById('ef-prop2-ltype-'+id).value : '',
         inst: document.getElementById('ef-prop2-inst-'+id) ? document.getElementById('ef-prop2-inst-'+id).value : '',
+        rate: parseFloat(document.getElementById('ef-prop2-rate-'+id) ? document.getElementById('ef-prop2-rate-'+id).value : '') || 0,
         pay: parseFloat(document.getElementById('ef-prop2-pay-'+id) ? document.getElementById('ef-prop2-pay-'+id).value : '') || 0,
         penalty: parseFloat(document.getElementById('ef-prop2-penalty-'+id) ? document.getElementById('ef-prop2-penalty-'+id).value : '') || 0 },
       { ltype: document.getElementById('ef-prop3-ltype-'+id) ? document.getElementById('ef-prop3-ltype-'+id).value : '',
         inst: document.getElementById('ef-prop3-inst-'+id) ? document.getElementById('ef-prop3-inst-'+id).value : '',
+        rate: parseFloat(document.getElementById('ef-prop3-rate-'+id) ? document.getElementById('ef-prop3-rate-'+id).value : '') || 0,
         pay: parseFloat(document.getElementById('ef-prop3-pay-'+id) ? document.getElementById('ef-prop3-pay-'+id).value : '') || 0,
         penalty: parseFloat(document.getElementById('ef-prop3-penalty-'+id) ? document.getElementById('ef-prop3-penalty-'+id).value : '') || 0 },
     ]),
@@ -6424,7 +6482,9 @@ function renderTeamMembers(el, isLeader, isAdmin) {
     var isMe = tm.member_id === currentUser.id;
     var memberLeads = teamLeads.filter(function(l){return l.member_id===tm.member_id;});
     var now = new Date();
-    var thisMonthLeads = memberLeads.filter(function(l){return new Date(l.created_at)>=new Date(now.getFullYear(),now.getMonth(),1);});
+    var thisMonthStart = new Date(now.getFullYear(),now.getMonth(),1);
+    var thisMonthLeads = memberLeads.filter(function(l){return new Date(l.created_at)>=thisMonthStart;});
+    var thisMonthClosed = thisMonthLeads.filter(function(l){return l.status==='closed';});
 
     h += '<div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:0.5px solid var(--bdr)">';
     h += '<div style="width:38px;height:38px;border-radius:50%;background:var(--al);color:var(--acc);display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:600;flex-shrink:0">' + (m.name||'?').charAt(0) + '</div>';
@@ -6433,7 +6493,7 @@ function renderTeamMembers(el, isLeader, isAdmin) {
     h += '<span class="badge ' + (tm.role==='leader'?'b-acc':tm.role==='admin'?'b-yel':'b-gray') + '">' + (tm.role==='leader'?'團長':tm.role==='admin'?'管理員':'成員') + '</span>';
     if (isMe) h += '<span class="badge b-grn">我</span>';
     h += '</div>';
-    h += '<div style="font-size:13px;color:var(--t2);margin-top:2px">本月 ' + thisLeads.filter(function(l){return l.member_id===tm.member_id;}).length + ' 件 · 成交 ' + thisLeads.filter(function(l){return l.member_id===tm.member_id&&l.status==='closed';}).length + ' 件</div>';
+    h += '<div style="font-size:13px;color:var(--t2);margin-top:2px">本月 ' + thisMonthLeads.length + ' 件 · 成交 ' + thisMonthClosed.length + ' 件 · 累計 ' + memberLeads.length + ' 件</div>';
     h += '</div>';
 
     if (isLeader && !isMe) {
@@ -11802,14 +11862,26 @@ async function exportLeadPDF(leadId) {
     var propLoansData = [];
     try { propLoansData = lead.prop_loans ? JSON.parse(lead.prop_loans) : []; } catch(e) { propLoansData = []; }
     var tierLabels = ['一胎','二胎','三胎'];
+    var ltypeLabels = {bank:'銀行', finance:'融資', civil:'民間'};
     [lead.property_loan1, lead.property_loan2, lead.property_loan3].forEach(function(amt, i) {
       if (amt) {
         var pl = propLoansData[i] || {};
-        var tierStr = '$'+amt.toLocaleString();
-        if (pl.inst) tierStr = pl.inst + '・' + tierStr;
-        if (pl.pay) tierStr += '・月繳$'+(pl.pay||0).toLocaleString();
-        if (pl.penalty) tierStr += '・違約金$'+(pl.penalty||0).toLocaleString();
-        propData.push([tierLabels[i], tierStr]);
+        var parts = [];
+        // 類型
+        if (pl.ltype && ltypeLabels[pl.ltype]) parts.push('['+ltypeLabels[pl.ltype]+']');
+        // 機構名稱（銀行/融資）或 月利息（民間）
+        if (pl.ltype === 'civil') {
+          if (pl.rate) parts.push('月息'+pl.rate+'%');
+        } else if (pl.inst) {
+          parts.push(pl.inst);
+        }
+        // 餘額
+        parts.push('$'+amt.toLocaleString());
+        // 月繳
+        if (pl.pay) parts.push('月繳$'+(pl.pay||0).toLocaleString());
+        // 違約金
+        parts.push(pl.penalty ? '違約金$'+(pl.penalty||0).toLocaleString() : '違約金無');
+        propData.push([tierLabels[i], parts.join('・')]);
       }
     });
     propRows = propData.map(function(r){ return '<tr><td style="color:#666;width:110px;font-size:13px">'+r[0]+'</td><td style="font-weight:500;font-size:13px">'+r[1]+'</td></tr>'; }).join('');
@@ -12485,13 +12557,25 @@ function shareLeadLine(id) {
     if (lead.property_valuation) lines.push('估價：$' + lead.property_valuation.toLocaleString());
     var propLoansL = [];
     try { propLoansL = lead.prop_loans ? JSON.parse(lead.prop_loans) : []; } catch(e) { propLoansL = []; }
+    var ltypeLabelsL = {bank:'銀行', finance:'融資', civil:'民間'};
     [lead.property_loan1, lead.property_loan2, lead.property_loan3].forEach(function(amt, i) {
       if (amt) {
         var pl = propLoansL[i] || {};
         var s2 = ['一胎','二胎','三胎'][i] + '：';
-        if (pl.inst) s2 += pl.inst + ' ';
+        // 類型
+        if (pl.ltype && ltypeLabelsL[pl.ltype]) s2 += '['+ltypeLabelsL[pl.ltype]+'] ';
+        // 機構名稱（銀行/融資）或 月利息（民間）
+        if (pl.ltype === 'civil') {
+          if (pl.rate) s2 += '月息'+pl.rate+'% ';
+        } else if (pl.inst) {
+          s2 += pl.inst + ' ';
+        }
+        // 餘額
         s2 += '$' + amt.toLocaleString();
+        // 月繳
         if (pl.pay) s2 += '・月繳$'+pl.pay.toLocaleString();
+        // 違約金
+        s2 += '・' + (pl.penalty ? '違約金$'+pl.penalty.toLocaleString() : '違約金無');
         lines.push(s2);
       }
     });
