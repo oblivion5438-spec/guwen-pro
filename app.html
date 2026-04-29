@@ -21,6 +21,7 @@
 <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png">
 <title>顧問PRO</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
 :root{
@@ -3277,6 +3278,7 @@ function showLeadDetail(id) {
   html += '<button id="referral-btn-' + id + '" class="btn-sm" style="border-color:var(--blu);color:var(--blu)">🤝 轉介</button>';
   html += '<button onclick="shareScoreToLine(\'' + id + '\')" class="btn-sm" style="border-color:#06C755;color:#06C755">📊 分享評估</button>';
   html += '<button class="btn-sm" onclick="shareLeadLine(\'' + id + '\')">LINE</button>';
+  html += '<button class="btn-sm" onclick="showShareZipModal(\'' + id + '\')" style="border-color:#06C755;color:#06C755">📦 下載分享包</button>';
   html += '<button class="btn-grn" onclick="exportLeadPDF(\'' + id + '\')">📄 PDF</button>';
   html += '</div></div>';
 
@@ -11383,6 +11385,256 @@ function showLineCopyToast() {
 
 function shareReviewToLine(text) {
   shareTextToLine(text);
+}
+
+// ══════════════════════════════
+// 📦 下載分享包（ZIP）
+// 列出該客戶所有上傳資料，讓使用者勾選打包
+// ══════════════════════════════
+async function showShareZipModal(leadId) {
+  var lead = leads.find(function(l){ return l.id === leadId; });
+  if (!lead) { alert('找不到客戶資料'); return; }
+
+  // 移除舊 modal
+  var old = document.getElementById('share-zip-modal');
+  if (old) old.remove();
+
+  var overlay = document.createElement('div');
+  overlay.id = 'share-zip-modal';
+  overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.65);z-index:99999;display:flex;align-items:center;justify-content:center;padding:20px;font-family:var(--sans)';
+
+  var modal = document.createElement('div');
+  modal.style.cssText = 'background:var(--card);border:0.5px solid var(--bdr);border-radius:14px;width:100%;max-width:520px;max-height:90vh;display:flex;flex-direction:column;box-shadow:0 16px 48px rgba(0,0,0,.6)';
+
+  // 標題
+  var head = document.createElement('div');
+  head.style.cssText = 'display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:0.5px solid var(--bdr);flex-shrink:0';
+  head.innerHTML = '<div style="font-size:16px;font-weight:600;color:var(--t1)">📦 下載分享包 · ' + (lead.name||'客戶') + '</div>';
+  var closeBtn = document.createElement('button');
+  closeBtn.textContent = '✕';
+  closeBtn.style.cssText = 'background:transparent;border:none;color:var(--t2);font-size:20px;cursor:pointer;padding:0;width:28px;height:28px';
+  closeBtn.onclick = function(){ overlay.remove(); };
+  head.appendChild(closeBtn);
+  modal.appendChild(head);
+
+  // 內容區（可捲動）
+  var body = document.createElement('div');
+  body.style.cssText = 'padding:16px 20px;overflow-y:auto;flex:1';
+
+  var loading = document.createElement('div');
+  loading.style.cssText = 'text-align:center;padding:30px;color:var(--t2);font-size:14px';
+  loading.textContent = '⏳ 載入文件清單中...';
+  body.appendChild(loading);
+
+  modal.appendChild(body);
+
+  // 底部按鈕
+  var foot = document.createElement('div');
+  foot.style.cssText = 'padding:14px 20px;border-top:0.5px solid var(--bdr);display:flex;gap:8px;flex-shrink:0';
+  modal.appendChild(foot);
+
+  overlay.appendChild(modal);
+  document.body.appendChild(overlay);
+
+  overlay.onclick = function(e) { if (e.target === overlay) overlay.remove(); };
+
+  // 撈這個客戶的所有文件
+  try {
+    var res = await sb.from('lead_documents').select('*').eq('lead_id', leadId).order('created_at', { ascending: false });
+    var docs = res.data || [];
+
+    body.innerHTML = '';
+
+    if (docs.length === 0) {
+      body.innerHTML = '<div style="text-align:center;padding:30px;color:var(--t2);font-size:14px">' +
+        '<div style="font-size:36px;margin-bottom:10px">📭</div>' +
+        '此客戶尚未上傳任何文件<br>' +
+        '<div style="font-size:12px;color:var(--t3);margin-top:6px">請先到「📎 補充資料」上傳檔案</div>' +
+        '</div>';
+      foot.innerHTML = '<button onclick="document.getElementById(\'share-zip-modal\').remove()" style="flex:1;padding:11px;background:var(--inp);border:0.5px solid var(--bdr2);border-radius:8px;color:var(--t1);cursor:pointer;font-family:var(--sans)">關閉</button>';
+      return;
+    }
+
+    // 提示文字
+    var hint = document.createElement('div');
+    hint.style.cssText = 'font-size:13px;color:var(--t2);margin-bottom:12px;padding:10px 12px;background:rgba(6,199,85,.08);border:0.5px solid rgba(6,199,85,.25);border-radius:8px;line-height:1.6';
+    hint.innerHTML = '💡 勾選要打包的檔案，點下方「下載 ZIP」→ 解壓縮後 <strong>拖到 LINE 對話框</strong>';
+    body.appendChild(hint);
+
+    // 全選
+    var selAll = document.createElement('label');
+    selAll.style.cssText = 'display:flex;align-items:center;gap:8px;padding:8px 10px;cursor:pointer;border-bottom:0.5px solid var(--bdr);margin-bottom:6px';
+    selAll.innerHTML = '<input type="checkbox" id="zip-select-all" checked style="width:16px;height:16px;cursor:pointer"> <span style="font-size:14px;font-weight:500">全選 / 全部取消</span> <span style="font-size:12px;color:var(--t3);margin-left:auto">共 ' + docs.length + ' 個檔案</span>';
+    body.appendChild(selAll);
+
+    // 文件清單
+    var listWrap = document.createElement('div');
+    listWrap.style.cssText = 'display:flex;flex-direction:column;gap:6px';
+
+    var typeLabels = {
+      mydata:'MyData', movable:'動產擔保', verdict:'裁判書',
+      traffic:'交通違規', license:'技術士證照', vehicle:'行照',
+      build_reg:'建物謄本', land_reg:'土地謄本',
+      house_photos:'屋況照片', id_card:'雙證件',
+      asset:'資產文件', extra:'補充資料', other:'其他文件'
+    };
+
+    docs.forEach(function(doc, idx) {
+      var filename = doc.storage_path.split('/').pop();
+      var ext = (filename.split('.').pop() || '').toLowerCase();
+      var isImg = ['jpg','jpeg','png','gif','webp','heic'].indexOf(ext) >= 0;
+      var isPdf = ext === 'pdf';
+      var icon = isImg ? '🖼️' : (isPdf ? '📕' : '📄');
+      var typeLbl = typeLabels[doc.type] || doc.type;
+      var dateStr = new Date(doc.created_at).toLocaleDateString('zh-TW');
+
+      var item = document.createElement('label');
+      item.style.cssText = 'display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--inp);border:0.5px solid var(--bdr);border-radius:8px;cursor:pointer';
+      item.innerHTML =
+        '<input type="checkbox" class="zip-doc-cb" data-doc-id="' + doc.id + '" data-storage-path="' + doc.storage_path + '" data-filename="' + filename + '" data-type-label="' + typeLbl + '" checked style="width:16px;height:16px;cursor:pointer;flex-shrink:0">' +
+        '<span style="font-size:20px;flex-shrink:0">' + icon + '</span>' +
+        '<div style="flex:1;min-width:0">' +
+          '<div style="font-size:13px;font-weight:500;color:var(--t1);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + filename + '</div>' +
+          '<div style="font-size:11px;color:var(--t3);margin-top:2px">' + typeLbl + ' · ' + dateStr + (doc.ai_summary ? ' · ' + doc.ai_summary.substring(0,20) : '') + '</div>' +
+        '</div>';
+      listWrap.appendChild(item);
+    });
+    body.appendChild(listWrap);
+
+    // 全選互動
+    document.getElementById('zip-select-all').onchange = function() {
+      var on = this.checked;
+      document.querySelectorAll('.zip-doc-cb').forEach(function(cb){ cb.checked = on; });
+    };
+
+    // 底部下載按鈕
+    foot.innerHTML = '';
+    var cancelBtn = document.createElement('button');
+    cancelBtn.style.cssText = 'flex:1;padding:11px;background:var(--inp);border:0.5px solid var(--bdr2);border-radius:8px;color:var(--t1);cursor:pointer;font-family:var(--sans);font-size:14px';
+    cancelBtn.textContent = '取消';
+    cancelBtn.onclick = function(){ overlay.remove(); };
+
+    var dlBtn = document.createElement('button');
+    dlBtn.style.cssText = 'flex:2;padding:11px;background:#06C755;color:#FFF;border:none;border-radius:8px;cursor:pointer;font-family:var(--sans);font-size:14px;font-weight:600;display:flex;align-items:center;justify-content:center;gap:6px';
+    dlBtn.innerHTML = '<span>📦</span> 下載 ZIP';
+    dlBtn.onclick = function(){ downloadShareZip(lead, dlBtn); };
+
+    foot.appendChild(cancelBtn);
+    foot.appendChild(dlBtn);
+  } catch(e) {
+    body.innerHTML = '<div style="color:var(--red);padding:20px;text-align:center">載入失敗：' + e.message + '</div>';
+    console.error(e);
+  }
+}
+
+// 實際打包下載
+async function downloadShareZip(lead, btn) {
+  var checkboxes = document.querySelectorAll('.zip-doc-cb:checked');
+  if (checkboxes.length === 0) {
+    alert('請至少勾選一個檔案');
+    return;
+  }
+  if (typeof JSZip === 'undefined') {
+    alert('JSZip 載入失敗，請重新整理頁面再試');
+    return;
+  }
+
+  var origText = btn.innerHTML;
+  btn.disabled = true;
+  btn.style.opacity = '0.7';
+  btn.innerHTML = '<span>⏳</span> 打包中... (0/' + checkboxes.length + ')';
+
+  try {
+    var zip = new JSZip();
+    var safeName = (lead.name || '客戶').replace(/[\/\\?%*:|"<>]/g, '_');
+    var folder = zip.folder(safeName + '_分享資料');
+
+    // 加入文字摘要 README.txt
+    var readme = '客戶分享資料包\n';
+    readme += '═══════════════════════\n';
+    readme += '客戶姓名：' + (lead.name || '—') + '\n';
+    if (lead.phone) readme += '電話：' + lead.phone + '\n';
+    if (lead.required_amount) readme += '需求資金：$' + lead.required_amount.toLocaleString() + '\n';
+    readme += '產出時間：' + new Date().toLocaleString('zh-TW') + '\n';
+    readme += '檔案數量：' + checkboxes.length + ' 筆\n';
+    readme += '═══════════════════════\n\n';
+    readme += '【檔案清單】\n';
+
+    var fileList = [];
+    checkboxes.forEach(function(cb) {
+      fileList.push({
+        path: cb.dataset.storagePath,
+        filename: cb.dataset.filename,
+        typeLabel: cb.dataset.typeLabel
+      });
+      readme += '・[' + cb.dataset.typeLabel + '] ' + cb.dataset.filename + '\n';
+    });
+    folder.file('README.txt', readme);
+
+    // 下載每個檔案並加入 zip
+    var done = 0;
+    var failed = [];
+    for (var i = 0; i < fileList.length; i++) {
+      var f = fileList[i];
+      try {
+        var url = sb.storage.from('lead-documents').getPublicUrl(f.path).data.publicUrl;
+        var resp = await fetch(url);
+        if (!resp.ok) throw new Error('HTTP ' + resp.status);
+        var blob = await resp.blob();
+        // 用「分類_原檔名」避免不同類型同檔名衝突
+        var safe = f.typeLabel + '_' + f.filename;
+        folder.file(safe, blob);
+        done++;
+      } catch(err) {
+        console.error('下載失敗:', f.filename, err);
+        failed.push(f.filename);
+      }
+      btn.innerHTML = '<span>⏳</span> 打包中... (' + done + '/' + fileList.length + ')';
+    }
+
+    if (done === 0) {
+      alert('所有檔案都下載失敗。請檢查 Storage bucket 是否設為 public。');
+      btn.disabled = false;
+      btn.style.opacity = '1';
+      btn.innerHTML = origText;
+      return;
+    }
+
+    btn.innerHTML = '<span>📦</span> 產生 ZIP 中...';
+    var zipBlob = await zip.generateAsync({ type: 'blob', compression: 'DEFLATE', compressionOptions: { level: 6 } });
+
+    // 下載
+    var dateTag = new Date().toISOString().slice(0,10);
+    var zipName = safeName + '_分享資料_' + dateTag + '.zip';
+    var dlUrl = URL.createObjectURL(zipBlob);
+    var a = document.createElement('a');
+    a.href = dlUrl;
+    a.download = zipName;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(function(){ URL.revokeObjectURL(dlUrl); }, 2000);
+
+    // 完成提示
+    btn.innerHTML = '<span>✅</span> 已下載';
+    btn.style.background = '#039147';
+
+    if (failed.length > 0) {
+      alert('已下載 ' + done + ' 個檔案，但有 ' + failed.length + ' 個失敗：\n' + failed.join('\n'));
+    }
+
+    // 1.5 秒後關閉 modal
+    setTimeout(function() {
+      var m = document.getElementById('share-zip-modal');
+      if (m) m.remove();
+    }, 1500);
+  } catch(e) {
+    console.error('打包失敗:', e);
+    alert('打包失敗：' + e.message);
+    btn.disabled = false;
+    btn.style.opacity = '1';
+    btn.innerHTML = origText;
+  }
 }
 
 // ══════════════════════════════
