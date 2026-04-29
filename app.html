@@ -1127,8 +1127,8 @@ function calcScores(lead) {
 
   // ── 機車貸款 ──
   var bike = 0;
+  var bikeBlocked = false;
   if (salary > 0) {
-    var bikeBlocked = false;
     // 投保單位（機車貸款）
     var laborType3 = lead.labor_type || '';
     if (laborType3 === 'farmer') {
@@ -1214,7 +1214,7 @@ function calcScores(lead) {
     bank, car, bike, phone, pawn,
     propRatio, propStatus, maxLoan,
     bankBlocked, bankNoData, noSalary, noPawn,
-    carBlocked, carWaitMonths, carUnder20NeedGuarantor,
+    carBlocked, bikeBlocked, carWaitMonths, carUnder20NeedGuarantor,
     bankRejBlock: (bankRejCount >= 4 && R.bankRej4Block),
     lateWarning: latePayDays > 30
   };
@@ -1344,8 +1344,8 @@ function scoreBarColor(s) {
 function buildProbCards(scores) {
   var items = [
     ['銀行信貸', scores.bank, 'bank'],
-    ['汽車貸款', scores.car, 'fin'],
-    ['機車貸款', scores.bike, 'fin'],
+    ['汽車貸款', scores.car, 'car'],
+    ['機車貸款', scores.bike, 'bike'],
     ['商品手機貸', scores.phone, 'fin'],
     ['當鋪借貸', scores.pawn, 'pawn'],
   ];
@@ -1360,6 +1360,26 @@ function buildProbCards(scores) {
         label = '未填薪水'; vc = 'p-none'; bc = 'pb-none';
       } else {
         label = s > 0 ? s + '%' : '—';
+        vc = s > 0 ? scoreColor(s) : 'p-none';
+        bc = s > 0 ? scoreBarColor(s) : 'pb-none';
+      }
+    } else if (type === 'car') {
+      if (scores.carBlocked) {
+        label = '封鎖'; vc = 'p-red'; bc = 'pb-red';
+      } else if (scores.noSalary) {
+        label = '未填薪水'; vc = 'p-none'; bc = 'pb-none';
+      } else {
+        label = s > 0 ? s + '%' : '無';
+        vc = s > 0 ? scoreColor(s) : 'p-none';
+        bc = s > 0 ? scoreBarColor(s) : 'pb-none';
+      }
+    } else if (type === 'bike') {
+      if (scores.bikeBlocked) {
+        label = '封鎖'; vc = 'p-red'; bc = 'pb-red';
+      } else if (scores.noSalary) {
+        label = '未填薪水'; vc = 'p-none'; bc = 'pb-none';
+      } else {
+        label = s > 0 ? s + '%' : '無';
         vc = s > 0 ? scoreColor(s) : 'p-none';
         bc = s > 0 ? scoreBarColor(s) : 'pb-none';
       }
@@ -11112,7 +11132,7 @@ function shareScoreToLine(leadId) {
   var scoreItems = [
     ['銀行信貸', scores.bank, scores.bankBlocked],
     ['汽車貸款', scores.car, scores.carBlocked],
-    ['機車貸款', scores.bike, false],
+    ['機車貸款', scores.bike, scores.bikeBlocked],
     ['手機商品貸', scores.phone, false],
   ];
   var lines = [
@@ -11183,7 +11203,7 @@ async function exportLeadPDF(leadId) {
   var scoreItems = [
     ['銀行信貸', scores.bank, scores.bankBlocked],
     ['汽車貸款', scores.car, scores.carBlocked],
-    ['機車貸款', scores.bike, false],
+    ['機車貸款', scores.bike, scores.bikeBlocked],
     ['商品手機貸', scores.phone, false],
   ];
   var scoreRows = scoreItems.map(function(s) {
@@ -11973,7 +11993,7 @@ function shareLeadLine(id) {
   lines.push('🤖 AI 評估機率');
   lines.push('銀行信貸：' + (s.bankBlocked ? '❌封鎖' : s.bank + '%'));
   lines.push('汽車貸款：' + (s.carBlocked ? '❌封鎖' : s.car + '%'));
-  lines.push('機車貸款：' + s.bike + '%');
+  lines.push('機車貸款：' + (s.bikeBlocked ? '❌封鎖' : s.bike + '%'));
   lines.push('手機貸款：' + s.phone + '%');
 
   // 結案資訊
