@@ -2194,20 +2194,54 @@ function renderAddLead() {
   // 不動產區塊（DOM 方式建立）
   var propSec = document.createElement('div'); propSec.className = 'form-section'; propSec.id = 'prop-section'; propSec.style.display = 'none';
   var ph = '<div class="fs-title">🏠 不動產資料與貸款</div>';
-  // 基本屬性
-  ph += '<div class="frow2">';
-  ph += '<div class="frow"><div class="flbl">房屋類型</div><select class="fi" id="n-prop-type"><option value="">選擇</option><option value="elevator">電梯大樓</option><option value="huaxia">華廈</option><option value="apartment">公寓</option><option value="townhouse">透天厝</option><option value="shop">店面</option><option value="farm">農地</option><option value="industrial">工業用地</option></select></div>';
-  ph += '<div class="frow"><div class="flbl">屋齡（年）</div><input class="fi" id="n-prop-age" type="number" placeholder="15" inputmode="numeric"></div>';
+
+  // 不動產類型（複選：建物 / 土地）
+  ph += '<div class="frow"><div class="flbl">不動產類型 <span style="font-size:12px;color:var(--t2)">（可複選）</span></div>';
+  ph += '<div style="display:flex;gap:10px;margin-top:4px">';
+  ph += '<label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:14px"><input type="checkbox" id="n-prop-has-bldg" onchange="togglePropTypeFields()" style="width:16px;height:16px;accent-color:var(--acc)"> 建物</label>';
+  ph += '<label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:14px"><input type="checkbox" id="n-prop-has-land" onchange="togglePropTypeFields()" style="width:16px;height:16px;accent-color:var(--acc)"> 土地</label>';
+  ph += '</div></div>';
+
+  // 建物詳細（預設隱藏）
+  ph += '<div id="n-prop-bldg-section" style="display:none;background:var(--inp);border-radius:10px;padding:12px;margin:8px 0;border:0.5px solid var(--bdr2)">';
+  ph += '<div style="font-size:14px;font-weight:600;color:var(--t1);margin-bottom:10px">🏢 建物資料</div>';
+  ph += '<div class="frow2"><div class="frow"><div class="flbl">房屋類型</div><select class="fi" id="n-prop-type"><option value="">選擇</option><option value="elevator">電梯大樓</option><option value="huaxia">華廈</option><option value="apartment">公寓</option><option value="townhouse">透天厝</option><option value="shop">店面</option><option value="office">辦公室</option><option value="factory">廠房</option></select></div>';
+  ph += '<div class="frow"><div class="flbl">屋齡（年）</div><input class="fi" id="n-prop-age" type="number" placeholder="15" inputmode="numeric"></div></div>';
+  ph += '<div class="frow2"><div class="frow"><div class="flbl">建坪（坪）</div><input class="fi" id="n-prop-bldg-size" type="number" placeholder="30" step="0.1"></div>';
+  ph += '<div class="frow"><div class="flbl">車位</div><select class="fi" id="n-prop-parking-type"><option value="none">無</option><option value="flat">平面</option><option value="mech">機械</option><option value="slope">坡道</option></select></div></div>';
+  // 未保存登記
+  ph += '<div style="display:flex;align-items:center;gap:10px;margin-top:8px;padding:8px 10px;background:var(--yl);border-radius:8px">';
+  ph += '<label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:14px;font-weight:500">';
+  ph += '<input type="checkbox" id="n-prop-unregistered" onchange="toggleUnregistered()" style="width:16px;height:16px;accent-color:var(--yel)"> 建物為未保存登記（未辦保存）</label></div>';
+  ph += '<div id="n-prop-unregistered-section" style="display:none;margin-top:6px;padding:10px;background:rgba(184,128,32,.1);border-radius:8px;border:0.5px solid rgba(184,128,32,.4)">';
+  ph += '<div style="font-size:13px;font-weight:600;color:var(--yel);margin-bottom:6px">⚠️ 未保存登記建物</div>';
+  ph += '<div style="display:flex;align-items:center;gap:10px">';
+  ph += '<label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:14px">';
+  ph += '<input type="checkbox" id="n-prop-has-tax" style="width:16px;height:16px;accent-color:var(--grn)"> 有稅籍證明</label>';
+  ph += '<label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:14px">';
+  ph += '<input type="checkbox" id="n-prop-no-tax" style="width:16px;height:16px;accent-color:var(--red)"> 無稅籍證明</label>';
+  ph += '</div></div>';
   ph += '</div>';
-  ph += '<div class="frow2">';
-  ph += '<div class="frow"><div class="flbl">建坪（坪）</div><input class="fi" id="n-prop-bldg" type="number" placeholder="30" step="0.1"></div>';
-  ph += '<div class="frow"><div class="flbl">地坪（坪）</div><input class="fi" id="n-prop-land" type="number" placeholder="20" step="0.1"></div>';
+
+  // 土地詳細（預設隱藏）
+  ph += '<div id="n-prop-land-section" style="display:none;background:var(--inp);border-radius:10px;padding:12px;margin:8px 0;border:0.5px solid var(--bdr2)">';
+  ph += '<div style="font-size:14px;font-weight:600;color:var(--t1);margin-bottom:10px">🌱 土地資料</div>';
+  ph += '<div class="frow"><div class="flbl">土地用地類型</div><select class="fi" id="n-prop-land-type">';
+  ph += '<option value="">請選擇</option>';
+  ph += '<option value="build">建地（住宅區/商業區）</option>';
+  ph += '<option value="farm">農地</option>';
+  ph += '<option value="forest">林地</option>';
+  ph += '<option value="indigenous">原住民保留地</option>';
+  ph += '<option value="special_farm">特定農業區</option>';
+  ph += '<option value="industrial">工業用地</option>';
+  ph += '<option value="waterway">水利用地</option>';
+  ph += '<option value="other">其他</option>';
+  ph += '</select></div>';
+  ph += '<div class="frow"><div class="flbl">地坪（坪）</div><input class="fi" id="n-prop-land-size" type="number" placeholder="20" step="0.1"></div>';
+  ph += '<div class="frow"><div class="flbl">持分比例（例：1/2）</div><input class="fi" id="n-prop-land-share" placeholder="1/1（全部）"></div>';
   ph += '</div>';
-  ph += '<div class="frow2">';
-  ph += '<div class="frow"><div class="flbl">車位數量</div><input class="fi" id="n-prop-parking-count" type="number" placeholder="0" min="0" inputmode="numeric"></div>';
-  ph += '<div class="frow"><div class="flbl">車位類型</div><select class="fi" id="n-prop-parking-type"><option value="none">無車位</option><option value="flat">平面</option><option value="mech">機械</option><option value="slope">坡道平面</option></select></div>';
-  ph += '</div>';
-  // 業務估價
+
+  // 基本屬性（共同）
   ph += '<div style="background:var(--al);border:0.5px solid rgba(200,81,26,.3);border-radius:8px;padding:10px 12px;margin:8px 0">';
   ph += '<div style="font-size:14px;font-weight:500;color:var(--acc);margin-bottom:6px">業務估價（會員填入）</div>';
   ph += '<div class="frow"><div class="flbl">估價金額（元）</div><input class="fi" id="n-prop-val" type="number" placeholder="12000000" inputmode="numeric" oninput="updatePropRatio()"></div>';
@@ -2417,6 +2451,42 @@ async function uploadExtraDoc(file, note, leadId, btn) {
   if (upRes.error) { if (btn) { btn.textContent = "❌ 失敗"; btn.disabled = false; } alert("上傳失敗：" + upRes.error.message); return; }
   await sb.from("lead_documents").insert({ lead_id: leadId, member_id: currentUser.id, type: "extra", storage_path: path, ai_summary: note || null });
   if (btn) { btn.textContent = "✅ 已上傳"; btn.style.background = "var(--grn)"; btn.style.color = "#FFF"; btn.disabled = true; }
+}
+
+function togglePropTypeFields() {
+  var hasBldg = document.getElementById('n-prop-has-bldg') && document.getElementById('n-prop-has-bldg').checked;
+  var hasLand = document.getElementById('n-prop-has-land') && document.getElementById('n-prop-has-land').checked;
+  var bldgSec = document.getElementById('n-prop-bldg-section');
+  var landSec = document.getElementById('n-prop-land-section');
+  if (bldgSec) bldgSec.style.display = hasBldg ? 'block' : 'none';
+  if (landSec) landSec.style.display = hasLand ? 'block' : 'none';
+  if (!hasBldg) {
+    var unreg = document.getElementById('n-prop-unregistered');
+    if (unreg) unreg.checked = false;
+    toggleUnregistered();
+  }
+}
+
+function toggleUnregistered() {
+  var checked = document.getElementById('n-prop-unregistered') && document.getElementById('n-prop-unregistered').checked;
+  var sec = document.getElementById('n-prop-unregistered-section');
+  if (sec) sec.style.display = checked ? 'block' : 'none';
+}
+
+// 編輯模式的 togglePropTypeFields（帶 id）
+function togglePropTypeFieldsEdit(id) {
+  var hasBldg = document.getElementById('ef-prop-has-bldg-'+id) && document.getElementById('ef-prop-has-bldg-'+id).checked;
+  var hasLand = document.getElementById('ef-prop-has-land-'+id) && document.getElementById('ef-prop-has-land-'+id).checked;
+  var bldgSec = document.getElementById('ef-prop-bldg-section-'+id);
+  var landSec = document.getElementById('ef-prop-land-section-'+id);
+  if (bldgSec) bldgSec.style.display = hasBldg ? 'block' : 'none';
+  if (landSec) landSec.style.display = hasLand ? 'block' : 'none';
+}
+
+function toggleUnregisteredEdit(id) {
+  var checked = document.getElementById('ef-prop-unregistered-'+id) && document.getElementById('ef-prop-unregistered-'+id).checked;
+  var sec = document.getElementById('ef-prop-unregistered-section-'+id);
+  if (sec) sec.style.display = checked ? 'block' : 'none';
 }
 
 function checkPositionForTaxId(posId, rowId) {
@@ -2643,6 +2713,15 @@ async function saveLead() {
     property_ratio: propRatio, property_valuation: hasProp ? propVal : null,
     property_loan1: p1 || null, property_loan2: p2 || null, property_loan3: p3 || null,
     prop_loans: propLoansNew,
+    prop_has_bldg: document.getElementById('n-prop-has-bldg') ? document.getElementById('n-prop-has-bldg').checked : false,
+    prop_has_land: document.getElementById('n-prop-has-land') ? document.getElementById('n-prop-has-land').checked : false,
+    prop_unregistered: document.getElementById('n-prop-unregistered') ? document.getElementById('n-prop-unregistered').checked : false,
+    prop_has_tax_cert: document.getElementById('n-prop-has-tax') ? document.getElementById('n-prop-has-tax').checked : false,
+    prop_land_type: gv('n-prop-land-type') || null,
+    prop_land_size: parseFloat(gv('n-prop-land-size')) || null,
+    prop_land_share: gv('n-prop-land-share') || null,
+    prop_type: gv('n-prop-type') || null,
+    prop_age: parseInt(gv('n-prop-age')) || null,
     housing_status: gv('n-housing') || 'none',
     debt_ratio: parseInt(gv('n-debt-ratio')) || 0,
     bank_new_credit: gv('n-bank-new') === 'true',
@@ -2829,6 +2908,32 @@ function showLeadDetail(id) {
   if (lead.credit_card_limit) html += '<div class="ri"><span class="rl">信用卡額度</span><span class="rv">$' + lead.credit_card_limit.toLocaleString() + '</span></div>';
   html += '<div class="ri"><span class="rl">汽車駕照</span><span class="rv">' + (lead.has_car_license?'有':'無') + '</span></div>';
   html += '<div class="ri"><span class="rl">機車駕照</span><span class="rv">' + (lead.has_bike_license?'有':'無') + '</span></div>';
+
+  // 不動產資料顯示
+  if (lead.has_property) {
+    html += '<div class="sl">不動產</div>';
+    var propTypeArr = [];
+    if (lead.prop_has_bldg) propTypeArr.push('建物');
+    if (lead.prop_has_land) propTypeArr.push('土地');
+    if (propTypeArr.length > 0) html += '<div class="ri"><span class="rl">不動產類型</span><span class="rv">' + propTypeArr.join('、') + '</span></div>';
+    if (lead.prop_has_bldg) {
+      var propTypeLabels2 = {elevator:'電梯大樓',huaxia:'華廈',apartment:'公寓',townhouse:'透天厝',shop:'店面',office:'辦公室',factory:'廠房'};
+      if (lead.prop_type) html += '<div class="ri"><span class="rl">房屋類型</span><span class="rv">' + (propTypeLabels2[lead.prop_type]||lead.prop_type) + '</span></div>';
+      if (lead.prop_age) html += '<div class="ri"><span class="rl">屋齡</span><span class="rv">' + lead.prop_age + ' 年</span></div>';
+      if (lead.prop_unregistered) {
+        var taxStr = lead.prop_has_tax_cert ? '有稅籍證明' : '無稅籍證明';
+        html += '<div class="ri"><span class="rl">保存登記</span><span class="rv"><span style="color:var(--yel)">⚠️ 未保存登記（'+taxStr+'）</span></span></div>';
+      }
+    }
+    if (lead.prop_has_land) {
+      var landTypeLabels = {build:'建地',farm:'農地',forest:'林地',indigenous:'原住民保留地',special_farm:'特定農業區',industrial:'工業用地',waterway:'水利用地',other:'其他'};
+      if (lead.prop_land_type) html += '<div class="ri"><span class="rl">土地用地</span><span class="rv">' + (landTypeLabels[lead.prop_land_type]||lead.prop_land_type) + '</span></div>';
+      if (lead.prop_land_size) html += '<div class="ri"><span class="rl">地坪</span><span class="rv">' + lead.prop_land_size + ' 坪</span></div>';
+      if (lead.prop_land_share) html += '<div class="ri"><span class="rl">持分</span><span class="rv">' + lead.prop_land_share + '</span></div>';
+    }
+    if (lead.property_valuation) html += '<div class="ri"><span class="rl">估價</span><span class="rv">$' + lead.property_valuation.toLocaleString() + '</span></div>';
+  }
+
   html += '<div class="sl">需求</div>';
   html += '<div class="ri"><span class="rl">需求資金</span><span class="rv">' + (lead.required_amount ? '$'+lead.required_amount.toLocaleString() : '未填') + '</span></div>';
   html += '<div class="ri"><span class="rl">資金用途</span><span class="rv">' + (lead.fund_purpose||'未填') + '</span></div>';
@@ -2891,6 +2996,46 @@ function showLeadDetail(id) {
   html += '</select></div>';
   html += '<div class="frow"><div class="flbl">有無抵押品</div><select class="fi" id="ef-collateral-' + id + '"><option value="false"'+(!lead.has_collateral?' selected':'')+'> 無 </option><option value="true"'+(lead.has_collateral?' selected':'')+'>有</option></select></div></div>';
   html += '<div id="ef-prop-fields-' + id + '" style="display:' + (lead.has_property ? 'block' : 'none') + '">';
+
+  // 不動產類型複選
+  html += '<div class="frow"><div class="flbl">不動產類型 <span style="font-size:12px;color:var(--t2)">（可複選）</span></div>';
+  html += '<div style="display:flex;gap:10px;margin-top:4px">';
+  html += '<label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:14px"><input type="checkbox" id="ef-prop-has-bldg-'+id+'" '+(lead.prop_has_bldg?'checked':'')+' onchange="togglePropTypeFieldsEdit(\''+id+'\')" style="width:16px;height:16px;accent-color:var(--acc)"> 建物</label>';
+  html += '<label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:14px"><input type="checkbox" id="ef-prop-has-land-'+id+'" '+(lead.prop_has_land?'checked':'')+' onchange="togglePropTypeFieldsEdit(\''+id+'\')" style="width:16px;height:16px;accent-color:var(--acc)"> 土地</label>';
+  html += '</div></div>';
+
+  // 建物詳細
+  html += '<div id="ef-prop-bldg-section-'+id+'" style="display:'+(lead.prop_has_bldg?'block':'none')+';background:var(--inp);border-radius:10px;padding:12px;margin:8px 0;border:0.5px solid var(--bdr2)">';
+  html += '<div style="font-size:14px;font-weight:600;color:var(--t1);margin-bottom:10px">🏢 建物資料</div>';
+  html += '<div class="frow2"><div class="frow"><div class="flbl">房屋類型</div><select class="fi" id="ef-prop-type-'+id+'">';
+  [['','選擇'],['elevator','電梯大樓'],['huaxia','華廈'],['apartment','公寓'],['townhouse','透天厝'],['shop','店面'],['office','辦公室'],['factory','廠房']].forEach(function(o){
+    html += '<option value="'+o[0]+'"'+((lead.prop_type||'')===o[0]?' selected':'')+'>'+o[1]+'</option>';
+  });
+  html += '</select></div>';
+  html += '<div class="frow"><div class="flbl">屋齡（年）</div><input class="fi" id="ef-prop-age-'+id+'" type="number" value="'+(lead.prop_age||'')+'" placeholder="15"></div></div>';
+  // 未保存登記
+  html += '<div style="display:flex;align-items:center;gap:10px;margin-top:8px;padding:8px 10px;background:var(--yl);border-radius:8px">';
+  html += '<label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:14px;font-weight:500">';
+  html += '<input type="checkbox" id="ef-prop-unregistered-'+id+'" '+(lead.prop_unregistered?'checked':'')+' onchange="toggleUnregisteredEdit(\''+id+'\')" style="width:16px;height:16px;accent-color:var(--yel)"> 建物為未保存登記</label></div>';
+  html += '<div id="ef-prop-unregistered-section-'+id+'" style="display:'+(lead.prop_unregistered?'block':'none')+';margin-top:6px;padding:10px;background:rgba(184,128,32,.1);border-radius:8px;border:0.5px solid rgba(184,128,32,.4)">';
+  html += '<div style="font-size:13px;font-weight:600;color:var(--yel);margin-bottom:6px">⚠️ 未保存登記建物</div>';
+  html += '<div style="display:flex;align-items:center;gap:10px">';
+  html += '<label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:14px"><input type="checkbox" id="ef-prop-has-tax-'+id+'" '+(lead.prop_has_tax_cert?'checked':'')+' style="width:16px;height:16px;accent-color:var(--grn)"> 有稅籍證明</label>';
+  html += '</div></div>';
+  html += '</div>';
+
+  // 土地詳細
+  html += '<div id="ef-prop-land-section-'+id+'" style="display:'+(lead.prop_has_land?'block':'none')+';background:var(--inp);border-radius:10px;padding:12px;margin:8px 0;border:0.5px solid var(--bdr2)">';
+  html += '<div style="font-size:14px;font-weight:600;color:var(--t1);margin-bottom:10px">🌱 土地資料</div>';
+  html += '<div class="frow"><div class="flbl">土地用地類型</div><select class="fi" id="ef-prop-land-type-'+id+'">';
+  [['','請選擇'],['build','建地（住宅區/商業區）'],['farm','農地'],['forest','林地'],['indigenous','原住民保留地'],['special_farm','特定農業區'],['industrial','工業用地'],['waterway','水利用地'],['other','其他']].forEach(function(o){
+    html += '<option value="'+o[0]+'"'+((lead.prop_land_type||'')===o[0]?' selected':'')+'>'+o[1]+'</option>';
+  });
+  html += '</select></div>';
+  html += '<div class="frow2"><div class="frow"><div class="flbl">地坪（坪）</div><input class="fi" id="ef-prop-land-size-'+id+'" type="number" value="'+(lead.prop_land_size||'')+'" placeholder="20" step="0.1"></div>';
+  html += '<div class="frow"><div class="flbl">持分比例</div><input class="fi" id="ef-prop-land-share-'+id+'" value="'+(lead.prop_land_share||'')+'" placeholder="1/1（全部）"></div></div>';
+  html += '</div>';
+
   html += '<div class="frow"><div class="flbl">不動產估價（元）</div><input class="fi" id="ef-prop-val-' + id + '" type="number" value="' + (lead.property_valuation||'') + '" placeholder="10000000"></div>';
   // 讀取每胎詳細資料（從 loan_records 或個別欄位）
   var propLoans = [];
@@ -3229,6 +3374,15 @@ async function saveLeadEdit(id) {
     has_property:       gv('property') === 'true',
     has_collateral:     gv('collateral') === 'true',
     property_valuation: parseFloat(gv('prop-val')) || null,
+    prop_has_bldg: document.getElementById('ef-prop-has-bldg-'+id) ? document.getElementById('ef-prop-has-bldg-'+id).checked : false,
+    prop_has_land: document.getElementById('ef-prop-has-land-'+id) ? document.getElementById('ef-prop-has-land-'+id).checked : false,
+    prop_unregistered: document.getElementById('ef-prop-unregistered-'+id) ? document.getElementById('ef-prop-unregistered-'+id).checked : false,
+    prop_has_tax_cert: document.getElementById('ef-prop-has-tax-'+id) ? document.getElementById('ef-prop-has-tax-'+id).checked : false,
+    prop_type: gv('prop-type') || null,
+    prop_age: parseInt(gv('prop-age')) || null,
+    prop_land_type: gv('prop-land-type') || null,
+    prop_land_size: parseFloat(gv('prop-land-size')) || null,
+    prop_land_share: gv('prop-land-share') || null,
     property_loan1:     parseFloat(document.getElementById('ef-prop1-'+id) ? document.getElementById('ef-prop1-'+id).value : '') || null,
     property_loan2:     parseFloat(document.getElementById('ef-prop2-'+id) ? document.getElementById('ef-prop2-'+id).value : '') || null,
     property_loan3:     parseFloat(document.getElementById('ef-prop3-'+id) ? document.getElementById('ef-prop3-'+id).value : '') || null,
