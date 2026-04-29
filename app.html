@@ -1211,6 +1211,120 @@ function calcScores(lead) {
   };
 }
 
+function buildScoreReasons(lead, scores) {
+  var R = scoreRules;
+  var salary = lead.monthly_salary || 0;
+  var laborIns = lead.labor_insurance_years || 'none';
+  var laborType = lead.labor_type || '';
+  var ccAge = lead.credit_card_age || 'none';
+  var hasTransfer = lead.has_salary_transfer;
+  var bankRejCount = lead.bank_reject_count || 0;
+  var finRejCount = lead.fin_reject_count || 0;
+  var latePayDays = lead.late_pay_days || 0;
+  var hasAlert = lead.alert_status && lead.alert_status !== 'none';
+  var housingStatus = lead.housing_status || 'none';
+  var debtRatio = lead.debt_ratio || 0;
+  var laborTypeLabels = {company:'一般公司（勞保）',govt:'政府機關（公保）',farmer:'農漁（農保）',union:'職業工會',national:'國民年金',self:'自營業主'};
+  var laborLabels = {none:'未投保','6m+':'6個月以上','1y+':'1年以上','2y+':'2年以上'};
+
+  var reasons = { bank:[], car:[], bike:[], phone:[] };
+  var suggestions = { bank:[], car:[], bike:[], phone:[] };
+
+  // ── 銀行信貸原因 ──
+  if (scores.bankBlocked) {
+    if (hasAlert) reasons.bank.push('⛔ 警示/協商/更生/清算戶，銀行信貸封鎖');
+    else if (bankRejCount >= 4) reasons.bank.push('⛔ 銀行婉拒次數達4次以上，封鎖申辦');
+    else if (lead.bank_new_credit) reasons.bank.push('⛔ 信貸6個月內剛申辦，封鎖申辦');
+    else if (laborType === 'union' && R.laborTypeUnionBlock) reasons.bank.push('⛔ 職業工會投保，銀行信貸封鎖');
+    else if (laborType === 'national' && R.laborTypeNationalBlock) reasons.bank.push('⛔ 國民年金投保，銀行信貸封鎖');
+    else if (laborType === 'farmer' && R.laborTypeFarmerBlock) reasons.bank.push('⛔ 農漁保投保，銀行信貸封鎖');
+  } else {
+    if (salary <= 0) { reasons.bank.push('❌ 未填月薪，無法評估'); }
+    else {
+      if (salary >= 60000) reasons.bank.push('✅ 高月薪（$'+salary.toLocaleString()+'）加分');
+      else if (salary >= 40000) reasons.bank.push('✅ 月薪（$'+salary.toLocaleString()+'）中等');
+      else if (salary < 25000) reasons.bank.push('⚠️ 月薪偏低（$'+salary.toLocaleString()+'）');
+      if (hasTransfer) reasons.bank.push('✅ 有薪轉，加 '+R.bankTransferBonus+' 分');
+      else reasons.bank.push('⚠️ 無薪轉');
+      if (ccAge === '1y+' || ccAge === '2y+' || ccAge === '3y+' || ccAge === '5y+') reasons.bank.push('✅ 信用卡持卡年資佳，加分');
+      else if (ccAge === 'none') reasons.bank.push('⚠️ 無信用卡，扣分');
+      if (bankRejCount === 0) reasons.bank.push('✅ 無銀行婉拒記錄');
+      else reasons.bank.push('⚠️ 銀行婉拒 '+bankRejCount+' 次，扣 '+Math.abs(bankRejCount===1?R.bankRej1:bankRejCount===2?R.bankRej2:R.bankRej3)+' 分');
+      if (laborIns === '2y+') reasons.bank.push('✅ 勞保投保2年以上，加分');
+      else if (laborIns === 'none') reasons.bank.push('⚠️ 未投勞保，扣分');
+      if (laborType === 'govt') reasons.bank.push('✅ 政府機關（公保），加分');
+      else if (laborType === 'farmer') reasons.bank.push('⚠️ 農漁保，扣分');
+      else if (laborType === 'union') reasons.bank.push('⚠️ 職業工會投保，扣 '+Math.abs(R.laborTypeUnionPenalty)+' 分');
+      else if (laborType === 'national') reasons.bank.push('⚠️ 國民年金投保，扣 '+Math.abs(R.laborTypeNationalPenalty)+' 分');
+      if (latePayDays > 30) reasons.bank.push('❌ 遲繳超過1個月，嚴重扣分');
+      else if (latePayDays > 7) reasons.bank.push('⚠️ 有遲繳記錄（'+latePayDays+'天）');
+      if (housingStatus === 'self_own') reasons.bank.push('✅ 自有住宅，加分');
+      if (debtRatio >= 70) reasons.bank.push('❌ 負債比 '+debtRatio+'%，嚴重扣分');
+    }
+    // 建議
+    if (!hasTransfer) suggestions.bank.push('💡 若能辦理薪轉，可加 '+R.bankTransferBonus+' 分');
+    if (ccAge === 'none') suggestions.bank.push('💡 辦理信用卡並持有6個月以上可提升分數');
+    if (laborIns === 'none') suggestions.bank.push('💡 加入勞保（6個月以上）可加分');
+    if (bankRejCount >= 2) suggestions.bank.push('💡 建議等3個月後婉拒記錄消除再申辦');
+    if (scores.bank >= 70) suggestions.bank.push('🟢 核准機率高，可嘗試送件主力銀行');
+    else if (scores.bank >= 50) suggestions.bank.push('🟡 核准機率中等，建議多家送件或補件');
+    else suggestions.bank.push('🔴 建議先改善信用條件再送件');
+  }
+
+  // ── 汽車貸款原因 ──
+  if (scores.carBlocked) {
+    reasons.car.push('⛔ 汽車貸款目前封鎖（詳見評分規則）');
+  } else if (salary <= 0) {
+    reasons.car.push('❌ 未填月薪，無法評估');
+  } else {
+    if (lead.has_car_license) reasons.car.push('✅ 有汽車駕照，加 '+R.carLicBonus+' 分');
+    else reasons.car.push('⚠️ 無汽車駕照');
+    if (salary >= 50000) reasons.car.push('✅ 月薪高，汽車貸款條件佳');
+    else if (salary < 25000) reasons.car.push('⚠️ 月薪偏低，影響汽車貸款額度');
+    if (finRejCount === 0) reasons.car.push('✅ 無融資婉拒記錄');
+    else reasons.car.push('⚠️ 融資婉拒 '+finRejCount+' 次，扣分');
+    if (laborType === 'farmer' && R.carLaborTypeFarmerBlock) reasons.car.push('⛔ 農漁保，汽車貸款封鎖');
+    else if (laborType === 'farmer') reasons.car.push('⚠️ 農漁保，扣分');
+    if (lead.property_loan3 > 0) {
+      if (R.carPropPrivateBlock) reasons.car.push('⛔ 名下不動產有私人設定（三胎），封鎖汽車貸款');
+      else reasons.car.push('⚠️ 名下不動產有私人設定（三胎），扣 '+Math.abs(R.carPropPrivatePenalty)+' 分');
+    }
+    if (latePayDays > 30) reasons.car.push('❌ 遲繳超過1個月，嚴重扣分');
+    if (!lead.has_car_license) suggestions.car.push('💡 有汽車駕照可加 '+R.carLicBonus+' 分');
+    if (scores.car >= 70) suggestions.car.push('🟢 條件良好，建議試算車款再送件');
+    else if (scores.car >= 50) suggestions.car.push('🟡 可嘗試送件，額度可能受限');
+    else suggestions.car.push('🔴 建議先改善信用條件');
+  }
+
+  // ── 機車貸款原因 ──
+  if (salary <= 0) {
+    reasons.bike.push('❌ 未填月薪，無法評估');
+  } else {
+    if (lead.has_bike_license) reasons.bike.push('✅ 有機車駕照，加 '+R.bikeLicBonus+' 分');
+    else reasons.bike.push('⚠️ 無機車駕照');
+    if (salary >= 25000) reasons.bike.push('✅ 月薪符合機車貸款門檻');
+    else reasons.bike.push('⚠️ 月薪偏低');
+    if (laborType === 'farmer' && R.bikeLaborTypeFarmerBlock) reasons.bike.push('⛔ 農漁保，機車貸款封鎖');
+    else if (laborType === 'farmer') reasons.bike.push('⚠️ 農漁保，扣分');
+    if (laborType === 'union' && R.bikeLaborTypeUnionBlock) reasons.bike.push('⛔ 職業工會，機車貸款封鎖');
+    if (finRejCount >= 2) reasons.bike.push('⚠️ 融資婉拒 '+finRejCount+' 次，扣分');
+    if (latePayDays > 14) reasons.bike.push('⚠️ 有遲繳記錄，扣分');
+    if (scores.bike >= 70) suggestions.bike.push('🟢 機車貸款條件不錯');
+    else suggestions.bike.push('🟡 建議確認客戶是否有機車需求');
+  }
+
+  // ── 手機貸原因 ──
+  if (salary < R.phoneMinSalary) {
+    reasons.phone.push('❌ 月薪未達 $'+R.phoneMinSalary.toLocaleString()+'，不符手機貸條件');
+  } else {
+    reasons.phone.push('✅ 月薪符合手機貸門檻');
+    if (finRejCount >= 2) reasons.phone.push('⚠️ 融資婉拒記錄，扣分');
+    if (latePayDays > 14) reasons.phone.push('⚠️ 遲繳記錄，扣分');
+  }
+
+  return { reasons, suggestions };
+}
+
 function scoreColor(s) {
   return s >= 80 ? 'p-lgrn' : s >= 70 ? 'p-grn' : s >= 60 ? 'p-yel' : 'p-red';
 }
@@ -2866,6 +2980,42 @@ function showLeadDetail(id) {
     var spText = scores.propStatus==='ok'?'有效成交':scores.propStatus==='warn'?'有效買賣':'空間不足';
     html += '<div class="score-prop ' + spCls + '" style="margin-top:8px"><div style="font-size:14px;font-weight:500;color:var(--' + spColor + ')">🏠 不動產評估：' + spText + '（' + (scores.propRatio ? scores.propRatio.toFixed(1) : '0') + '%）</div></div>';
   }
+
+  // 原因備註與建議
+  var rs = buildScoreReasons(lead, scores);
+  html += '<div style="margin-top:12px">';
+  html += '<button onclick="var el=document.getElementById(\'score-reasons-'+id+'\');el.style.display=el.style.display===\'none\'?\'block\':\'none\'" ';
+  html += 'style="width:100%;padding:8px;background:var(--inp);border:0.5px solid var(--bdr2);border-radius:8px;color:var(--t1);cursor:pointer;font-family:var(--sans);font-size:13px;font-weight:500;text-align:left">';
+  html += '📋 查看評分原因與建議 ▼</button>';
+  html += '<div id="score-reasons-'+id+'" style="display:none;margin-top:8px">';
+
+  var typeList = [
+    {key:'bank', label:'🏦 銀行信貸'},
+    {key:'car', label:'🚗 汽車貸款'},
+    {key:'bike', label:'🛵 機車貸款'},
+    {key:'phone', label:'📱 手機貸'},
+  ];
+  typeList.forEach(function(t) {
+    var rList = rs.reasons[t.key] || [];
+    var sList = rs.suggestions[t.key] || [];
+    if (rList.length === 0 && sList.length === 0) return;
+    html += '<div style="background:var(--inp);border-radius:9px;padding:10px 12px;margin-bottom:8px">';
+    html += '<div style="font-size:14px;font-weight:600;margin-bottom:7px">' + t.label + '</div>';
+    if (rList.length > 0) {
+      html += '<div style="font-size:12px;color:var(--t3);margin-bottom:4px">評分原因</div>';
+      rList.forEach(function(r) {
+        html += '<div style="font-size:13px;padding:3px 0;color:var(--t1)">' + r + '</div>';
+      });
+    }
+    if (sList.length > 0) {
+      html += '<div style="font-size:12px;color:var(--t3);margin-top:7px;margin-bottom:4px">建議</div>';
+      sList.forEach(function(s) {
+        html += '<div style="font-size:13px;padding:3px 0;color:var(--t2)">' + s + '</div>';
+      });
+    }
+    html += '</div>';
+  });
+  html += '</div></div>';
   html += '</div>';  // 關閉 AI 評估 card
 
   // 案件進度 — 固定8個按鈕 + 自訂，立即反應
@@ -3235,22 +3385,35 @@ function showLeadDetail(id) {
     }, 0);
   };
 
-  // 補充資料區塊
+  // 補充資料區塊（用 DOM 方式，避免引號問題）
   html += '<div class="card" id="extra-docs-card-' + id + '">';
   html += '<div class="ct">📝 補充資料</div>';
   html += '<div style="font-size:13px;color:var(--t2);margin-bottom:10px">上傳任何其他相關文件、截圖或補充說明</div>';
   html += '<div id="extra-docs-list-' + id + '"></div>';
-  html += '<div style="display:flex;gap:8px;margin-top:10px">';
-  html += '<label style="padding:8px 16px;background:var(--inp);border:0.5px solid var(--bdr2);border-radius:8px;cursor:pointer;font-size:13px;font-family:var(--sans);color:var(--t1);display:flex;align-items:center;gap:6px">';
-  html += '<span>📎</span> 新增文件/圖片';
-  html += '<input type="file" accept="image/*,.pdf,.doc,.docx,.xlsx" multiple style="display:none" onchange="handleExtraFileAdd(this,\'extra-docs-list-' + id + '\',\'' + id + '\')">';
-  html += '</label></div>';
+  html += '<div id="extra-docs-btn-' + id + '"></div>';
   html += '</div>';
 
   // 載入並渲染結案項目
   loadAndRenderClosings(id);
 
   loadDocuments(id);
+
+  // 補充資料上傳按鈕（DOM 方式）
+  setTimeout(function() {
+    var btnArea = document.getElementById('extra-docs-btn-' + id);
+    if (!btnArea) return;
+    var label = document.createElement('label');
+    label.style.cssText = 'padding:8px 16px;background:var(--inp);border:0.5px solid var(--bdr2);border-radius:8px;cursor:pointer;font-size:13px;font-family:var(--sans);color:var(--t1);display:inline-flex;align-items:center;gap:6px;margin-top:8px';
+    label.innerHTML = '<span>📎</span> 新增文件/圖片';
+    var fileInput = document.createElement('input');
+    fileInput.type = 'file';
+    fileInput.accept = 'image/*,.pdf,.doc,.docx,.xlsx';
+    fileInput.multiple = true;
+    fileInput.style.display = 'none';
+    fileInput.onchange = function() { handleExtraFileAdd(fileInput, 'extra-docs-list-'+id, id); };
+    label.appendChild(fileInput);
+    btnArea.appendChild(label);
+  }, 100);
 }
 
 function buildDocSection(opts) {
@@ -10693,18 +10856,42 @@ async function exportLeadPDF(leadId) {
       '<span style="color:'+col+';font-weight:600;margin-left:6px">'+(blocked?'封鎖':s[1]+'%')+'</span></td></tr>';
   }).join('');
 
+  var laborLabels2 = {none:'未投保','6m+':'6個月以上','1y+':'1年以上','2y+':'2年以上'};
+  var laborTypeLabels2 = {company:'一般公司（勞保）',govt:'政府機關（公保）',farmer:'農漁（農保）',union:'職業工會（自付）',national:'國民年金（國保）',self:'自營業主'};
+  var laborStr2 = (laborLabels2[lead.labor_insurance_years]||'—');
+  if (lead.labor_type && laborTypeLabels2[lead.labor_type]) laborStr2 += '・' + laborTypeLabels2[lead.labor_type];
+
+  var birthdayStr = '—';
+  if (lead.birthday) {
+    var bDate = new Date(lead.birthday);
+    var rocY = bDate.getFullYear()-1911;
+    birthdayStr = '民國' + rocY + '年' + (bDate.getMonth()+1) + '月' + bDate.getDate() + '日';
+    var todayPdf = new Date();
+    var ageCalc = todayPdf.getFullYear()-bDate.getFullYear();
+    if (todayPdf.getMonth()<bDate.getMonth()||(todayPdf.getMonth()===bDate.getMonth()&&todayPdf.getDate()<bDate.getDate())) ageCalc--;
+    birthdayStr += '（' + ageCalc + '歲）';
+  } else if (lead.age) {
+    birthdayStr = lead.age + '歲';
+  }
+
   var infoRows = [
     ['姓名', lead.name||'—'],
-    ['年齡', lead.age?lead.age+'歲':'—'],
+    ['出生日期', birthdayStr],
     ['電話', lead.phone||'—'],
     ['身分證', lead.id_number_hash||'—'],
+    ['統一編號', lead.tax_id||'—'],
     ['居住地址', lead.address||'—'],
+    ['戶籍地址', lead.huji_address||'—'],
     ['居住狀況', housingLabels[lead.housing_status]||'—'],
     ['工作', lead.work_type||'—'],
     ['公司名稱', lead.company_name||'—'],
+    ['公司電話', lead.company_phone||'—'],
     ['月薪', lead.monthly_salary?'$'+lead.monthly_salary.toLocaleString():'—'],
     ['薪轉', lead.has_salary_transfer?'有':'無'],
-    ['信用卡', lead.credit_card_age||'—'],
+    ['勞保投保', laborStr2],
+    ['信用卡持卡', lead.credit_card_age||'—'],
+    ['汽車駕照', lead.has_car_license?'有':'無'],
+    ['機車駕照', lead.has_bike_license?'有':'無'],
     ['銀行婉拒', (lead.bank_reject_count||0)+'次'],
     ['融資婉拒', (lead.fin_reject_count||0)+'次'],
     ['遲繳天數', (lead.late_pay_days||0)+'天'],
@@ -10712,18 +10899,46 @@ async function exportLeadPDF(leadId) {
     ['需求資金', lead.required_amount?'$'+lead.required_amount.toLocaleString():'—'],
     ['資金用途', lead.fund_purpose||'—'],
     ['顧問備註', lead.advisor_note||'—'],
-  ].map(function(r){ return '<tr><td style="color:#666;width:100px;font-size:13px">'+r[0]+'</td><td style="font-weight:500;font-size:13px">'+r[1]+'</td></tr>'; }).join('');
+  ].filter(function(r){ return r[1] && r[1] !== '—'; })
+   .map(function(r){ return '<tr><td style="color:#666;width:110px;font-size:13px">'+r[0]+'</td><td style="font-weight:500;font-size:13px">'+r[1]+'</td></tr>'; }).join('');
 
   // 不動產資料
   var propRows = '';
   if (lead.has_property) {
+    var propTypeArr2 = [];
+    if (lead.prop_has_bldg) propTypeArr2.push('建物');
+    if (lead.prop_has_land) propTypeArr2.push('土地');
+    var landTypeLabels2 = {build:'建地',farm:'農地',forest:'林地',indigenous:'原住民保留地',special_farm:'特定農業區',industrial:'工業用地',waterway:'水利用地',other:'其他'};
+    var propTypeMap2 = {elevator:'電梯大樓',huaxia:'華廈',apartment:'公寓',townhouse:'透天厝',shop:'店面',office:'辦公室',factory:'廠房'};
     var propData = [
-      ['估價', lead.property_valuation?'$'+lead.property_valuation.toLocaleString():'—'],
-      ['一胎', lead.property_loan1?'$'+lead.property_loan1.toLocaleString():'無'],
-      ['二胎', lead.property_loan2?'$'+lead.property_loan2.toLocaleString():'無'],
-      ['三胎', lead.property_loan3?'$'+lead.property_loan3.toLocaleString():'無'],
+      ['不動產類型', propTypeArr2.join('、')||'—'],
     ];
-    propRows = propData.map(function(r){ return '<tr><td style="color:#666;width:100px;font-size:13px">'+r[0]+'</td><td style="font-weight:500;font-size:13px">'+r[1]+'</td></tr>'; }).join('');
+    if (lead.prop_has_bldg) {
+      if (lead.prop_type) propData.push(['房屋類型', propTypeMap2[lead.prop_type]||lead.prop_type]);
+      if (lead.prop_age) propData.push(['屋齡', lead.prop_age+'年']);
+      if (lead.prop_unregistered) propData.push(['保存登記', '未保存登記（'+(lead.prop_has_tax_cert?'有稅籍':'無稅籍')+'）']);
+    }
+    if (lead.prop_has_land) {
+      if (lead.prop_land_type) propData.push(['土地用地', landTypeLabels2[lead.prop_land_type]||lead.prop_land_type]);
+      if (lead.prop_land_size) propData.push(['地坪', lead.prop_land_size+'坪']);
+      if (lead.prop_land_share) propData.push(['持分', lead.prop_land_share]);
+    }
+    propData.push(['估價', lead.property_valuation?'$'+lead.property_valuation.toLocaleString():'—']);
+    // 讀取每胎詳細
+    var propLoansData = [];
+    try { propLoansData = lead.prop_loans ? JSON.parse(lead.prop_loans) : []; } catch(e) { propLoansData = []; }
+    var tierLabels = ['一胎','二胎','三胎'];
+    [lead.property_loan1, lead.property_loan2, lead.property_loan3].forEach(function(amt, i) {
+      if (amt) {
+        var pl = propLoansData[i] || {};
+        var tierStr = '$'+amt.toLocaleString();
+        if (pl.inst) tierStr = pl.inst + '・' + tierStr;
+        if (pl.pay) tierStr += '・月繳$'+(pl.pay||0).toLocaleString();
+        if (pl.penalty) tierStr += '・違約金$'+(pl.penalty||0).toLocaleString();
+        propData.push([tierLabels[i], tierStr]);
+      }
+    });
+    propRows = propData.map(function(r){ return '<tr><td style="color:#666;width:110px;font-size:13px">'+r[0]+'</td><td style="font-weight:500;font-size:13px">'+r[1]+'</td></tr>'; }).join('');
   }
 
   // 結案項目
@@ -11283,10 +11498,12 @@ function shareLeadLine(id) {
   var lead = leads.find(function(l) { return l.id === id; });
   if (!lead) return;
   var s = calcScores(lead);
-
   var housingMap = {self_own:'自有',self_live:'自住(非本人)',family:'親屬房',rent:'租屋',other:'其他'};
-  var lines = [];
+  var laborLabels3 = {none:'未投保','6m+':'6個月以上','1y+':'1年以上','2y+':'2年以上'};
+  var laborTypeMap3 = {company:'一般公司(勞保)',govt:'政府機關(公保)',farmer:'農漁(農保)',union:'職業工會',national:'國民年金',self:'自營業主'};
+  var landTypeMap3 = {build:'建地',farm:'農地',forest:'林地',indigenous:'原住民保留地',special_farm:'特定農業區',industrial:'工業用地',waterway:'水利用地',other:'其他'};
 
+  var lines = [];
   lines.push('━━━━━━━━━━━━━━━');
   lines.push('📋 【顧問PRO 客戶評估】');
   lines.push('━━━━━━━━━━━━━━━');
@@ -11294,39 +11511,69 @@ function shareLeadLine(id) {
   // 基本資料
   lines.push('👤 基本資料');
   lines.push('姓名：' + (lead.name || '—'));
-  if (lead.age) lines.push('年齡：' + lead.age + ' 歲');
+  if (lead.birthday) {
+    var bd = new Date(lead.birthday);
+    var rocY3 = bd.getFullYear()-1911;
+    var todayL = new Date();
+    var ageL = todayL.getFullYear()-bd.getFullYear();
+    if (todayL.getMonth()<bd.getMonth()||(todayL.getMonth()===bd.getMonth()&&todayL.getDate()<bd.getDate())) ageL--;
+    lines.push('出生：民國'+rocY3+'年'+(bd.getMonth()+1)+'月'+bd.getDate()+'日（'+ageL+'歲）');
+  } else if (lead.age) {
+    lines.push('年齡：' + lead.age + ' 歲');
+  }
   if (lead.phone) lines.push('電話：' + lead.phone);
+  if (lead.id_number_hash) lines.push('身分證：' + lead.id_number_hash.substring(0,3) + '******');
+  if (lead.tax_id) lines.push('統編：' + lead.tax_id);
   if (lead.address) lines.push('地址：' + lead.address);
-  if (lead.housing_status) lines.push('居住：' + (housingMap[lead.housing_status] || lead.housing_status));
+  if (lead.huji_address) lines.push('戶籍：' + lead.huji_address);
+  if (lead.housing_status && lead.housing_status !== 'none') lines.push('居住：' + (housingMap[lead.housing_status] || lead.housing_status));
 
   // 工作資訊
   lines.push('');
   lines.push('💼 工作資訊');
   if (lead.work_type) lines.push('職業：' + lead.work_type);
   if (lead.company_name) lines.push('公司：' + lead.company_name);
+  if (lead.company_phone) lines.push('公司電話：' + lead.company_phone);
   if (lead.monthly_salary) lines.push('月薪：$' + lead.monthly_salary.toLocaleString());
   lines.push('薪轉：' + (lead.has_salary_transfer ? '✅ 有' : '❌ 無'));
-  if (lead.labor_insurance_years) lines.push('勞保：' + lead.labor_insurance_years);
+  var laborStr3 = laborLabels3[lead.labor_insurance_years] || '—';
+  if (lead.labor_type) laborStr3 += '・' + (laborTypeMap3[lead.labor_type]||lead.labor_type);
+  lines.push('勞保：' + laborStr3);
 
   // 信用狀況
   lines.push('');
   lines.push('📊 信用狀況');
-  if (lead.credit_card_age) lines.push('信用卡：' + lead.credit_card_age);
+  if (lead.credit_card_age && lead.credit_card_age !== 'none') lines.push('信用卡：' + lead.credit_card_age);
   lines.push('銀行婉拒：' + (lead.bank_reject_count || 0) + ' 次');
   lines.push('融資婉拒：' + (lead.fin_reject_count || 0) + ' 次');
   lines.push('遲繳天數：' + (lead.late_pay_days || 0) + ' 天');
   if (lead.alert_status && lead.alert_status !== 'none') lines.push('警示：' + lead.alert_status);
-  lines.push('有車（汽）：' + (lead.has_car_license ? '✅' : '❌'));
-  lines.push('有車（機）：' + (lead.has_bike_license ? '✅' : '❌'));
+  lines.push('汽車駕照：' + (lead.has_car_license ? '✅' : '❌'));
+  lines.push('機車駕照：' + (lead.has_bike_license ? '✅' : '❌'));
 
   // 不動產
   if (lead.has_property) {
     lines.push('');
     lines.push('🏠 不動產');
+    var propTypeArr3 = [];
+    if (lead.prop_has_bldg) propTypeArr3.push('建物');
+    if (lead.prop_has_land) propTypeArr3.push('土地');
+    if (propTypeArr3.length) lines.push('類型：' + propTypeArr3.join('、'));
+    if (lead.prop_unregistered) lines.push('⚠️ 未保存登記（'+(lead.prop_has_tax_cert?'有稅籍':'無稅籍')+')');
+    if (lead.prop_has_land && lead.prop_land_type) lines.push('土地用地：' + (landTypeMap3[lead.prop_land_type]||lead.prop_land_type));
     if (lead.property_valuation) lines.push('估價：$' + lead.property_valuation.toLocaleString());
-    if (lead.property_loan1) lines.push('一胎：$' + lead.property_loan1.toLocaleString());
-    if (lead.property_loan2) lines.push('二胎：$' + lead.property_loan2.toLocaleString());
-    if (lead.property_loan3) lines.push('三胎：$' + lead.property_loan3.toLocaleString());
+    var propLoansL = [];
+    try { propLoansL = lead.prop_loans ? JSON.parse(lead.prop_loans) : []; } catch(e) { propLoansL = []; }
+    [lead.property_loan1, lead.property_loan2, lead.property_loan3].forEach(function(amt, i) {
+      if (amt) {
+        var pl = propLoansL[i] || {};
+        var s2 = ['一胎','二胎','三胎'][i] + '：';
+        if (pl.inst) s2 += pl.inst + ' ';
+        s2 += '$' + amt.toLocaleString();
+        if (pl.pay) s2 += '・月繳$'+pl.pay.toLocaleString();
+        lines.push(s2);
+      }
+    });
   }
 
   // 貸款需求
