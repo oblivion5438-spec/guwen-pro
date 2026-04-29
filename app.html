@@ -732,8 +732,13 @@ let scoreRules = {
   carHasLoanWaitMonths: 3,
 
   // 不動產私人設定（汽車貸款）
-  carPropPrivateBlock: false,    // 有私人設定 → 封鎖
-  carPropPrivatePenalty: -20,    // 有私人設定 → 扣分（封鎖為false時）
+  carPropPrivateBlock: false,
+  carPropPrivatePenalty: -20,
+  carPropAddrMismatch: false,    // 居住地址與戶籍地址不同 → 建議不封鎖（警示提示）
+
+  // 手機商品貸款投保單位
+  phoneLaborTypeFarmerBlock: false,
+  phoneLaborTypeFarmerPenalty: -8,
 
   // 機車貸款
   bikeLicBonus: 15,
@@ -1170,23 +1175,27 @@ function calcScores(lead) {
   // ── 當鋪借貸 ──
   var pawn = 0;
   var hasPawnBorrow = lead.has_pawn_borrow;
-  if (hasPawnBorrow) {
+  var hasCollateral = lead.has_collateral;
+  // 有借款或有抵押物都進行評估
+  if (hasPawnBorrow || hasCollateral) {
     // 負債比封鎖
     if (debtRatio >= R.pawnDebtRatioBlock) {
       pawn = 0;
     } else {
-      pawn = 50 + R.pawnHasBorrow;
-      if (!lead.has_collateral) pawn += R.pawnNoCollateral;
+      pawn = 50;
+      if (hasPawnBorrow) pawn += R.pawnHasBorrow; // 已有借款扣分
+      if (!hasCollateral) pawn += R.pawnNoCollateral; // 無抵押品扣分
       // 負債比警告扣分
       if (debtRatio >= R.pawnDebtRatioWarn) pawn -= 15;
       // 名下有汽機車
       if (hasVehicle) pawn += R.pawnHasVehicle;
       // 居住狀況
-      if (housingStatus === 'self') pawn += R.pawnSelfOwned;
+      if (housingStatus === 'self_own') pawn += R.pawnSelfOwned;
       else if (housingStatus === 'rent') pawn += R.pawnRenting;
       pawn = Math.max(0, Math.min(90, pawn));
     }
   }
+  var noPawn = !hasPawnBorrow && !hasCollateral; // 真的完全無資料才顯示「無」
 
   // ── 不動產 ──
   var propRatio = null, propStatus = null;
@@ -1198,7 +1207,7 @@ function calcScores(lead) {
 
   var noSalary = (salary <= 0);
   var bankNoData = (bank === 0 && !bankBlocked && noSalary);
-  var noPawn = !lead.has_pawn_borrow;
+  var noPawn = !lead.has_pawn_borrow && !lead.has_collateral; // 真正沒資料才顯示「無」
   var carUnder20NeedGuarantor = (age > 0 && age < 20 && R.carUnder20Block === false && !carBlocked);
 
   return {
@@ -2381,13 +2390,14 @@ function renderAddLead() {
     var n = i + 1;
     ph += '<div style="font-size:13px;font-weight:500;color:var(--t2);margin:10px 0 5px;border-bottom:0.5px solid var(--bdr);padding-bottom:3px">' + t + '</div>';
     ph += '<div class="frow2">';
+    ph += '<div class="frow"><div class="flbl">借款類型</div><select class="fi" id="n-prop'+n+'-ltype"><option value="">選擇</option><option value="bank">銀行</option><option value="finance">融資公司</option><option value="civil">民間（私人）</option></select></div>';
+    ph += '<div class="frow"><div class="flbl">借款機構名稱</div><input class="fi" id="n-prop' + n + '-inst" placeholder="例：台灣銀行"></div>';
+    ph += '</div>';
+    ph += '<div class="frow2">';
     ph += '<div class="frow"><div class="flbl">貸款餘額（元）</div><input class="fi" id="n-prop' + n + '-amt" type="number" placeholder="0" inputmode="numeric" oninput="updatePropRatio()"></div>';
     ph += '<div class="frow"><div class="flbl">月繳（元）</div><input class="fi" id="n-prop' + n + '-pay" type="number" placeholder="0" inputmode="numeric"></div>';
     ph += '</div>';
-    ph += '<div class="frow2">';
     ph += '<div class="frow"><div class="flbl">違約金（元）</div><input class="fi" id="n-prop' + n + '-penalty" type="number" placeholder="0" inputmode="numeric"></div>';
-    ph += '<div class="frow"><div class="flbl">銀行/機構</div><input class="fi" id="n-prop' + n + '-inst" placeholder="例：台灣銀行"></div>';
-    ph += '</div>';
   });
   ph += '<div id="prop-ratio-display" style="margin-top:8px"></div>';
   propSec.innerHTML = ph;
@@ -3268,7 +3278,12 @@ function showLeadDetail(id) {
     var n = i + 1;
     var pl = propLoans[i] || {};
     html += '<div style="font-size:13px;font-weight:600;color:var(--t2);margin:10px 0 5px;border-bottom:0.5px solid var(--bdr);padding-bottom:3px">' + t[0] + '</div>';
-    html += '<div class="frow"><div class="flbl">借款機構</div><input class="fi" id="ef-prop'+n+'-inst-'+id+'" placeholder="例：台灣銀行、地政事務所" value="'+(pl.inst||'')+'"></div>';
+    html += '<div class="frow2"><div class="frow"><div class="flbl">借款類型</div><select class="fi" id="ef-prop'+n+'-ltype-'+id+'">';
+    [['','選擇'],['bank','銀行'],['finance','融資公司'],['civil','民間（私人）']].forEach(function(o){
+      html += '<option value="'+o[0]+'"'+((pl.ltype||'')===o[0]?' selected':'')+'>'+o[1]+'</option>';
+    });
+    html += '</select></div>';
+    html += '<div class="frow"><div class="flbl">借款機構名稱</div><input class="fi" id="ef-prop'+n+'-inst-'+id+'" placeholder="例：台灣銀行" value="'+(pl.inst||'')+'"></div></div>';
     html += '<div class="frow2"><div class="frow"><div class="flbl">貸款餘額（元）</div><input class="fi" id="ef-prop'+n+'-'+id+'" type="number" value="'+(t[1])+'" placeholder="0" inputmode="numeric"></div>';
     html += '<div class="frow"><div class="flbl">月繳（元）</div><input class="fi" id="ef-prop'+n+'-pay-'+id+'" type="number" value="'+(pl.pay||'')+'" placeholder="0" inputmode="numeric"></div></div>';
     html += '<div class="frow"><div class="flbl">違約金（元）</div><input class="fi" id="ef-prop'+n+'-penalty-'+id+'" type="number" value="'+(pl.penalty||'')+'" placeholder="0" inputmode="numeric"></div>';
@@ -3624,13 +3639,16 @@ async function saveLeadEdit(id) {
     property_loan2:     parseFloat(document.getElementById('ef-prop2-'+id) ? document.getElementById('ef-prop2-'+id).value : '') || null,
     property_loan3:     parseFloat(document.getElementById('ef-prop3-'+id) ? document.getElementById('ef-prop3-'+id).value : '') || null,
     prop_loans: JSON.stringify([
-      { inst: document.getElementById('ef-prop1-inst-'+id) ? document.getElementById('ef-prop1-inst-'+id).value : '',
+      { ltype: document.getElementById('ef-prop1-ltype-'+id) ? document.getElementById('ef-prop1-ltype-'+id).value : '',
+        inst: document.getElementById('ef-prop1-inst-'+id) ? document.getElementById('ef-prop1-inst-'+id).value : '',
         pay: parseFloat(document.getElementById('ef-prop1-pay-'+id) ? document.getElementById('ef-prop1-pay-'+id).value : '') || 0,
         penalty: parseFloat(document.getElementById('ef-prop1-penalty-'+id) ? document.getElementById('ef-prop1-penalty-'+id).value : '') || 0 },
-      { inst: document.getElementById('ef-prop2-inst-'+id) ? document.getElementById('ef-prop2-inst-'+id).value : '',
+      { ltype: document.getElementById('ef-prop2-ltype-'+id) ? document.getElementById('ef-prop2-ltype-'+id).value : '',
+        inst: document.getElementById('ef-prop2-inst-'+id) ? document.getElementById('ef-prop2-inst-'+id).value : '',
         pay: parseFloat(document.getElementById('ef-prop2-pay-'+id) ? document.getElementById('ef-prop2-pay-'+id).value : '') || 0,
         penalty: parseFloat(document.getElementById('ef-prop2-penalty-'+id) ? document.getElementById('ef-prop2-penalty-'+id).value : '') || 0 },
-      { inst: document.getElementById('ef-prop3-inst-'+id) ? document.getElementById('ef-prop3-inst-'+id).value : '',
+      { ltype: document.getElementById('ef-prop3-ltype-'+id) ? document.getElementById('ef-prop3-ltype-'+id).value : '',
+        inst: document.getElementById('ef-prop3-inst-'+id) ? document.getElementById('ef-prop3-inst-'+id).value : '',
         pay: parseFloat(document.getElementById('ef-prop3-pay-'+id) ? document.getElementById('ef-prop3-pay-'+id).value : '') || 0,
         penalty: parseFloat(document.getElementById('ef-prop3-penalty-'+id) ? document.getElementById('ef-prop3-penalty-'+id).value : '') || 0 },
     ]),
@@ -6935,7 +6953,10 @@ function renderScoreRules() {
   h += '<div class="frow2"><div class="frow"><div class="flbl">職業工會扣分</div><input class="fi" id="sr-car-lt-union" type="number" value="' + (R.carLaborTypeUnionPenalty||-8) + '"></div>';
   h += '<div class="frow"><div class="flbl">國民年金扣分</div><input class="fi" id="sr-car-lt-national" type="number" value="' + (R.carLaborTypeNationalPenalty||-12) + '"></div></div>';
   h += '<div class="frow"><div class="flbl">自營業主扣分</div><input class="fi" id="sr-car-lt-self" type="number" value="' + (R.carLaborTypeSelfPenalty||-5) + '"></div>';
-  h += '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:8px">';
+  h += '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">';
+  h += '<div style="display:flex;align-items:center;gap:8px;padding:8px 12px;background:var(--inp);border-radius:8px">';
+  h += '<div class="tgl ' + (R.carLaborTypeFarmerBlock?'on':'') + '" onclick="scoreRules.carLaborTypeFarmerBlock=!scoreRules.carLaborTypeFarmerBlock;renderScoreRules()"></div>';
+  h += '<span style="font-size:13px;color:var(--red)">農漁保 → 封鎖汽車貸款</span></div>';
   h += '<div style="display:flex;align-items:center;gap:8px;padding:8px 12px;background:var(--inp);border-radius:8px">';
   h += '<div class="tgl ' + (R.carLaborTypeUnionBlock?'on':'') + '" onclick="scoreRules.carLaborTypeUnionBlock=!scoreRules.carLaborTypeUnionBlock;renderScoreRules()"></div>';
   h += '<span style="font-size:13px;color:var(--red)">職業工會 → 封鎖汽車貸款</span></div>';
@@ -6953,6 +6974,12 @@ function renderScoreRules() {
   if (!R.carPropPrivateBlock) {
     h += '<div class="frow"><div class="flbl">否則扣分</div><input class="fi" id="sr-car-prop-pen" type="number" value="' + (R.carPropPrivatePenalty||-20) + '"></div>';
   }
+  // 地址與戶籍不同
+  h += '<div style="display:flex;align-items:center;gap:8px;padding:8px 12px;background:var(--yl);border-radius:8px;margin-top:8px">';
+  h += '<div class="tgl ' + (R.carPropAddrMismatch?'on':'') + '" onclick="scoreRules.carPropAddrMismatch=!scoreRules.carPropAddrMismatch;renderScoreRules()"></div>';
+  h += '<div><div style="font-size:13px;font-weight:500;color:var(--yel)">居住地址與戶籍地址不同 → 建議不列為封鎖</div>';
+  h += '<div style="font-size:12px;color:var(--t2);margin-top:2px">開啟後：地址不同時自動顯示提示「建議評估後決定」，不自動封鎖</div></div>';
+  h += '</div>';
   h += '</div>';
 
   // ── 機車貸款規則 ──
@@ -7012,7 +7039,7 @@ function renderScoreRules() {
   h += '<div style="font-size:14px;font-weight:500;margin-bottom:8px">最低月薪門檻（低於此薪資不予評估）</div>';
   h += '<div class="frow"><div class="flbl">最低月薪（元）</div><input class="fi" id="sr-phone-min-salary" type="number" value="' + (R.phoneMinSalary||22000) + '"></div>';
   h += '</div>';
-  h += '<div style="padding:10px 0">';
+  h += '<div style="padding:10px 0;border-bottom:0.5px solid var(--bdr)">';
   h += '<div style="font-size:14px;font-weight:500;margin-bottom:8px">目前有手機商品貸</div>';
   h += '<div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">';
   h += '<div class="tgl ' + (R.phoneHasLoanBlock?'on':'') + '" onclick="scoreRules.phoneHasLoanBlock=!scoreRules.phoneHasLoanBlock;renderScoreRules()"></div>';
@@ -7020,6 +7047,14 @@ function renderScoreRules() {
   if (!R.phoneHasLoanBlock) {
     h += '<div class="frow"><div class="flbl">否則扣分</div><input class="fi" id="sr-phone-loan-pen" type="number" value="' + (R.phoneHasLoanPenalty||-20) + '"></div>';
   }
+  h += '</div>';
+  // 手機貸款投保單位農漁保
+  h += '<div style="padding:10px 0">';
+  h += '<div style="font-size:14px;font-weight:500;margin-bottom:8px">投保單位影響（手機商品貸）</div>';
+  h += '<div class="frow"><div class="flbl">農漁（農保）扣分</div><input class="fi" id="sr-phone-lt-farmer" type="number" value="' + (R.phoneLaborTypeFarmerPenalty||-8) + '"></div>';
+  h += '<div style="display:flex;align-items:center;gap:8px;padding:8px 12px;background:var(--inp);border-radius:8px;margin-top:8px">';
+  h += '<div class="tgl ' + (R.phoneLaborTypeFarmerBlock?'on':'') + '" onclick="scoreRules.phoneLaborTypeFarmerBlock=!scoreRules.phoneLaborTypeFarmerBlock;renderScoreRules()"></div>';
+  h += '<span style="font-size:13px;color:var(--red)">農漁保 → 封鎖手機商品貸</span></div>';
   h += '</div>';
   h += '</div>';
 
@@ -7087,6 +7122,7 @@ function saveScoreRules() {
   scoreRules.carLaborTypeNationalPenalty = g('sr-car-lt-national');
   scoreRules.carLaborTypeSelfPenalty = g('sr-car-lt-self');
   if (!scoreRules.carPropPrivateBlock) scoreRules.carPropPrivatePenalty = g('sr-car-prop-pen');
+  scoreRules.phoneLaborTypeFarmerPenalty = g('sr-phone-lt-farmer');
   // 投保單位（機車貸款）
   scoreRules.bikeLaborTypeUnionPenalty = g('sr-bike-lt-union');
   scoreRules.bikeLaborTypeNationalPenalty = g('sr-bike-lt-national');
