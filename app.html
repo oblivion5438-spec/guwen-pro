@@ -688,27 +688,51 @@ let scoreRules = {
   bankRej1: -8, bankRej2: -18, bankRej3: -30, bankRej4Block: true,
   bankRejectLt1m: -10, bankReject1_3m: -5, bankReject3_6m: 0,
   // 信貸剛申辦6個月內
-  bankNewBlock: false,       // true=封鎖, false=扣分
-  bankNewPenalty: -20,       // 封鎖為false時扣幾分
+  bankNewBlock: false,
+  bankNewPenalty: -20,
+
+  // 投保單位（銀行信貸）
+  laborTypeGovtBonus: 5,         // 政府機關（公保）加分
+  laborTypeFarmerPenalty: -5,    // 農漁（農保）扣分
+  laborTypeUnionPenalty: -8,     // 職業工會（自付）扣分
+  laborTypeNationalPenalty: -10, // 國民年金（國保）扣分
+  laborTypeSelfPenalty: -5,      // 自營業主扣分
+  laborTypeUnionBlock: false,    // 職業工會 封鎖銀行信貸
+  laborTypeNationalBlock: false, // 國民年金 封鎖銀行信貸
+
+  // 投保單位（汽車貸款）
+  carLaborTypeGovtBonus: 5,
+  carLaborTypeFarmerPenalty: -5,
+  carLaborTypeUnionPenalty: -8,
+  carLaborTypeNationalPenalty: -12,
+  carLaborTypeSelfPenalty: -5,
+  carLaborTypeUnionBlock: false,
+  carLaborTypeNationalBlock: false,
+
+  // 投保單位（機車貸款）
+  bikeLaborTypeUnionPenalty: -5,
+  bikeLaborTypeNationalPenalty: -8,
+  bikeLaborTypeUnionBlock: false,
+  bikeLaborTypeNationalBlock: false,
 
   // 汽車貸款
   carLicBonus: 20,
   finRej1: -10, finRej2: -25, finRejOver2: -40,
   finRejectLt1m: -10, finReject1_3m: -5, finReject3_6m: 0,
-  // 未滿20歲
-  carUnder20Block: false,    // true=無法申辦, false=建議補保人, 'penalty'=扣分
-  carUnder20Penalty: -25,    // 模式為penalty時扣幾分
-  // 目前有汽車貸款
-  carHasLoanLt3m: -30,       // 3個月內扣分（或設為-999=無法申辦）
-  carHasLoanLt6m: -15,       // 3~6個月內扣分
-  carHasLoanBlock3m: false,  // true=3個月內無法申辦
-  carHasLoanBlock6m: false,  // true=6個月內無法申辦
-  carHasLoanWaitMonths: 3,   // 需等幾個月後才可申辦（行事曆提醒用）
+  carUnder20Block: false,
+  carUnder20Penalty: -25,
+  carHasLoanLt3m: -30,
+  carHasLoanLt6m: -15,
+  carHasLoanBlock3m: false,
+  carHasLoanBlock6m: false,
+  carHasLoanWaitMonths: 3,
+
+  // 不動產私人設定（汽車貸款）
+  carPropPrivateBlock: false,    // 有私人設定 → 封鎖
+  carPropPrivatePenalty: -20,    // 有私人設定 → 扣分（封鎖為false時）
 
   // 機車貸款
   bikeLicBonus: 15,
-
-  // 機車貸款
   bikeUnder18Block: false,
   bikeUnder18Penalty: -25,
   bikeHasLoanBlock: false,
@@ -720,20 +744,19 @@ let scoreRules = {
   phoneHasLoanPenalty: -20,
 
   // 融資遲繳（套用到所有融資貸款）
-  latePayLt7: -5,            // 7天以內
-  latePay7_14: -12,          // 7~14天
-  latePay14_30: -25,         // 14~30天
-  latePayOver30: -50,        // 1個月以上
+  latePayLt7: -5,
+  latePay7_14: -12,
+  latePay14_30: -25,
+  latePayOver30: -50,
 
-  // 當鋪借款（改為依抵押品殘值/負債比判斷）
+  // 當鋪借款
   pawnHasBorrow: -15,
   pawnNoCollateral: -20,
-  // 新增當鋪相關
-  pawnDebtRatioWarn: 70,     // 負債比超過此%警告
-  pawnDebtRatioBlock: 90,    // 負債比超過此%封鎖
-  pawnHasVehicle: 10,        // 名下有汽機車加分
-  pawnSelfOwned: 8,          // 自住加分
-  pawnRenting: -5,           // 租屋扣分
+  pawnDebtRatioWarn: 70,
+  pawnDebtRatioBlock: 90,
+  pawnHasVehicle: 10,
+  pawnSelfOwned: 8,
+  pawnRenting: -5,
 
   // 可貸倍數
   salaryMultiplier: 22,
@@ -1005,6 +1028,17 @@ function calcScores(lead) {
     else if (laborIns === '1y+') bank += 5;
     else if (laborIns === '6m+') bank += 3;
     else if (laborIns === 'none') bank -= 5;
+    // 投保單位性質（非一般勞保的調整）
+    var laborType = lead.labor_type || '';
+    if (laborType === 'govt') bank += R.laborTypeGovtBonus;
+    else if (laborType === 'farmer') bank += R.laborTypeFarmerPenalty;
+    else if (laborType === 'union') {
+      if (R.laborTypeUnionBlock) { bankBlocked = true; }
+      else bank += R.laborTypeUnionPenalty;
+    } else if (laborType === 'national') {
+      if (R.laborTypeNationalBlock) { bankBlocked = true; }
+      else bank += R.laborTypeNationalPenalty;
+    } else if (laborType === 'self') bank += R.laborTypeSelfPenalty;
     // 負債比扣分
     if (debtRatio >= 70) bank -= 20;
     else if (debtRatio >= 50) bank -= 10;
@@ -1051,6 +1085,23 @@ function calcScores(lead) {
       else if (finRejCount > 2) car += R.finRejOver2;
       if (finRej === '<1m') car += R.finRejectLt1m;
       else if (finRej === 'none') car += 15;
+      // 投保單位（汽車貸款）
+      var laborType2 = lead.labor_type || '';
+      if (laborType2 === 'govt') car += R.carLaborTypeGovtBonus;
+      else if (laborType2 === 'farmer') car += R.carLaborTypeFarmerPenalty;
+      else if (laborType2 === 'union') {
+        if (R.carLaborTypeUnionBlock) { carBlocked = true; }
+        else car += R.carLaborTypeUnionPenalty;
+      } else if (laborType2 === 'national') {
+        if (R.carLaborTypeNationalBlock) { carBlocked = true; }
+        else car += R.carLaborTypeNationalPenalty;
+      } else if (laborType2 === 'self') car += R.carLaborTypeSelfPenalty;
+      // 不動產私人設定（三胎通常是民間）
+      var hasPropPrivate = lead.has_property && lead.property_loan3 > 0;
+      if (!carBlocked && hasPropPrivate) {
+        if (R.carPropPrivateBlock) { carBlocked = true; }
+        else car += R.carPropPrivatePenalty;
+      }
       // 遲繳
       if (latePayDays > 30) car += R.latePayOver30;
       else if (latePayDays > 14) car += R.latePay14_30;
@@ -1064,18 +1115,31 @@ function calcScores(lead) {
   // ── 機車貸款 ──
   var bike = 0;
   if (salary > 0) {
-    if (hasBikeLic) bike += R.bikeLicBonus;
-    bike += salary >= 25000 ? 40 : salary >= 18000 ? 28 : 15;
-    if (finRejCount >= 2) bike += R.finRej2;
-    else if (finRejCount === 1) bike += R.finRej1;
-    if (finRej === '<1m') bike += R.finRejectLt1m;
-    else if (finRej === 'none') bike += 15;
-    // 遲繳
-    if (latePayDays > 30) bike += R.latePayOver30;
-    else if (latePayDays > 14) bike += R.latePay14_30;
-    else if (latePayDays > 7) bike += R.latePay7_14;
-    else if (latePayDays > 0) bike += R.latePayLt7;
-    bike = Math.min(95, Math.max(0, bike));
+    var bikeBlocked = false;
+    // 投保單位（機車貸款）
+    var laborType3 = lead.labor_type || '';
+    if (laborType3 === 'union') {
+      if (R.bikeLaborTypeUnionBlock) bikeBlocked = true;
+      else bike += R.bikeLaborTypeUnionPenalty;
+    } else if (laborType3 === 'national') {
+      if (R.bikeLaborTypeNationalBlock) bikeBlocked = true;
+      else bike += R.bikeLaborTypeNationalPenalty;
+    }
+    if (!bikeBlocked) {
+      if (hasBikeLic) bike += R.bikeLicBonus;
+      bike += salary >= 25000 ? 40 : salary >= 18000 ? 28 : 15;
+      if (finRejCount >= 2) bike += R.finRej2;
+      else if (finRejCount === 1) bike += R.finRej1;
+      if (finRej === '<1m') bike += R.finRejectLt1m;
+      else if (finRej === 'none') bike += 15;
+      // 遲繳
+      if (latePayDays > 30) bike += R.latePayOver30;
+      else if (latePayDays > 14) bike += R.latePay14_30;
+      else if (latePayDays > 7) bike += R.latePay7_14;
+      else if (latePayDays > 0) bike += R.latePayLt7;
+      bike = Math.min(95, Math.max(0, bike));
+    }
+    if (bikeBlocked) bike = 0;
   }
 
   // ── 商品手機貸 ──
@@ -6286,6 +6350,24 @@ function renderScoreRules() {
   h += '<div class="frow"><div class="flbl">4次以上</div>';
   h += '<div style="display:flex;align-items:center;gap:8px;margin-top:5px"><div class="tgl ' + (R.bankRej4Block?'on':'') + '" onclick="scoreRules.bankRej4Block=!scoreRules.bankRej4Block;renderScoreRules()"></div><span style="font-size:13px;color:var(--red)">封鎖，無法申辦</span></div></div></div>';
   h += '<div class="frow"><div class="flbl">薪資倍數（薪轉×倍 = 最高可貸）</div><input class="fi" id="sr-salary-mult" type="number" value="' + (R.salaryMultiplier||22) + '" step="1"></div>';
+
+  // 投保單位（銀行信貸）
+  h += '<div class="sl">投保單位性質影響（銀行信貸）</div>';
+  h += '<div style="font-size:12px;color:var(--t2);margin-bottom:10px">一般公司（勞保）為基準，其他類型依設定加扣分</div>';
+  h += '<div class="frow2"><div class="frow"><div class="flbl">政府機關（公保）加分</div><input class="fi" id="sr-lt-govt" type="number" value="' + (R.laborTypeGovtBonus||5) + '"></div>';
+  h += '<div class="frow"><div class="flbl">農漁（農保）扣分</div><input class="fi" id="sr-lt-farmer" type="number" value="' + (R.laborTypeFarmerPenalty||-5) + '"></div></div>';
+  h += '<div class="frow2"><div class="frow"><div class="flbl">自營業主扣分</div><input class="fi" id="sr-lt-self" type="number" value="' + (R.laborTypeSelfPenalty||-5) + '"></div>';
+  h += '<div class="frow"><div class="flbl">職業工會扣分</div><input class="fi" id="sr-lt-union" type="number" value="' + (R.laborTypeUnionPenalty||-8) + '"></div></div>';
+  h += '<div class="frow"><div class="flbl">國民年金扣分</div><input class="fi" id="sr-lt-national" type="number" value="' + (R.laborTypeNationalPenalty||-10) + '"></div>';
+  // 封鎖選項
+  h += '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:8px">';
+  h += '<div style="display:flex;align-items:center;gap:8px;padding:8px 12px;background:var(--inp);border-radius:8px">';
+  h += '<div class="tgl ' + (R.laborTypeUnionBlock?'on':'') + '" onclick="scoreRules.laborTypeUnionBlock=!scoreRules.laborTypeUnionBlock;renderScoreRules()"></div>';
+  h += '<span style="font-size:13px;color:var(--red)">職業工會 → 封鎖銀行信貸</span></div>';
+  h += '<div style="display:flex;align-items:center;gap:8px;padding:8px 12px;background:var(--inp);border-radius:8px">';
+  h += '<div class="tgl ' + (R.laborTypeNationalBlock?'on':'') + '" onclick="scoreRules.laborTypeNationalBlock=!scoreRules.laborTypeNationalBlock;renderScoreRules()"></div>';
+  h += '<span style="font-size:13px;color:var(--red)">國民年金 → 封鎖銀行信貸</span></div>';
+  h += '</div>';
   h += '</div>';
 
   // ── 汽車貸款 ──
@@ -6336,6 +6418,32 @@ function renderScoreRules() {
   h += '<div class="frow2"><div class="frow"><div class="flbl">1次</div><input class="fi" id="sr-frej1" type="number" value="' + R.finRej1 + '"></div>';
   h += '<div class="frow"><div class="flbl">2次</div><input class="fi" id="sr-frej2" type="number" value="' + R.finRej2 + '"></div></div>';
   h += '<div class="frow"><div class="flbl">3次以上</div><input class="fi" id="sr-frejOver2" type="number" value="' + R.finRejOver2 + '"></div>';
+
+  // 投保單位（汽車貸款）
+  h += '<div class="sl">投保單位性質影響（汽車貸款）</div>';
+  h += '<div class="frow2"><div class="frow"><div class="flbl">政府機關（公保）加分</div><input class="fi" id="sr-car-lt-govt" type="number" value="' + (R.carLaborTypeGovtBonus||5) + '"></div>';
+  h += '<div class="frow"><div class="flbl">農漁（農保）扣分</div><input class="fi" id="sr-car-lt-farmer" type="number" value="' + (R.carLaborTypeFarmerPenalty||-5) + '"></div></div>';
+  h += '<div class="frow2"><div class="frow"><div class="flbl">職業工會扣分</div><input class="fi" id="sr-car-lt-union" type="number" value="' + (R.carLaborTypeUnionPenalty||-8) + '"></div>';
+  h += '<div class="frow"><div class="flbl">國民年金扣分</div><input class="fi" id="sr-car-lt-national" type="number" value="' + (R.carLaborTypeNationalPenalty||-12) + '"></div></div>';
+  h += '<div class="frow"><div class="flbl">自營業主扣分</div><input class="fi" id="sr-car-lt-self" type="number" value="' + (R.carLaborTypeSelfPenalty||-5) + '"></div>';
+  h += '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:8px">';
+  h += '<div style="display:flex;align-items:center;gap:8px;padding:8px 12px;background:var(--inp);border-radius:8px">';
+  h += '<div class="tgl ' + (R.carLaborTypeUnionBlock?'on':'') + '" onclick="scoreRules.carLaborTypeUnionBlock=!scoreRules.carLaborTypeUnionBlock;renderScoreRules()"></div>';
+  h += '<span style="font-size:13px;color:var(--red)">職業工會 → 封鎖汽車貸款</span></div>';
+  h += '<div style="display:flex;align-items:center;gap:8px;padding:8px 12px;background:var(--inp);border-radius:8px">';
+  h += '<div class="tgl ' + (R.carLaborTypeNationalBlock?'on':'') + '" onclick="scoreRules.carLaborTypeNationalBlock=!scoreRules.carLaborTypeNationalBlock;renderScoreRules()"></div>';
+  h += '<span style="font-size:13px;color:var(--red)">國民年金 → 封鎖汽車貸款</span></div>';
+  h += '</div>';
+
+  // 不動產私人設定（汽車貸款）
+  h += '<div class="sl">不動產私人設定（三胎/民間借款）</div>';
+  h += '<div style="font-size:12px;color:var(--t2);margin-bottom:8px">客戶名下不動產有私人設定（三胎金額大於0）時的處理方式</div>';
+  h += '<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">';
+  h += '<div class="tgl ' + (R.carPropPrivateBlock?'on':'') + '" onclick="scoreRules.carPropPrivateBlock=!scoreRules.carPropPrivateBlock;renderScoreRules()"></div>';
+  h += '<span style="font-size:13px;color:var(--red)">封鎖（無法申辦汽車貸款）</span></div>';
+  if (!R.carPropPrivateBlock) {
+    h += '<div class="frow"><div class="flbl">否則扣分</div><input class="fi" id="sr-car-prop-pen" type="number" value="' + (R.carPropPrivatePenalty||-20) + '"></div>';
+  }
   h += '</div>';
 
   // ── 機車貸款規則 ──
@@ -6370,6 +6478,19 @@ function renderScoreRules() {
   h += '</div>';
   h += '<div class="frow2"><div class="frow"><div class="flbl">機車駕照加分</div><input class="fi" id="sr-bikeic2" type="number" value="' + R.bikeLicBonus + '"></div>';
   h += '<div class="frow"><div class="flbl">融資婉拒1次</div><input class="fi" id="sr-bike-frej1" type="number" value="' + R.finRej1 + '"></div></div>';
+
+  // 投保單位（機車貸款）
+  h += '<div class="sl">投保單位影響（機車貸款）</div>';
+  h += '<div class="frow2"><div class="frow"><div class="flbl">職業工會扣分</div><input class="fi" id="sr-bike-lt-union" type="number" value="' + (R.bikeLaborTypeUnionPenalty||-5) + '"></div>';
+  h += '<div class="frow"><div class="flbl">國民年金扣分</div><input class="fi" id="sr-bike-lt-national" type="number" value="' + (R.bikeLaborTypeNationalPenalty||-8) + '"></div></div>';
+  h += '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:8px">';
+  h += '<div style="display:flex;align-items:center;gap:8px;padding:8px 12px;background:var(--inp);border-radius:8px">';
+  h += '<div class="tgl ' + (R.bikeLaborTypeUnionBlock?'on':'') + '" onclick="scoreRules.bikeLaborTypeUnionBlock=!scoreRules.bikeLaborTypeUnionBlock;renderScoreRules()"></div>';
+  h += '<span style="font-size:13px;color:var(--red)">職業工會 → 封鎖機車貸款</span></div>';
+  h += '<div style="display:flex;align-items:center;gap:8px;padding:8px 12px;background:var(--inp);border-radius:8px">';
+  h += '<div class="tgl ' + (R.bikeLaborTypeNationalBlock?'on':'') + '" onclick="scoreRules.bikeLaborTypeNationalBlock=!scoreRules.bikeLaborTypeNationalBlock;renderScoreRules()"></div>';
+  h += '<span style="font-size:13px;color:var(--red)">國民年金 → 封鎖機車貸款</span></div>';
+  h += '</div>';
   h += '</div>';
 
   // ── 手機商品貸規則 ──
@@ -6431,12 +6552,29 @@ function saveScoreRules() {
   scoreRules.bankCC1y = g('sr-cc1y'); scoreRules.bankCC6m = g('sr-cc6m'); scoreRules.bankCC3m = g('sr-cc3m');
   scoreRules.bankRej1 = g('sr-brej1'); scoreRules.bankRej2 = g('sr-brej2'); scoreRules.bankRej3 = g('sr-brej3');
   if (!scoreRules.bankNewBlock) scoreRules.bankNewPenalty = g('sr-bank-new-pen');
+  // 投保單位（銀行信貸）
+  scoreRules.laborTypeGovtBonus = g('sr-lt-govt');
+  scoreRules.laborTypeFarmerPenalty = g('sr-lt-farmer');
+  scoreRules.laborTypeUnionPenalty = g('sr-lt-union');
+  scoreRules.laborTypeNationalPenalty = g('sr-lt-national');
+  scoreRules.laborTypeSelfPenalty = g('sr-lt-self');
+  scoreRules.salaryMultiplier = parseInt(gv('sr-salary-mult')) || 22;
   scoreRules.carLicBonus = g('sr-carlic'); scoreRules.bikeLicBonus = g('sr-bikeic');
   scoreRules.finRej1 = g('sr-frej1'); scoreRules.finRej2 = g('sr-frej2'); scoreRules.finRejOver2 = g('sr-frejOver2');
   if (scoreRules.carUnder20Block === 'penalty') scoreRules.carUnder20Penalty = g('sr-car-u20-pen');
   if (!scoreRules.carHasLoanBlock3m) scoreRules.carHasLoanLt3m = g('sr-car-loan-3m');
   if (!scoreRules.carHasLoanBlock6m) scoreRules.carHasLoanLt6m = g('sr-car-loan-6m');
   scoreRules.carHasLoanWaitMonths = g('sr-car-wait') || 3;
+  // 投保單位（汽車貸款）
+  scoreRules.carLaborTypeGovtBonus = g('sr-car-lt-govt');
+  scoreRules.carLaborTypeFarmerPenalty = g('sr-car-lt-farmer');
+  scoreRules.carLaborTypeUnionPenalty = g('sr-car-lt-union');
+  scoreRules.carLaborTypeNationalPenalty = g('sr-car-lt-national');
+  scoreRules.carLaborTypeSelfPenalty = g('sr-car-lt-self');
+  if (!scoreRules.carPropPrivateBlock) scoreRules.carPropPrivatePenalty = g('sr-car-prop-pen');
+  // 投保單位（機車貸款）
+  scoreRules.bikeLaborTypeUnionPenalty = g('sr-bike-lt-union');
+  scoreRules.bikeLaborTypeNationalPenalty = g('sr-bike-lt-national');
   scoreRules.latePayLt7 = g('sr-late-lt7'); scoreRules.latePay7_14 = g('sr-late-7-14');
   scoreRules.latePay14_30 = g('sr-late-14-30'); scoreRules.latePayOver30 = g('sr-late-over30');
   scoreRules.pawnHasBorrow = g('sr-pawn-borrow'); scoreRules.pawnNoCollateral = g('sr-pawn-no-col');
@@ -6444,7 +6582,6 @@ function saveScoreRules() {
   scoreRules.pawnDebtRatioBlock = g('sr-pawn-debt-block') || 90;
   scoreRules.pawnHasVehicle = g('sr-pawn-vehicle'); scoreRules.pawnSelfOwned = g('sr-pawn-self');
   scoreRules.pawnRenting = g('sr-pawn-rent');
-  scoreRules.salaryMultiplier = parseInt(gv('sr-salary-mult')) || 22;
   alert('✓ 評分規則已儲存，下次評估立即生效');
 }
 
