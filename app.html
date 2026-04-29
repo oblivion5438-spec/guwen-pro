@@ -2059,7 +2059,14 @@ function renderAddLead() {
   html += '<div class="frow"><div class="flbl">姓名 <span class="req">*</span></div><input class="fi" id="n-name" placeholder="真實姓名"></div>';
   html += '<div class="frow"><div class="flbl">身分證字號</div><input class="fi" id="n-idno" placeholder="A123456789" maxlength="10" style="letter-spacing:2px;font-family:monospace" oninput="validateIDField(this)"></div>';
   html += '<div id="n-idno-err" style="font-size:13px;color:var(--red);display:none;margin-top:-10px;margin-bottom:8px">格式錯誤（英文+數字共10碼）</div>';
-  html += '<div class="frow2"><div class="frow"><div class="flbl">年齡</div><input class="fi" id="n-age" type="number" placeholder="38" inputmode="numeric"></div>';
+
+  // 出生日期（自動算年齡）
+  html += '<div class="frow2"><div class="frow"><div class="flbl">出生日期</div>';
+  html += '<input class="fi" id="n-birthday" type="date" onchange="calcAgeFromBirthday(\'n-birthday\',\'n-age-display\')"></div>';
+  html += '<div class="frow"><div class="flbl">年齡（自動計算）</div>';
+  html += '<div id="n-age-display" style="padding:10px 14px;background:var(--inp);border:0.5px solid var(--bdr2);border-radius:9px;font-size:15px;color:var(--t2)">填寫出生日期後自動顯示</div>';
+  html += '<input type="hidden" id="n-age"></div></div>';
+
   html += '<div class="frow2"><div class="frow"><div class="flbl">公司名稱</div><input class="fi" id="n-company" placeholder="XX 股份有限公司"></div>' +
   '<div class="frow"><div class="flbl">職位</div><input class="fi" id="n-position" placeholder="業務專員"></div></div>' +
   '<div class="frow" style="margin-top:0"><div class="flbl">公司電話 <span style="font-size:12px;color:var(--t3)">（備註用，不會主動致電）</span></div><input class="fi" id="n-biztel" type="tel" placeholder="02-12345678"></div>';
@@ -2074,13 +2081,15 @@ function renderAddLead() {
   html += '<div class="form-section"><div class="fs-title">💼 收入財務</div>';
   html += '<div class="frow2"><div class="frow"><div class="flbl">月薪（元）</div><input class="fi" id="n-salary" type="number" placeholder="40000" inputmode="numeric"></div>';
   html += '<div class="frow"><div class="flbl">有無薪轉</div><select class="fi" id="n-transfer"><option value="true">有</option><option value="false">無</option></select></div></div>';
+  // 勞保：年資 + 投保單位
   html += '<div class="frow2"><div class="frow"><div class="flbl">勞保年資</div><select class="fi" id="n-labor"><option value="none">未投保</option><option value="6m+">6個月以上</option><option value="1y+">1年以上</option><option value="2y+">2年以上</option></select></div>';
-  html += '<div class="frow"><div class="flbl">信用卡持卡</div><select class="fi" id="n-cc"><option value="none">無卡</option><option value="3m+">3個月以上</option><option value="6m+">6個月以上</option><option value="1y+">1年以上</option></select></div></div>';
-  html += '<div class="frow2"><div class="frow"><div class="flbl">汽車駕照</div><select class="fi" id="n-car-lic"><option value="true">有</option><option value="false">無</option></select></div>';
-  html += '<div class="frow"><div class="flbl">機車駕照</div><select class="fi" id="n-bike-lic"><option value="true">有</option><option value="false">無</option></select></div></div>';
-  html += '<div class="frow2"><div class="frow"><div class="flbl">名下不動產</div><select class="fi" id="n-property" onchange="togglePropFields(this.value)"><option value="false">無</option><option value="true">有</option></select></div>';
-  html += '<div class="frow"><div class="flbl">有無抵押品</div><select class="fi" id="n-collateral"><option value="false">無</option><option value="true">有實物抵押</option></select></div></div>';
-  html += '<div class="frow"><div class="flbl">負債比（%）</div><input class="fi" id="n-debt-ratio" type="number" min="0" max="100" placeholder="0" inputmode="numeric"></div>';
+  html += '<div class="frow"><div class="flbl">投保單位性質</div><select class="fi" id="n-labor-type"><option value="">未填</option><option value="company">一般公司（勞保）</option><option value="govt">政府機關（公保）</option><option value="farmer">農漁（農保）</option><option value="union">職業工會（自付）</option><option value="national">國民年金（國保）</option><option value="self">自營業主</option></select></div></div>';
+  html += '<div class="frow2"><div class="frow"><div class="flbl">信用卡持卡</div><select class="fi" id="n-cc"><option value="none">無卡</option><option value="3m+">3個月以上</option><option value="6m+">6個月以上</option><option value="1y+">1年以上</option><option value="2y+">2年以上</option><option value="3y+">3年以上</option><option value="5y+">5年以上</option></select></div>';
+  html += '<div class="frow"><div class="flbl">汽車駕照</div><select class="fi" id="n-car-lic"><option value="true">有</option><option value="false">無</option></select></div></div>';
+  html += '<div class="frow2"><div class="frow"><div class="flbl">機車駕照</div><select class="fi" id="n-bike-lic"><option value="true">有</option><option value="false">無</option></select></div>';
+  html += '<div class="frow"><div class="flbl">名下不動產</div><select class="fi" id="n-property" onchange="togglePropFields(this.value)"><option value="false">無</option><option value="true">有</option></select></div></div>';
+  html += '<div class="frow2"><div class="frow"><div class="flbl">有無抵押品</div><select class="fi" id="n-collateral"><option value="false">無</option><option value="true">有實物抵押</option></select></div>';
+  html += '<div class="frow"><div class="flbl">負債比（%）</div><input class="fi" id="n-debt-ratio" type="number" min="0" max="100" placeholder="0" inputmode="numeric"></div></div>';
   html += '</div>';
 
   html += '<div class="form-section"><div class="fs-title">📋 未過件與貸款記錄</div>';
@@ -2239,6 +2248,33 @@ function renderAddLead() {
   var sBtn = document.createElement('button'); sBtn.className = 'btn-p'; sBtn.style.flex = '1'; sBtn.textContent = '儲存並 AI 評估'; sBtn.onclick = saveLead;
   btnsDiv.appendChild(cBtn); btnsDiv.appendChild(sBtn); el.appendChild(btnsDiv);
   return; // DOM 方式建立，不需要最後的 el.innerHTML = html
+}
+
+function calcAgeFromBirthday(birthdayId, displayId) {
+  var birthdayEl = document.getElementById(birthdayId);
+  var displayEl = document.getElementById(displayId);
+  if (!birthdayEl || !displayEl) return;
+  var val = birthdayEl.value;
+  if (!val) return;
+  var birth = new Date(val);
+  var today = new Date();
+  var age = today.getFullYear() - birth.getFullYear();
+  var m = today.getMonth() - birth.getMonth();
+  if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) age--;
+  if (age < 0 || age > 120) {
+    displayEl.textContent = '日期不正確';
+    displayEl.style.color = 'var(--red)';
+    return;
+  }
+  displayEl.textContent = age + ' 歲';
+  displayEl.style.color = 'var(--t0)';
+  displayEl.style.fontWeight = '600';
+  // 同步到隱藏的 n-age
+  var ageHidden = document.getElementById('n-age');
+  if (ageHidden) ageHidden.value = age;
+  // 如果是編輯模式
+  var ageHiddenEf = document.getElementById(birthdayId.replace('ef-birthday','ef-age'));
+  if (ageHiddenEf) ageHiddenEf.value = age;
 }
 
 function togglePropFields(val) {
@@ -2400,16 +2436,20 @@ async function saveLead() {
   var propRatio = (hasProp && propVal > 0) ? parseFloat((totalPropDebt / propVal * 100).toFixed(1)) : null;
 
   var idnoRaw = (document.getElementById('n-idno') ? document.getElementById('n-idno').value.trim().toUpperCase() : '');
+  var birthdayVal = (document.getElementById('n-birthday') ? document.getElementById('n-birthday').value : '') || null;
 
   var payload = {
     member_id: currentUser.id, name: name,
     id_number_hash: idnoRaw || null,
+    birthday: birthdayVal,
     age: parseInt(gv('n-age')) || null, work_type: [gv('n-company'),gv('n-position')].filter(Boolean).join(' · ') || null,
     alert_status: gv('n-alert'), address: gv('n-addr'), huji_address: gv('n-huji'),
     required_amount: parseInt(gv('n-amount')) || null, fund_purpose: gv('n-purpose'),
     monthly_salary: parseInt(gv('n-salary')) || null,
     has_salary_transfer: gv('n-transfer') === 'true',
-    labor_insurance_years: gv('n-labor'), credit_card_age: gv('n-cc'),
+    labor_insurance_years: gv('n-labor'),
+    labor_type: gv('n-labor-type') || null,
+    credit_card_age:    gv('n-cc'),
     has_car_license: gv('n-car-lic') === 'true', has_bike_license: gv('n-bike-lic') === 'true',
     has_property: hasProp, has_collateral: gv('n-collateral') === 'true',
     bank_recent_reject: gv('n-bank-rej'), finance_recent_reject: gv('n-fin-rej'),
@@ -2566,7 +2606,16 @@ function showLeadDetail(id) {
   html += '<div class="sl">個人識別</div>';
   html += '<div class="ri"><span class="rl">姓名</span><span class="rv">' + (lead.name||'—') + '</span></div>';
   if (lead.id_number_hash) html += '<div class="ri"><span class="rl">身分證</span><span class="rv" style="font-family:monospace">' + lead.id_number_hash.substring(0,3) + '******</span></div>';
-  if (lead.age) html += '<div class="ri"><span class="rl">年齡</span><span class="rv">' + lead.age + '歲</span></div>';
+  if (lead.birthday) {
+    var bdate = new Date(lead.birthday);
+    var today2 = new Date();
+    var calcAge = today2.getFullYear() - bdate.getFullYear();
+    var mm2 = today2.getMonth() - bdate.getMonth();
+    if (mm2 < 0 || (mm2 === 0 && today2.getDate() < bdate.getDate())) calcAge--;
+    html += '<div class="ri"><span class="rl">出生日期</span><span class="rv">' + lead.birthday.substring(0,10) + '（' + calcAge + '歲）</span></div>';
+  } else if (lead.age) {
+    html += '<div class="ri"><span class="rl">年齡</span><span class="rv">' + lead.age + '歲</span></div>';
+  }
   html += '<div class="ri"><span class="rl">工作資訊</span><span class="rv">' + (lead.work_type||'未填') + '</span></div>';
   html += '<div class="ri"><span class="rl">警示協商</span><span class="rv"><span class="badge b-' + (lead.alert_status==='none'?'grn':'red') + '">' + (lead.alert_status==='none'?'否':lead.alert_status) + '</span></span></div>';
   if (lead.address) html += '<div class="ri"><span class="rl">居住地址</span><span class="rv" style="font-size:13px">' + lead.address + '</span></div>';
@@ -2580,8 +2629,11 @@ function showLeadDetail(id) {
   html += '<div class="ri"><span class="rl">薪轉</span><span class="rv">' + (lead.has_salary_transfer?'有':'無') + '</span></div>';
   // 勞保年資
   var laborLabels = {none:'未投保','6m+':'6個月以上','1y+':'1年以上','2y+':'2年以上'};
+  var laborTypeLabels = {company:'一般公司（勞保）',govt:'政府機關（公保）',farmer:'農漁（農保）',union:'職業工會（自付）',national:'國民年金（國保）',self:'自營業主'};
   if (lead.labor_insurance_years && lead.labor_insurance_years !== 'none') {
-    html += '<div class="ri"><span class="rl">勞保年資</span><span class="rv">' + (laborLabels[lead.labor_insurance_years]||lead.labor_insurance_years) + '</span></div>';
+    var laborStr = laborLabels[lead.labor_insurance_years] || lead.labor_insurance_years;
+    if (lead.labor_type) laborStr += '・' + (laborTypeLabels[lead.labor_type] || lead.labor_type);
+    html += '<div class="ri"><span class="rl">勞保年資</span><span class="rv">' + laborStr + '</span></div>';
   } else {
     html += '<div class="ri"><span class="rl">勞保年資</span><span class="rv" style="color:var(--t3)">未投保</span></div>';
   }
@@ -2601,7 +2653,13 @@ function showLeadDetail(id) {
   html += '<div class="frow"><div class="flbl">姓名</div><input class="fi" id="ef-name-' + id + '" value="' + (lead.name||'') + '"></div>';
   html += '<div class="frow" style="margin-top:6px"><div class="flbl">身分證字號</div><input class="fi" id="ef-idno-' + id + '" placeholder="A123456789" maxlength="10" style="letter-spacing:2px;font-family:monospace" value="' + (lead.id_number_hash||'') + '" oninput="validateIDField(this)"></div>';
   html += '<div id="ef-idno-err-' + id + '" style="font-size:12px;color:var(--red);display:none;margin-bottom:4px">格式錯誤（英文+9位數字，共10碼）</div>';
-  html += '<div class="frow" style="margin-top:6px"><div class="flbl">年齡</div><input class="fi" id="ef-age-' + id + '" type="number" value="' + (lead.age||'') + '"></div>';
+  // 出生日期（自動算年齡）
+  var birthdayVal2 = lead.birthday ? lead.birthday.substring(0,10) : '';
+  html += '<div class="frow2" style="margin-top:6px"><div class="frow"><div class="flbl">出生日期</div>';
+  html += '<input class="fi" id="ef-birthday-' + id + '" type="date" value="' + birthdayVal2 + '" onchange="calcAgeFromBirthday(\'ef-birthday-'+id+'\',\'ef-age-display-'+id+'\')"></div>';
+  html += '<div class="frow"><div class="flbl">年齡</div>';
+  html += '<div id="ef-age-display-' + id + '" style="padding:10px 14px;background:var(--inp);border:0.5px solid var(--bdr2);border-radius:9px;font-size:15px;color:var(--t0);font-weight:600">' + (lead.age ? lead.age + ' 歲' : '填出生日期自動計算') + '</div>';
+  html += '<input type="hidden" id="ef-age-' + id + '" value="' + (lead.age||'') + '"></div></div>';
     // 解析既有 work_type（格式：公司 · 職位）
   var wtParts = (lead.work_type||'').split(' · ');
   var existCompany = wtParts[0] || '';
@@ -2625,13 +2683,33 @@ function showLeadDetail(id) {
     html += '<option value="'+o[0]+'"'+(lead.labor_insurance_years===o[0]?' selected':'')+'>'+o[1]+'</option>';
   });
   html += '</select></div>';
-  html += '<div class="frow"><div class="flbl">信用卡持卡</div><select class="fi" id="ef-cc-' + id + '">';
+  html += '<div class="frow"><div class="flbl">投保單位性質</div><select class="fi" id="ef-labor-type-' + id + '">';
+  [['','未填'],['company','一般公司（勞保）'],['govt','政府機關（公保）'],['farmer','農漁（農保）'],['union','職業工會（自付）'],['national','國民年金（國保）'],['self','自營業主']].forEach(function(o){
+    html += '<option value="'+o[0]+'"'+((lead.labor_type||'')===o[0]?' selected':'')+'>'+o[1]+'</option>';
+  });
+  html += '</select></div></div>';
+  html += '<div class="frow2" style="margin-top:6px"><div class="frow"><div class="flbl">信用卡持卡</div><select class="fi" id="ef-cc-' + id + '">';
   [['none','無卡'],['3m+','3個月以上'],['6m+','6個月以上'],['1y+','1年以上'],['2y+','2年以上'],['3y+','3年以上'],['5y+','5年以上']].forEach(function(o){
     html += '<option value="'+o[0]+'"'+(lead.credit_card_age===o[0]?' selected':'')+'>'+o[1]+'</option>';
   });
   html += '</select></div></div>';
   html += '<div class="frow2" style="margin-top:6px"><div class="frow"><div class="flbl">汽車駕照</div><select class="fi" id="ef-carlic-' + id + '"><option value="true"' + (lead.has_car_license?' selected':'') + '>有</option><option value="false"' + (!lead.has_car_license?' selected':'') + '>無</option></select></div>';
   html += '<div class="frow"><div class="flbl">機車駕照</div><select class="fi" id="ef-bikeic-' + id + '"><option value="true"' + (lead.has_bike_license?' selected':'') + '>有</option><option value="false"' + (!lead.has_bike_license?' selected':'') + '>無</option></select></div></div>';
+
+  // 不動產（編輯模式）
+  html += '<div class="sl">不動產</div>';
+  html += '<div class="frow2"><div class="frow"><div class="flbl">名下不動產</div><select class="fi" id="ef-property-' + id + '" onchange="document.getElementById(\'ef-prop-fields-'+id+'\').style.display=this.value===\'true\'?\'block\':\'none\'">';
+  html += '<option value="false"'+((!lead.has_property)?' selected':'')+'> 無 </option>';
+  html += '<option value="true"'+((lead.has_property)?' selected':'')+'>有</option>';
+  html += '</select></div>';
+  html += '<div class="frow"><div class="flbl">有無抵押品</div><select class="fi" id="ef-collateral-' + id + '"><option value="false"'+(!lead.has_collateral?' selected':'')+'> 無 </option><option value="true"'+(lead.has_collateral?' selected':'')+'>有</option></select></div></div>';
+  html += '<div id="ef-prop-fields-' + id + '" style="display:' + (lead.has_property ? 'block' : 'none') + '">';
+  html += '<div class="frow"><div class="flbl">不動產估價（元）</div><input class="fi" id="ef-prop-val-' + id + '" type="number" value="' + (lead.property_valuation||'') + '" placeholder="10000000"></div>';
+  html += '<div class="frow2"><div class="frow"><div class="flbl">一胎借款（元）</div><input class="fi" id="ef-prop1-' + id + '" type="number" value="' + (lead.property_loan1||'') + '" placeholder="0"></div>';
+  html += '<div class="frow"><div class="flbl">二胎借款（元）</div><input class="fi" id="ef-prop2-' + id + '" type="number" value="' + (lead.property_loan2||'') + '" placeholder="0"></div></div>';
+  html += '<div class="frow"><div class="flbl">三胎借款（元）</div><input class="fi" id="ef-prop3-' + id + '" type="number" value="' + (lead.property_loan3||'') + '" placeholder="0"></div>';
+  html += '</div>';
+
   html += '<div class="sl">需求</div>';
   html += '<div class="frow2"><div class="frow"><div class="flbl">需求資金（元）</div><input class="fi" id="ef-amount-' + id + '" type="number" value="' + (lead.required_amount||'') + '"></div>';
   html += '<div class="frow"><div class="flbl">資金用途</div><select class="fi" id="ef-purpose-' + id + '"><option' + (lead.fund_purpose==='週轉'?' selected':'') + '>週轉</option><option' + (lead.fund_purpose==='整合負債'?' selected':'') + '>整合負債</option><option' + (lead.fund_purpose==='購屋'?' selected':'') + '>購屋</option><option' + (lead.fund_purpose==='購車'?' selected':'') + '>購車</option><option' + (lead.fund_purpose==='其他'?' selected':'') + '>其他</option></select></div></div>';
@@ -2926,6 +3004,7 @@ async function saveLeadEdit(id) {
   var payload = {
     name:               gv('name').trim() || null,
     id_number_hash:     idno || null,
+    birthday:           gv('birthday') || null,
     age:                parseInt(gv('age')) || null,
     work_type: [gv('company'), gv('position')].filter(Boolean).join(' · ') || null,
     alert_status:       gv('alert') || 'none',
@@ -2935,9 +3014,16 @@ async function saveLeadEdit(id) {
     monthly_salary:     parseInt(gv('salary')) || null,
     has_salary_transfer:gv('transfer') === 'true',
     labor_insurance_years: gv('labor') || 'none',
+    labor_type:         gv('labor-type') || null,
     credit_card_age:    gv('cc') || null,
     has_car_license:    gv('carlic') === 'true',
     has_bike_license:   gv('bikeic') === 'true',
+    has_property:       gv('property') === 'true',
+    has_collateral:     gv('collateral') === 'true',
+    property_valuation: parseFloat(gv('prop-val')) || null,
+    property_loan1:     parseFloat(gv('prop1')) || null,
+    property_loan2:     parseFloat(gv('prop2')) || null,
+    property_loan3:     parseFloat(gv('prop3')) || null,
     required_amount:    parseInt(gv('amount')) || null,
     fund_purpose:       gv('purpose') || null,
   };
