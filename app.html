@@ -692,17 +692,19 @@ let scoreRules = {
   bankNewPenalty: -20,
 
   // 投保單位（銀行信貸）
-  laborTypeGovtBonus: 5,         // 政府機關（公保）加分
-  laborTypeFarmerPenalty: -5,    // 農漁（農保）扣分
-  laborTypeUnionPenalty: -8,     // 職業工會（自付）扣分
-  laborTypeNationalPenalty: -10, // 國民年金（國保）扣分
-  laborTypeSelfPenalty: -5,      // 自營業主扣分
-  laborTypeUnionBlock: false,    // 職業工會 封鎖銀行信貸
-  laborTypeNationalBlock: false, // 國民年金 封鎖銀行信貸
+  laborTypeGovtBonus: 5,
+  laborTypeFarmerPenalty: -5,
+  laborTypeFarmerBlock: false,
+  laborTypeUnionPenalty: -8,
+  laborTypeNationalPenalty: -10,
+  laborTypeSelfPenalty: -5,
+  laborTypeUnionBlock: false,
+  laborTypeNationalBlock: false,
 
   // 投保單位（汽車貸款）
   carLaborTypeGovtBonus: 5,
   carLaborTypeFarmerPenalty: -5,
+  carLaborTypeFarmerBlock: false,
   carLaborTypeUnionPenalty: -8,
   carLaborTypeNationalPenalty: -12,
   carLaborTypeSelfPenalty: -5,
@@ -710,6 +712,8 @@ let scoreRules = {
   carLaborTypeNationalBlock: false,
 
   // 投保單位（機車貸款）
+  bikeLaborTypeFarmerPenalty: -5,
+  bikeLaborTypeFarmerBlock: false,
   bikeLaborTypeUnionPenalty: -5,
   bikeLaborTypeNationalPenalty: -8,
   bikeLaborTypeUnionBlock: false,
@@ -1031,8 +1035,10 @@ function calcScores(lead) {
     // 投保單位性質（非一般勞保的調整）
     var laborType = lead.labor_type || '';
     if (laborType === 'govt') bank += R.laborTypeGovtBonus;
-    else if (laborType === 'farmer') bank += R.laborTypeFarmerPenalty;
-    else if (laborType === 'union') {
+    else if (laborType === 'farmer') {
+      if (R.laborTypeFarmerBlock) { bankBlocked = true; }
+      else bank += R.laborTypeFarmerPenalty;
+    } else if (laborType === 'union') {
       if (R.laborTypeUnionBlock) { bankBlocked = true; }
       else bank += R.laborTypeUnionPenalty;
     } else if (laborType === 'national') {
@@ -1088,8 +1094,10 @@ function calcScores(lead) {
       // 投保單位（汽車貸款）
       var laborType2 = lead.labor_type || '';
       if (laborType2 === 'govt') car += R.carLaborTypeGovtBonus;
-      else if (laborType2 === 'farmer') car += R.carLaborTypeFarmerPenalty;
-      else if (laborType2 === 'union') {
+      else if (laborType2 === 'farmer') {
+        if (R.carLaborTypeFarmerBlock) { carBlocked = true; }
+        else car += R.carLaborTypeFarmerPenalty;
+      } else if (laborType2 === 'union') {
         if (R.carLaborTypeUnionBlock) { carBlocked = true; }
         else car += R.carLaborTypeUnionPenalty;
       } else if (laborType2 === 'national') {
@@ -1118,7 +1126,10 @@ function calcScores(lead) {
     var bikeBlocked = false;
     // 投保單位（機車貸款）
     var laborType3 = lead.labor_type || '';
-    if (laborType3 === 'union') {
+    if (laborType3 === 'farmer') {
+      if (R.bikeLaborTypeFarmerBlock) bikeBlocked = true;
+      else bike += R.bikeLaborTypeFarmerPenalty;
+    } else if (laborType3 === 'union') {
       if (R.bikeLaborTypeUnionBlock) bikeBlocked = true;
       else bike += R.bikeLaborTypeUnionPenalty;
     } else if (laborType3 === 'national') {
@@ -2124,9 +2135,13 @@ function renderAddLead() {
   html += '<div class="frow"><div class="flbl">身分證字號</div><input class="fi" id="n-idno" placeholder="A123456789" maxlength="10" style="letter-spacing:2px;font-family:monospace" oninput="validateIDField(this)"></div>';
   html += '<div id="n-idno-err" style="font-size:13px;color:var(--red);display:none;margin-top:-10px;margin-bottom:8px">格式錯誤（英文+數字共10碼）</div>';
 
-  // 出生日期（自動算年齡）
-  html += '<div class="frow2"><div class="frow"><div class="flbl">出生日期</div>';
-  html += '<input class="fi" id="n-birthday" type="date" onchange="calcAgeFromBirthday(\'n-birthday\',\'n-age-display\')"></div>';
+  // 出生日期（民國年份）
+  html += '<div class="frow2"><div class="frow"><div class="flbl">出生日期（民國）</div>';
+  html += '<div style="display:flex;gap:6px;align-items:center">';
+  html += '<div style="display:flex;align-items:center;gap:3px;flex:1"><input class="fi" id="n-bday-y" type="number" placeholder="民國年" min="1" max="130" inputmode="numeric" style="text-align:center" oninput="calcAgeFromROC(\'n-bday-y\',\'n-bday-m\',\'n-bday-d\',\'n-birthday\',\'n-age-display\')"><span style="font-size:13px;color:var(--t2);flex-shrink:0">年</span></div>';
+  html += '<div style="display:flex;align-items:center;gap:3px;flex:1"><input class="fi" id="n-bday-m" type="number" placeholder="月" min="1" max="12" inputmode="numeric" style="text-align:center" oninput="calcAgeFromROC(\'n-bday-y\',\'n-bday-m\',\'n-bday-d\',\'n-birthday\',\'n-age-display\')"><span style="font-size:13px;color:var(--t2);flex-shrink:0">月</span></div>';
+  html += '<div style="display:flex;align-items:center;gap:3px;flex:1"><input class="fi" id="n-bday-d" type="number" placeholder="日" min="1" max="31" inputmode="numeric" style="text-align:center" oninput="calcAgeFromROC(\'n-bday-y\',\'n-bday-m\',\'n-bday-d\',\'n-birthday\',\'n-age-display\')"><span style="font-size:13px;color:var(--t2);flex-shrink:0">日</span></div>';
+  html += '</div><input type="hidden" id="n-birthday"></div>';
   html += '<div class="frow"><div class="flbl">年齡（自動計算）</div>';
   html += '<div id="n-age-display" style="padding:10px 14px;background:var(--inp);border:0.5px solid var(--bdr2);border-radius:9px;font-size:15px;color:var(--t2)">填寫出生日期後自動顯示</div>';
   html += '<input type="hidden" id="n-age"></div></div>';
@@ -2496,6 +2511,53 @@ function checkPositionForTaxId(posId, rowId) {
   var val = posEl.value;
   var show = keywords.some(function(k){ return val.indexOf(k) >= 0; });
   rowEl.style.display = show ? "block" : "none";
+}
+
+function validateIDFieldEdit(el, leadId) {
+  var val = el.value.toUpperCase();
+  el.value = val;
+  var err = document.getElementById('ef-idno-err-' + leadId);
+  var invalid = val.length > 0 && !/^[A-Z][12][0-9]{8}$/.test(val);
+  if (err) err.style.display = invalid ? 'block' : 'none';
+}
+
+function calcAgeFromROC(yId, mId, dId, hiddenId, displayId) {
+  var yEl = document.getElementById(yId);
+  var mEl = document.getElementById(mId);
+  var dEl = document.getElementById(dId);
+  var hiddenEl = document.getElementById(hiddenId);
+  var displayEl = document.getElementById(displayId);
+  if (!yEl || !mEl || !dEl) return;
+  var rocYear = parseInt(yEl.value);
+  var month = parseInt(mEl.value);
+  var day = parseInt(dEl.value);
+  if (!rocYear || !month || !day) return;
+  var adYear = rocYear + 1911;
+  if (adYear < 1900 || adYear > new Date().getFullYear() || month < 1 || month > 12 || day < 1 || day > 31) {
+    if (displayEl) { displayEl.textContent = '日期不正確'; displayEl.style.color = 'var(--red)'; }
+    return;
+  }
+  var birth = new Date(adYear, month - 1, day);
+  var today = new Date();
+  var age = today.getFullYear() - birth.getFullYear();
+  var m = today.getMonth() - birth.getMonth();
+  if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) age--;
+  if (age < 0 || age > 120) {
+    if (displayEl) { displayEl.textContent = '日期不正確'; displayEl.style.color = 'var(--red)'; }
+    return;
+  }
+  // 更新隱藏欄位（西元日期）
+  var pad = function(n){ return n < 10 ? '0'+n : n; };
+  var isoDate = adYear + '-' + pad(month) + '-' + pad(day);
+  if (hiddenEl) hiddenEl.value = isoDate;
+  if (displayEl) {
+    displayEl.textContent = age + ' 歲（民國 ' + rocYear + ' 年 ' + month + ' 月 ' + day + ' 日）';
+    displayEl.style.color = 'var(--t0)';
+    displayEl.style.fontWeight = '600';
+  }
+  // 同步 n-age 隱藏欄位
+  var ageHidden = document.getElementById(yId.replace(/^(n|ef)-bday-y(-?.*)$/, '$1-age$2'));
+  if (ageHidden) ageHidden.value = age;
 }
 
 function calcAgeFromBirthday(birthdayId, displayId) {
@@ -2878,7 +2940,8 @@ function showLeadDetail(id) {
     var calcAge = today2.getFullYear() - bdate.getFullYear();
     var mm2 = today2.getMonth() - bdate.getMonth();
     if (mm2 < 0 || (mm2 === 0 && today2.getDate() < bdate.getDate())) calcAge--;
-    html += '<div class="ri"><span class="rl">出生日期</span><span class="rv">' + lead.birthday.substring(0,10) + '（' + calcAge + '歲）</span></div>';
+    var rocYear2 = bdate.getFullYear() - 1911;
+    html += '<div class="ri"><span class="rl">出生日期</span><span class="rv">民國 ' + rocYear2 + ' 年 ' + (bdate.getMonth()+1) + ' 月 ' + bdate.getDate() + ' 日（' + calcAge + '歲）</span></div>';
   } else if (lead.age) {
     html += '<div class="ri"><span class="rl">年齡</span><span class="rv">' + lead.age + '歲</span></div>';
   }
@@ -2943,12 +3006,23 @@ function showLeadDetail(id) {
   html += '<div id="lead-edit-' + id + '" style="display:none">';
   html += '<div class="sl">個人識別</div>';
   html += '<div class="frow"><div class="flbl">姓名</div><input class="fi" id="ef-name-' + id + '" value="' + (lead.name||'') + '"></div>';
-  html += '<div class="frow" style="margin-top:6px"><div class="flbl">身分證字號</div><input class="fi" id="ef-idno-' + id + '" placeholder="A123456789" maxlength="10" style="letter-spacing:2px;font-family:monospace" value="' + (lead.id_number_hash||'') + '" oninput="validateIDField(this)"></div>';
+  html += '<div class="frow" style="margin-top:6px"><div class="flbl">身分證字號</div><input class="fi" id="ef-idno-' + id + '" placeholder="A123456789" maxlength="10" style="letter-spacing:2px;font-family:monospace" value="' + (lead.id_number_hash||'') + '" oninput="validateIDFieldEdit(this,\'' + id + '\')"></div>';
   html += '<div id="ef-idno-err-' + id + '" style="font-size:12px;color:var(--red);display:none;margin-bottom:4px">格式錯誤（英文+9位數字，共10碼）</div>';
-  // 出生日期（自動算年齡）
-  var birthdayVal2 = lead.birthday ? lead.birthday.substring(0,10) : '';
-  html += '<div class="frow2" style="margin-top:6px"><div class="frow"><div class="flbl">出生日期</div>';
-  html += '<input class="fi" id="ef-birthday-' + id + '" type="date" value="' + birthdayVal2 + '" onchange="calcAgeFromBirthday(\'ef-birthday-'+id+'\',\'ef-age-display-'+id+'\')"></div>';
+  // 出生日期（民國年份）
+  var bdRoc = '';
+  var bdY = '', bdM = '', bdD = '';
+  if (lead.birthday) {
+    var bdDate = new Date(lead.birthday);
+    bdY = String(bdDate.getFullYear() - 1911);
+    bdM = String(bdDate.getMonth() + 1);
+    bdD = String(bdDate.getDate());
+  }
+  html += '<div class="frow2" style="margin-top:6px"><div class="frow"><div class="flbl">出生日期（民國）</div>';
+  html += '<div style="display:flex;gap:6px;align-items:center">';
+  html += '<div style="display:flex;align-items:center;gap:3px;flex:1"><input class="fi" id="ef-bday-y-'+id+'" type="number" placeholder="民國年" min="1" max="130" value="'+bdY+'" inputmode="numeric" style="text-align:center" oninput="calcAgeFromROC(\'ef-bday-y-'+id+'\',\'ef-bday-m-'+id+'\',\'ef-bday-d-'+id+'\',\'ef-birthday-'+id+'\',\'ef-age-display-'+id+'\')"><span style="font-size:13px;color:var(--t2);flex-shrink:0">年</span></div>';
+  html += '<div style="display:flex;align-items:center;gap:3px;flex:1"><input class="fi" id="ef-bday-m-'+id+'" type="number" placeholder="月" min="1" max="12" value="'+bdM+'" inputmode="numeric" style="text-align:center" oninput="calcAgeFromROC(\'ef-bday-y-'+id+'\',\'ef-bday-m-'+id+'\',\'ef-bday-d-'+id+'\',\'ef-birthday-'+id+'\',\'ef-age-display-'+id+'\')"><span style="font-size:13px;color:var(--t2);flex-shrink:0">月</span></div>';
+  html += '<div style="display:flex;align-items:center;gap:3px;flex:1"><input class="fi" id="ef-bday-d-'+id+'" type="number" placeholder="日" min="1" max="31" value="'+bdD+'" inputmode="numeric" style="text-align:center" oninput="calcAgeFromROC(\'ef-bday-y-'+id+'\',\'ef-bday-m-'+id+'\',\'ef-bday-d-'+id+'\',\'ef-birthday-'+id+'\',\'ef-age-display-'+id+'\')"><span style="font-size:13px;color:var(--t2);flex-shrink:0">日</span></div>';
+  html += '</div><input type="hidden" id="ef-birthday-' + id + '" value="' + (lead.birthday ? lead.birthday.substring(0,10) : '') + '"></div>';
   html += '<div class="frow"><div class="flbl">年齡</div>';
   html += '<div id="ef-age-display-' + id + '" style="padding:10px 14px;background:var(--inp);border:0.5px solid var(--bdr2);border-radius:9px;font-size:15px;color:var(--t0);font-weight:600">' + (lead.age ? lead.age + ' 歲' : '填出生日期自動計算') + '</div>';
   html += '<input type="hidden" id="ef-age-' + id + '" value="' + (lead.age||'') + '"></div></div>';
@@ -6629,7 +6703,10 @@ function renderScoreRules() {
   h += '<div class="frow"><div class="flbl">職業工會扣分</div><input class="fi" id="sr-lt-union" type="number" value="' + (R.laborTypeUnionPenalty||-8) + '"></div></div>';
   h += '<div class="frow"><div class="flbl">國民年金扣分</div><input class="fi" id="sr-lt-national" type="number" value="' + (R.laborTypeNationalPenalty||-10) + '"></div>';
   // 封鎖選項
-  h += '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:8px">';
+  h += '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">';
+  h += '<div style="display:flex;align-items:center;gap:8px;padding:8px 12px;background:var(--inp);border-radius:8px">';
+  h += '<div class="tgl ' + (R.laborTypeFarmerBlock?'on':'') + '" onclick="scoreRules.laborTypeFarmerBlock=!scoreRules.laborTypeFarmerBlock;renderScoreRules()"></div>';
+  h += '<span style="font-size:13px;color:var(--red)">農漁保 → 封鎖銀行信貸</span></div>';
   h += '<div style="display:flex;align-items:center;gap:8px;padding:8px 12px;background:var(--inp);border-radius:8px">';
   h += '<div class="tgl ' + (R.laborTypeUnionBlock?'on':'') + '" onclick="scoreRules.laborTypeUnionBlock=!scoreRules.laborTypeUnionBlock;renderScoreRules()"></div>';
   h += '<span style="font-size:13px;color:var(--red)">職業工會 → 封鎖銀行信貸</span></div>';
@@ -6750,9 +6827,13 @@ function renderScoreRules() {
 
   // 投保單位（機車貸款）
   h += '<div class="sl">投保單位影響（機車貸款）</div>';
-  h += '<div class="frow2"><div class="frow"><div class="flbl">職業工會扣分</div><input class="fi" id="sr-bike-lt-union" type="number" value="' + (R.bikeLaborTypeUnionPenalty||-5) + '"></div>';
-  h += '<div class="frow"><div class="flbl">國民年金扣分</div><input class="fi" id="sr-bike-lt-national" type="number" value="' + (R.bikeLaborTypeNationalPenalty||-8) + '"></div></div>';
-  h += '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:8px">';
+  h += '<div class="frow2"><div class="frow"><div class="flbl">農漁（農保）扣分</div><input class="fi" id="sr-bike-lt-farmer" type="number" value="' + (R.bikeLaborTypeFarmerPenalty||-5) + '"></div>';
+  h += '<div class="frow"><div class="flbl">職業工會扣分</div><input class="fi" id="sr-bike-lt-union" type="number" value="' + (R.bikeLaborTypeUnionPenalty||-5) + '"></div></div>';
+  h += '<div class="frow"><div class="flbl">國民年金扣分</div><input class="fi" id="sr-bike-lt-national" type="number" value="' + (R.bikeLaborTypeNationalPenalty||-8) + '"></div>';
+  h += '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">';
+  h += '<div style="display:flex;align-items:center;gap:8px;padding:8px 12px;background:var(--inp);border-radius:8px">';
+  h += '<div class="tgl ' + (R.bikeLaborTypeFarmerBlock?'on':'') + '" onclick="scoreRules.bikeLaborTypeFarmerBlock=!scoreRules.bikeLaborTypeFarmerBlock;renderScoreRules()"></div>';
+  h += '<span style="font-size:13px;color:var(--red)">農漁保 → 封鎖機車貸款</span></div>';
   h += '<div style="display:flex;align-items:center;gap:8px;padding:8px 12px;background:var(--inp);border-radius:8px">';
   h += '<div class="tgl ' + (R.bikeLaborTypeUnionBlock?'on':'') + '" onclick="scoreRules.bikeLaborTypeUnionBlock=!scoreRules.bikeLaborTypeUnionBlock;renderScoreRules()"></div>';
   h += '<span style="font-size:13px;color:var(--red)">職業工會 → 封鎖機車貸款</span></div>';
@@ -6827,7 +6908,9 @@ function saveScoreRules() {
   scoreRules.laborTypeUnionPenalty = g('sr-lt-union');
   scoreRules.laborTypeNationalPenalty = g('sr-lt-national');
   scoreRules.laborTypeSelfPenalty = g('sr-lt-self');
-  scoreRules.salaryMultiplier = parseInt(gv('sr-salary-mult')) || 22;
+  scoreRules.bikeLaborTypeFarmerPenalty = g('sr-bike-lt-farmer');
+  scoreRules.bikeLaborTypeUnionPenalty = g('sr-bike-lt-union');
+  scoreRules.bikeLaborTypeNationalPenalty = g('sr-bike-lt-national');
   scoreRules.carLicBonus = g('sr-carlic'); scoreRules.bikeLicBonus = g('sr-bikeic');
   scoreRules.finRej1 = g('sr-frej1'); scoreRules.finRej2 = g('sr-frej2'); scoreRules.finRejOver2 = g('sr-frejOver2');
   if (scoreRules.carUnder20Block === 'penalty') scoreRules.carUnder20Penalty = g('sr-car-u20-pen');
@@ -12469,8 +12552,13 @@ async function submitClientForm() {
 function validateIDField(el) {
   var val = el.value.toUpperCase();
   el.value = val;
-  var err = document.getElementById("n-idno-err");
-  if (err) err.style.display = (val.length > 0 && !/^[A-Z][12][0-9]{8}$/.test(val)) ? "block" : "none";
+  // 找對應的錯誤提示（新增客戶或編輯模式）
+  var err = el.nextElementSibling;
+  if (!err || !err.id || err.id.indexOf('idno-err') < 0) {
+    err = document.getElementById('n-idno-err');
+  }
+  var invalid = val.length > 0 && !/^[A-Z][12][0-9]{8}$/.test(val);
+  if (err) err.style.display = invalid ? 'block' : 'none';
 }
 function validateID(el) {
   var val = el.value.toUpperCase();
