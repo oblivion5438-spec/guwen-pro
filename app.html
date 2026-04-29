@@ -2525,12 +2525,16 @@ function handleExtraFileAdd(input, listId, leadId) {
       reader.readAsDataURL(file);
     }
     if (leadId) {
-      var uploadBtn = document.createElement("button");
-      uploadBtn.className = "btn-sm";
-      uploadBtn.style.cssText = "margin-top:8px;font-size:12px;padding:4px 12px";
-      uploadBtn.textContent = "☁️ 上傳儲存";
-      uploadBtn.onclick = (function(f, ni, btn){ return function(){ uploadExtraDoc(f, ni.value, leadId, btn); }; })(file, noteInput, uploadBtn);
-      item.appendChild(uploadBtn);
+      // 客戶詳情頁：選了檔案就自動上傳
+      var statusEl = document.createElement("div");
+      statusEl.style.cssText = "margin-top:8px;font-size:12px;color:var(--t2);display:flex;align-items:center;gap:6px";
+      statusEl.innerHTML = '<span>⏳</span><span>上傳中...</span>';
+      item.appendChild(statusEl);
+      // 不需要按按鈕：使用者改 note 後我們會在背景自動同步
+      // 為了單純，先用「自動上傳一次」+ note 修改時更新資料庫的方式
+      (function(f, ni, sEl, leadIdCopy) {
+        autoUploadExtraDoc(f, leadIdCopy, sEl, ni);
+      })(file, noteInput, statusEl, leadId);
     } else {
       if (!extraFilesStore[itemId]) extraFilesStore[itemId] = {};
       extraFilesStore[itemId].file = file;
@@ -2539,6 +2543,49 @@ function handleExtraFileAdd(input, listId, leadId) {
     listEl.appendChild(item);
   });
   input.value = "";
+}
+
+// 客戶詳情頁：選了檔案自動上傳（含 note 即時同步）
+async function autoUploadExtraDoc(file, leadId, statusEl, noteInput) {
+  if (!leadId || !currentUser) {
+    if (statusEl) statusEl.innerHTML = '<span style="color:var(--red)">⚠️</span><span>未登入或無客戶ID</span>';
+    return;
+  }
+  try {
+    var ext = file.name.split('.').pop().toLowerCase();
+    var path = leadId + "/extra_" + Date.now() + "_" + Math.random().toString(36).substr(2,5) + "." + ext;
+    var upRes = await sb.storage.from("lead-documents").upload(path, file, { upsert: true });
+    if (upRes.error) {
+      if (statusEl) statusEl.innerHTML = '<span style="color:var(--red)">❌</span><span>上傳失敗：' + upRes.error.message + '</span>';
+      return;
+    }
+    var insRes = await sb.from("lead_documents").insert({
+      lead_id: leadId,
+      member_id: currentUser.id,
+      type: "extra",
+      storage_path: path,
+      ai_summary: noteInput && noteInput.value ? noteInput.value : null
+    }).select().single();
+    if (insRes.error) {
+      if (statusEl) statusEl.innerHTML = '<span style="color:var(--red)">❌</span><span>記錄失敗：' + insRes.error.message + '</span>';
+      return;
+    }
+    if (statusEl) statusEl.innerHTML = '<span style="color:var(--grn)">✅</span><span>已上傳儲存</span>';
+
+    // 監聽 note 變更，自動同步到資料庫
+    if (noteInput && insRes.data) {
+      var docId = insRes.data.id;
+      var saveTimer = null;
+      noteInput.addEventListener('input', function() {
+        if (saveTimer) clearTimeout(saveTimer);
+        saveTimer = setTimeout(async function() {
+          await sb.from('lead_documents').update({ ai_summary: noteInput.value || null }).eq('id', docId);
+        }, 800);
+      });
+    }
+  } catch(e) {
+    if (statusEl) statusEl.innerHTML = '<span style="color:var(--red)">❌</span><span>異常：' + e.message + '</span>';
+  }
 }
 
 async function uploadExtraDoc(file, note, leadId, btn) {
@@ -11130,7 +11177,7 @@ async function exportLeadPDF(leadId) {
     license:'技術士證照', vehicle:'行照',
     build_reg:'建物謄本', land_reg:'土地謄本',
     house_photos:'屋況照片', id_card:'雙證件',
-    asset:'資產文件', other:'其他文件'
+    asset:'資產文件', extra:'補充資料', other:'其他文件'
   };
 
   var scoreItems = [
@@ -11257,8 +11304,18 @@ async function exportLeadPDF(leadId) {
 
   // 文件分類
   var docs = allDocs;
-  var imgDocs = docs.filter(function(d){ return d.url && /\.(jpg|jpeg|png|gif|webp)/i.test(d.url); });
-  var fileDocs = docs.filter(function(d){ return d.url && !/\.(jpg|jpeg|png|gif|webp)/i.test(d.url); });
+
+  // 補充資料（type='extra'）獨立分區
+  var extraDocs = docs.filter(function(d){ return d.type === 'extra'; });
+  var otherDocs = docs.filter(function(d){ return d.type !== 'extra'; });
+
+  // 一般上傳文件分圖片/非圖片
+  var imgDocs = otherDocs.filter(function(d){ return d.url && /\.(jpg|jpeg|png|gif|webp|heic)/i.test(d.url); });
+  var fileDocs = otherDocs.filter(function(d){ return d.url && !/\.(jpg|jpeg|png|gif|webp|heic)/i.test(d.url); });
+
+  // 補充資料分圖片/非圖片
+  var extraImgDocs = extraDocs.filter(function(d){ return d.url && /\.(jpg|jpeg|png|gif|webp|heic)/i.test(d.url); });
+  var extraFileDocs = extraDocs.filter(function(d){ return d.url && !/\.(jpg|jpeg|png|gif|webp|heic)/i.test(d.url); });
 
   // 圖片 HTML
   var imgHtml = '';
@@ -11281,6 +11338,34 @@ async function exportLeadPDF(leadId) {
       return '<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid #eee;font-size:13px">' +
         '<span>📄</span><span style="flex:1">'+lbl+'</span>' +
         '<a href="'+d.url+'" target="_blank" style="color:#C8511A;text-decoration:none;font-size:12px">開啟 →</a></div>';
+    }).join('');
+  }
+
+  // 補充資料圖片 HTML
+  var extraImgHtml = '';
+  if (extraImgDocs.length > 0) {
+    extraImgHtml = '<div style="display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin-top:8px">';
+    extraImgDocs.forEach(function(d){
+      var note = d.ai_summary || '';
+      extraImgHtml += '<div style="text-align:center;border:1px solid #eee;border-radius:8px;padding:8px">' +
+        '<img src="'+d.url+'" style="width:100%;max-height:280px;object-fit:contain;border-radius:4px" onerror="this.style.display=\'none\'">' +
+        (note ? '<div style="font-size:11px;color:#444;margin-top:6px;text-align:left">📝 '+note+'</div>' : '') +
+        '</div>';
+    });
+    extraImgHtml += '</div>';
+  }
+
+  // 補充資料非圖片 HTML
+  var extraFileHtml = '';
+  if (extraFileDocs.length > 0) {
+    extraFileHtml = extraFileDocs.map(function(d){
+      var note = d.ai_summary || '';
+      var fname = d.name || '檔案';
+      return '<div style="padding:8px 10px;border:1px solid #eee;border-radius:6px;margin-bottom:6px;font-size:13px">' +
+        '<div style="display:flex;align-items:center;gap:8px"><span>📄</span><span style="flex:1;color:#333">'+fname+'</span>' +
+        '<a href="'+d.url+'" target="_blank" style="color:#C8511A;text-decoration:none;font-size:12px">開啟 →</a></div>' +
+        (note ? '<div style="font-size:11px;color:#666;margin-top:4px">📝 '+note+'</div>' : '') +
+        '</div>';
     }).join('');
   }
 
@@ -11335,6 +11420,15 @@ async function exportLeadPDF(leadId) {
   if (fileDocs.length > 0) {
     w.document.write('<h2>📎 上傳文件</h2>');
     w.document.write(fileHtml);
+  }
+
+  // 補充資料（獨立區段）
+  if (extraImgDocs.length > 0 || extraFileDocs.length > 0) {
+    w.document.write('<h2>📎 補充資料 / 截圖</h2>');
+    if (extraImgDocs.length > 0) w.document.write(extraImgHtml);
+    if (extraFileDocs.length > 0) {
+      w.document.write('<div style="margin-top:10px">' + extraFileHtml + '</div>');
+    }
   }
 
   if (docs.length === 0) {
