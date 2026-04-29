@@ -3134,6 +3134,17 @@ async function saveLead() {
     await uploadPendingLeadDocs(r.data.id);
   }
 
+  // 上傳補充資料（extraFilesStore）
+  if (Object.keys(extraFilesStore).length > 0) {
+    for (var eid in extraFilesStore) {
+      var ef = extraFilesStore[eid];
+      if (!ef.file) continue;
+      var note = ef.noteInput ? ef.noteInput.value : '';
+      await uploadExtraDoc(ef.file, note, r.data.id, null);
+    }
+    extraFilesStore = {};
+  }
+
   loanCounters = { credit:0, car:0, bike:0, phone:0, pawn:0 };
   hideLoading();
   leads.unshift(r.data);
