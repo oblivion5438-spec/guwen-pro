@@ -2068,7 +2068,8 @@ function renderAddLead() {
   html += '<input type="hidden" id="n-age"></div></div>';
 
   html += '<div class="frow2"><div class="frow"><div class="flbl">公司名稱</div><input class="fi" id="n-company" placeholder="XX 股份有限公司"></div>' +
-  '<div class="frow"><div class="flbl">職位</div><input class="fi" id="n-position" placeholder="業務專員"></div></div>' +
+  '<div class="frow"><div class="flbl">職位</div><input class="fi" id="n-position" placeholder="業務專員" oninput="checkPositionForTaxId(\'n-position\',\'n-tax-id-row\')"></div></div>' +
+  '<div id="n-tax-id-row" style="display:none"><div class="frow"><div class="flbl">統一編號 <span style="font-size:12px;color:var(--org)">（負責人/自營業主填寫）</span></div><input class="fi" id="n-tax-id" placeholder="12345678" maxlength="8" inputmode="numeric" oninput="this.value=this.value.replace(/\\D/g,\'\')"></div></div>' +
   '<div class="frow" style="margin-top:0"><div class="flbl">公司電話 <span style="font-size:12px;color:var(--t3)">（備註用，不會主動致電）</span></div><input class="fi" id="n-biztel" type="tel" placeholder="02-12345678"></div>';
   html += '<div class="frow"><div class="flbl">警示/協商/更生/清算</div><select class="fi" id="n-alert"><option value="none">否</option><option value="alert">警示戶</option><option value="negotiation">協商中</option><option value="rehabilitation">更生</option><option value="liquidation">清算</option></select></div>';
   html += '<div class="frow"><div class="flbl">居住地址</div><input class="fi" id="n-addr" placeholder="完整地址"></div>';
@@ -2248,6 +2249,16 @@ function renderAddLead() {
   var sBtn = document.createElement('button'); sBtn.className = 'btn-p'; sBtn.style.flex = '1'; sBtn.textContent = '儲存並 AI 評估'; sBtn.onclick = saveLead;
   btnsDiv.appendChild(cBtn); btnsDiv.appendChild(sBtn); el.appendChild(btnsDiv);
   return; // DOM 方式建立，不需要最後的 el.innerHTML = html
+}
+
+function checkPositionForTaxId(posId, rowId) {
+  var posEl = document.getElementById(posId);
+  var rowEl = document.getElementById(rowId);
+  if (!posEl || !rowEl) return;
+  var keywords = ["負責人","老闆","董事長","總經理","自營","執行長","合夥人","股東","業主"];
+  var val = posEl.value;
+  var show = keywords.some(function(k){ return val.indexOf(k) >= 0; });
+  rowEl.style.display = show ? "block" : "none";
 }
 
 function calcAgeFromBirthday(birthdayId, displayId) {
@@ -2438,10 +2449,18 @@ async function saveLead() {
   var idnoRaw = (document.getElementById('n-idno') ? document.getElementById('n-idno').value.trim().toUpperCase() : '');
   var birthdayVal = (document.getElementById('n-birthday') ? document.getElementById('n-birthday').value : '') || null;
 
+  // 不動產每胎詳細資料
+  var propLoansNew = JSON.stringify([
+    { inst: gv('n-prop1-inst'), pay: gi('n-prop1-pay'), penalty: gi('n-prop1-penalty') },
+    { inst: gv('n-prop2-inst'), pay: gi('n-prop2-pay'), penalty: gi('n-prop2-penalty') },
+    { inst: gv('n-prop3-inst'), pay: gi('n-prop3-pay'), penalty: gi('n-prop3-penalty') },
+  ]);
+
   var payload = {
     member_id: currentUser.id, name: name,
     id_number_hash: idnoRaw || null,
     birthday: birthdayVal,
+    tax_id: gv('n-tax-id') || null,
     age: parseInt(gv('n-age')) || null, work_type: [gv('n-company'),gv('n-position')].filter(Boolean).join(' · ') || null,
     alert_status: gv('n-alert'), address: gv('n-addr'), huji_address: gv('n-huji'),
     required_amount: parseInt(gv('n-amount')) || null, fund_purpose: gv('n-purpose'),
@@ -2449,13 +2468,14 @@ async function saveLead() {
     has_salary_transfer: gv('n-transfer') === 'true',
     labor_insurance_years: gv('n-labor'),
     labor_type: gv('n-labor-type') || null,
-    credit_card_age:    gv('n-cc'),
+    credit_card_age: gv('n-cc'),
     has_car_license: gv('n-car-lic') === 'true', has_bike_license: gv('n-bike-lic') === 'true',
     has_property: hasProp, has_collateral: gv('n-collateral') === 'true',
     bank_recent_reject: gv('n-bank-rej'), finance_recent_reject: gv('n-fin-rej'),
     advisor_note: gv('n-note'), status: 'new',
     property_ratio: propRatio, property_valuation: hasProp ? propVal : null,
     property_loan1: p1 || null, property_loan2: p2 || null, property_loan3: p3 || null,
+    prop_loans: propLoansNew,
     housing_status: gv('n-housing') || 'none',
     debt_ratio: parseInt(gv('n-debt-ratio')) || 0,
     bank_new_credit: gv('n-bank-new') === 'true',
@@ -2705,9 +2725,18 @@ function showLeadDetail(id) {
   html += '<div class="frow"><div class="flbl">有無抵押品</div><select class="fi" id="ef-collateral-' + id + '"><option value="false"'+(!lead.has_collateral?' selected':'')+'> 無 </option><option value="true"'+(lead.has_collateral?' selected':'')+'>有</option></select></div></div>';
   html += '<div id="ef-prop-fields-' + id + '" style="display:' + (lead.has_property ? 'block' : 'none') + '">';
   html += '<div class="frow"><div class="flbl">不動產估價（元）</div><input class="fi" id="ef-prop-val-' + id + '" type="number" value="' + (lead.property_valuation||'') + '" placeholder="10000000"></div>';
-  html += '<div class="frow2"><div class="frow"><div class="flbl">一胎借款（元）</div><input class="fi" id="ef-prop1-' + id + '" type="number" value="' + (lead.property_loan1||'') + '" placeholder="0"></div>';
-  html += '<div class="frow"><div class="flbl">二胎借款（元）</div><input class="fi" id="ef-prop2-' + id + '" type="number" value="' + (lead.property_loan2||'') + '" placeholder="0"></div></div>';
-  html += '<div class="frow"><div class="flbl">三胎借款（元）</div><input class="fi" id="ef-prop3-' + id + '" type="number" value="' + (lead.property_loan3||'') + '" placeholder="0"></div>';
+  // 讀取每胎詳細資料（從 loan_records 或個別欄位）
+  var propLoans = [];
+  try { propLoans = lead.prop_loans ? JSON.parse(lead.prop_loans) : []; } catch(e) { propLoans = []; }
+  [['一胎', lead.property_loan1||''],['二胎（若有）', lead.property_loan2||''],['三胎（若有）', lead.property_loan3||'']].forEach(function(t, i) {
+    var n = i + 1;
+    var pl = propLoans[i] || {};
+    html += '<div style="font-size:13px;font-weight:600;color:var(--t2);margin:10px 0 5px;border-bottom:0.5px solid var(--bdr);padding-bottom:3px">' + t[0] + '</div>';
+    html += '<div class="frow"><div class="flbl">借款機構</div><input class="fi" id="ef-prop'+n+'-inst-'+id+'" placeholder="例：台灣銀行、地政事務所" value="'+(pl.inst||'')+'"></div>';
+    html += '<div class="frow2"><div class="frow"><div class="flbl">貸款餘額（元）</div><input class="fi" id="ef-prop'+n+'-'+id+'" type="number" value="'+(t[1])+'" placeholder="0" inputmode="numeric"></div>';
+    html += '<div class="frow"><div class="flbl">月繳（元）</div><input class="fi" id="ef-prop'+n+'-pay-'+id+'" type="number" value="'+(pl.pay||'')+'" placeholder="0" inputmode="numeric"></div></div>';
+    html += '<div class="frow"><div class="flbl">違約金（元）</div><input class="fi" id="ef-prop'+n+'-penalty-'+id+'" type="number" value="'+(pl.penalty||'')+'" placeholder="0" inputmode="numeric"></div>';
+  });
   html += '</div>';
 
   html += '<div class="sl">需求</div>';
@@ -3021,9 +3050,20 @@ async function saveLeadEdit(id) {
     has_property:       gv('property') === 'true',
     has_collateral:     gv('collateral') === 'true',
     property_valuation: parseFloat(gv('prop-val')) || null,
-    property_loan1:     parseFloat(gv('prop1')) || null,
-    property_loan2:     parseFloat(gv('prop2')) || null,
-    property_loan3:     parseFloat(gv('prop3')) || null,
+    property_loan1:     parseFloat(document.getElementById('ef-prop1-'+id) ? document.getElementById('ef-prop1-'+id).value : '') || null,
+    property_loan2:     parseFloat(document.getElementById('ef-prop2-'+id) ? document.getElementById('ef-prop2-'+id).value : '') || null,
+    property_loan3:     parseFloat(document.getElementById('ef-prop3-'+id) ? document.getElementById('ef-prop3-'+id).value : '') || null,
+    prop_loans: JSON.stringify([
+      { inst: document.getElementById('ef-prop1-inst-'+id) ? document.getElementById('ef-prop1-inst-'+id).value : '',
+        pay: parseFloat(document.getElementById('ef-prop1-pay-'+id) ? document.getElementById('ef-prop1-pay-'+id).value : '') || 0,
+        penalty: parseFloat(document.getElementById('ef-prop1-penalty-'+id) ? document.getElementById('ef-prop1-penalty-'+id).value : '') || 0 },
+      { inst: document.getElementById('ef-prop2-inst-'+id) ? document.getElementById('ef-prop2-inst-'+id).value : '',
+        pay: parseFloat(document.getElementById('ef-prop2-pay-'+id) ? document.getElementById('ef-prop2-pay-'+id).value : '') || 0,
+        penalty: parseFloat(document.getElementById('ef-prop2-penalty-'+id) ? document.getElementById('ef-prop2-penalty-'+id).value : '') || 0 },
+      { inst: document.getElementById('ef-prop3-inst-'+id) ? document.getElementById('ef-prop3-inst-'+id).value : '',
+        pay: parseFloat(document.getElementById('ef-prop3-pay-'+id) ? document.getElementById('ef-prop3-pay-'+id).value : '') || 0,
+        penalty: parseFloat(document.getElementById('ef-prop3-penalty-'+id) ? document.getElementById('ef-prop3-penalty-'+id).value : '') || 0 },
+    ]),
     required_amount:    parseInt(gv('amount')) || null,
     fund_purpose:       gv('purpose') || null,
   };
