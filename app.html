@@ -1160,16 +1160,39 @@ function calcScores(lead) {
 
   // ── 商品手機貸 ──
   var phone = 0;
-  if (salary >= 22000) {
-    phone = 45 + (salary >= 40000 ? 20 : salary >= 30000 ? 12 : 5);
-    if (finRejCount >= 2) phone += R.finRej2;
-    if (finRej === '<1m') phone += R.finRejectLt1m;
-    // 遲繳
-    if (latePayDays > 30) phone += R.latePayOver30;
-    else if (latePayDays > 14) phone += R.latePay14_30;
-    else if (latePayDays > 7) phone += R.latePay7_14;
-    else if (latePayDays > 0) phone += R.latePayLt7;
-    phone = Math.min(88, Math.max(0, phone));
+  var phoneBlocked = false;
+  var phoneMinSalary = R.phoneMinSalary || 22000;
+  var hasPhoneLoan = lead.has_phone_loan || false;
+  if (salary >= phoneMinSalary) {
+    // 投保單位（手機貸）
+    var laborType4 = lead.labor_type || '';
+    if (laborType4 === 'farmer' && R.phoneLaborTypeFarmerBlock) {
+      phoneBlocked = true;
+    }
+    // 目前有手機貸
+    if (!phoneBlocked && hasPhoneLoan && R.phoneHasLoanBlock) {
+      phoneBlocked = true;
+    }
+    if (!phoneBlocked) {
+      phone = 45 + (salary >= 40000 ? 20 : salary >= 30000 ? 12 : 5);
+      // 投保單位扣分（沒封鎖時）
+      if (laborType4 === 'farmer' && !R.phoneLaborTypeFarmerBlock) {
+        phone += (R.phoneLaborTypeFarmerPenalty || -8);
+      }
+      // 目前有手機貸扣分（沒封鎖時）
+      if (hasPhoneLoan && !R.phoneHasLoanBlock) {
+        phone += (R.phoneHasLoanPenalty || -20);
+      }
+      if (finRejCount >= 2) phone += R.finRej2;
+      if (finRej === '<1m') phone += R.finRejectLt1m;
+      // 遲繳
+      if (latePayDays > 30) phone += R.latePayOver30;
+      else if (latePayDays > 14) phone += R.latePay14_30;
+      else if (latePayDays > 7) phone += R.latePay7_14;
+      else if (latePayDays > 0) phone += R.latePayLt7;
+      phone = Math.min(88, Math.max(0, phone));
+    }
+    if (phoneBlocked) phone = 0;
   }
 
   // ── 當鋪借貸 ──
@@ -1214,7 +1237,7 @@ function calcScores(lead) {
     bank, car, bike, phone, pawn,
     propRatio, propStatus, maxLoan,
     bankBlocked, bankNoData, noSalary, noPawn,
-    carBlocked, bikeBlocked, carWaitMonths, carUnder20NeedGuarantor,
+    carBlocked, bikeBlocked, phoneBlocked, carWaitMonths, carUnder20NeedGuarantor,
     bankRejBlock: (bankRejCount >= 4 && R.bankRej4Block),
     lateWarning: latePayDays > 30
   };
@@ -1323,12 +1346,18 @@ function buildScoreReasons(lead, scores) {
   }
 
   // ── 手機貸原因 ──
-  if (salary < R.phoneMinSalary) {
-    reasons.phone.push('❌ 月薪未達 $'+R.phoneMinSalary.toLocaleString()+'，不符手機貸條件');
+  if (scores.phoneBlocked) {
+    reasons.phone.push('⛔ 手機商品貸目前封鎖（詳見評分規則）');
+    if (lead.labor_type === 'farmer' && R.phoneLaborTypeFarmerBlock) reasons.phone.push('⛔ 農漁保 → 封鎖手機商品貸');
+    if (lead.has_phone_loan && R.phoneHasLoanBlock) reasons.phone.push('⛔ 已有手機商品貸 → 封鎖');
+  } else if (salary < (R.phoneMinSalary || 22000)) {
+    reasons.phone.push('❌ 月薪未達 $'+(R.phoneMinSalary||22000).toLocaleString()+'，不符手機貸條件');
   } else {
     reasons.phone.push('✅ 月薪符合手機貸門檻');
     if (finRejCount >= 2) reasons.phone.push('⚠️ 融資婉拒記錄，扣分');
     if (latePayDays > 14) reasons.phone.push('⚠️ 遲繳記錄，扣分');
+    if (lead.labor_type === 'farmer') reasons.phone.push('⚠️ 農漁保，扣分');
+    if (lead.has_phone_loan) reasons.phone.push('⚠️ 已有手機商品貸，扣分');
   }
 
   return { reasons, suggestions };
@@ -1346,7 +1375,7 @@ function buildProbCards(scores) {
     ['銀行信貸', scores.bank, 'bank'],
     ['汽車貸款', scores.car, 'car'],
     ['機車貸款', scores.bike, 'bike'],
-    ['商品手機貸', scores.phone, 'fin'],
+    ['商品手機貸', scores.phone, 'phone'],
     ['當鋪借貸', scores.pawn, 'pawn'],
   ];
   var html = '';
@@ -1375,6 +1404,16 @@ function buildProbCards(scores) {
       }
     } else if (type === 'bike') {
       if (scores.bikeBlocked) {
+        label = '封鎖'; vc = 'p-red'; bc = 'pb-red';
+      } else if (scores.noSalary) {
+        label = '未填薪水'; vc = 'p-none'; bc = 'pb-none';
+      } else {
+        label = s > 0 ? s + '%' : '無';
+        vc = s > 0 ? scoreColor(s) : 'p-none';
+        bc = s > 0 ? scoreBarColor(s) : 'pb-none';
+      }
+    } else if (type === 'phone') {
+      if (scores.phoneBlocked) {
         label = '封鎖'; vc = 'p-red'; bc = 'pb-red';
       } else if (scores.noSalary) {
         label = '未填薪水'; vc = 'p-none'; bc = 'pb-none';
@@ -7450,6 +7489,8 @@ function saveScoreRules() {
   scoreRules.carLaborTypeSelfPenalty = g('sr-car-lt-self');
   if (!scoreRules.carPropPrivateBlock) scoreRules.carPropPrivatePenalty = g('sr-car-prop-pen');
   scoreRules.phoneLaborTypeFarmerPenalty = g('sr-phone-lt-farmer');
+  scoreRules.phoneMinSalary = g('sr-phone-min-salary') || 22000;
+  if (!scoreRules.phoneHasLoanBlock) scoreRules.phoneHasLoanPenalty = g('sr-phone-loan-pen');
   // 投保單位（機車貸款）
   scoreRules.bikeLaborTypeUnionPenalty = g('sr-bike-lt-union');
   scoreRules.bikeLaborTypeNationalPenalty = g('sr-bike-lt-national');
@@ -11174,7 +11215,7 @@ function shareScoreToLine(leadId) {
     ['銀行信貸', scores.bank, scores.bankBlocked],
     ['汽車貸款', scores.car, scores.carBlocked],
     ['機車貸款', scores.bike, scores.bikeBlocked],
-    ['手機商品貸', scores.phone, false],
+    ['手機商品貸', scores.phone, scores.phoneBlocked],
   ];
   var lines = [
     '═══════════════════════',
@@ -11245,7 +11286,7 @@ async function exportLeadPDF(leadId) {
     ['銀行信貸', scores.bank, scores.bankBlocked],
     ['汽車貸款', scores.car, scores.carBlocked],
     ['機車貸款', scores.bike, scores.bikeBlocked],
-    ['商品手機貸', scores.phone, false],
+    ['商品手機貸', scores.phone, scores.phoneBlocked],
   ];
   var scoreRows = scoreItems.map(function(s) {
     var col = s[1]>=80?'#2D8A4E':s[1]>=60?'#B88020':'#C04030';
