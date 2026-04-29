@@ -5118,9 +5118,13 @@ function financeDetailModal(type) {
   if (type === 'income') {
     titleEl.textContent = '💰 本月業績收入細項';
     var h = '';
+    var totalIncomeAll = 0;
+
+    // 結案客戶收入
     if (thisClosed2.length === 0) {
-      h = '<div style="text-align:center;padding:20px;color:var(--t2)">本月尚無結案客戶</div>';
+      h += '<div style="font-size:13px;color:var(--t3);padding:6px 0">本月尚無結案客戶</div>';
     } else {
+      h += '<div style="font-size:13px;font-weight:600;color:var(--t2);margin-bottom:6px">📋 結案客戶收入</div>';
       var total2 = 0;
       thisClosed2.forEach(function(l) {
         var d = dealData[l.id] || {};
@@ -5144,8 +5148,50 @@ function financeDetailModal(type) {
         h += '<div style="font-size:11px;color:var(--t3)">我的收入</div></div>';
         h += '</div>';
       });
-      h += '<div style="display:flex;justify-content:space-between;padding:12px 0;font-weight:700;font-size:15px">';
-      h += '<span>合計</span><span style="color:var(--grn)">$'+total2.toLocaleString()+'</span></div>';
+      totalIncomeAll += total2;
+    }
+
+    // 帳單收入（已收款）
+    var billingsList = [];
+    try { billingsList = JSON.parse(localStorage.getItem('guwen_billings') || '[]'); } catch(e) { billingsList = []; }
+    var thisBillings = billingsList.filter(function(b){
+      if (b.status !== 'paid' || !b.date) return false;
+      var d = new Date(b.date);
+      return d >= tms;
+    });
+    if (thisBillings.length > 0) {
+      h += '<div style="font-size:13px;font-weight:600;color:var(--t2);margin:14px 0 6px">🧾 帳單收費</div>';
+      var billTotal = 0;
+      thisBillings.forEach(function(b) {
+        billTotal += b.amount || 0;
+        h += '<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:0.5px solid var(--bdr)">';
+        h += '<div><div style="font-size:14px;font-weight:500">'+(b.leadName?b.leadName+' · ':'')+(b.item||'未填項目')+'</div>';
+        h += '<div style="font-size:12px;color:var(--t3)">'+(b.date||'')+(b.note?' · '+b.note:'')+'</div></div>';
+        h += '<div style="font-size:15px;font-weight:600;color:var(--grn)">$'+(b.amount||0).toLocaleString()+'</div>';
+        h += '</div>';
+      });
+      totalIncomeAll += billTotal;
+    }
+
+    // 額外收入
+    if (extraIncome && extraIncome.length > 0) {
+      h += '<div style="font-size:13px;font-weight:600;color:var(--t2);margin:14px 0 6px">💵 額外收入</div>';
+      var extraTotal = 0;
+      extraIncome.forEach(function(e) {
+        extraTotal += e.amount || 0;
+        h += '<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:0.5px solid var(--bdr)">';
+        h += '<div style="font-size:14px">'+(e.name||'其他收入')+'</div>';
+        h += '<div style="font-size:15px;font-weight:600;color:var(--grn)">$'+(e.amount||0).toLocaleString()+'</div>';
+        h += '</div>';
+      });
+      totalIncomeAll += extraTotal;
+    }
+
+    if (totalIncomeAll === 0) {
+      h = '<div style="text-align:center;padding:20px;color:var(--t2)">本月尚無收入記錄<br><span style="font-size:12px">可至「業務收入」標記結案、或「帳單記錄」新增帳單</span></div>';
+    } else {
+      h += '<div style="display:flex;justify-content:space-between;padding:14px 0 4px;font-weight:700;font-size:16px;border-top:1px solid var(--bdr2);margin-top:10px">';
+      h += '<span>本月總收入</span><span style="color:var(--grn)">$'+totalIncomeAll.toLocaleString()+'</span></div>';
     }
     bodyEl.innerHTML = h;
 
@@ -5238,6 +5284,29 @@ function renderFinance() {
   var totalExtraOut = extraExpenses.reduce(function(s,e){return s+e.amount;},0);
   var totalExtraIncome = extraIncome.reduce(function(s,e){return s+e.amount;},0);
 
+  // ── 整合：抓「已收款帳單」並計算本月部分 ──
+  var allBillings = [];
+  try { allBillings = JSON.parse(localStorage.getItem('guwen_billings') || '[]'); } catch(e) { allBillings = []; }
+  function billingsInRange(s, e) {
+    return allBillings.filter(function(b) {
+      if (b.status !== 'paid') return false;
+      if (!b.date) return false;
+      var d = new Date(b.date);
+      return d >= s && d < e;
+    });
+  }
+  function billingsTotal(arr) { return arr.reduce(function(s,b){return s+(b.amount||0);},0); }
+  var thisBillingPaid = billingsTotal(billingsInRange(tms, new Date()));
+  var lmBillingPaid = billingsTotal(billingsInRange(lms, lme));
+  var lqBillingPaid = billingsTotal(billingsInRange(lqs, lme));
+  var lyBillingPaid = billingsTotal(billingsInRange(lys, lye));
+  var thisBillingPending = allBillings.filter(function(b){
+    if (b.status !== 'pending') return false;
+    if (!b.date) return false;
+    var d = new Date(b.date);
+    return d >= tms;
+  }).reduce(function(s,b){return s+(b.amount||0);},0);
+
   // 實際佣金（填了比例就用實際，沒填用估算每件20000）
   function calcRealRevenue(closedArr) {
     return closedArr.reduce(function(s,l) {
@@ -5250,10 +5319,10 @@ function renderFinance() {
     }, 0);
   }
 
-  var thisRev    = calcRealRevenue(thisClosed) + totalExtraIncome;
-  var lmRev      = lmClosed.length * perDeal;
-  var lqRev      = lqClosed.length * perDeal;
-  var lyRev      = lyClosed.length * perDeal;
+  var thisRev    = calcRealRevenue(thisClosed) + totalExtraIncome + thisBillingPaid;
+  var lmRev      = lmClosed.length * perDeal + lmBillingPaid;
+  var lqRev      = lqClosed.length * perDeal + lqBillingPaid;
+  var lyRev      = lyClosed.length * perDeal + lyBillingPaid;
   var thisExp    = totalFixed + totalExtraOut;
   var thisNet    = thisRev - thisExp;
   var lmNet      = lmRev - totalFixed;
@@ -5285,7 +5354,9 @@ function renderFinance() {
     content += '<div class="stat-card" onclick="financeDetailModal(\'income\')" style="cursor:pointer;border:0.5px solid transparent;transition:border-color .15s" onmouseover="this.style.borderColor=\'var(--grn)\'" onmouseout="this.style.borderColor=\'transparent\'">';
     content += '<div class="stat-l">本月業績收入 <span style="font-size:10px;color:var(--t3)">點擊看細項</span></div>';
     content += '<div class="stat-v" style="color:var(--grn)">$' + thisRev.toLocaleString() + '</div>';
-    content += '<div class="stat-s">' + pct(thisRev,lmRev) + ' vs 前月</div></div>';
+    content += '<div class="stat-s">' + pct(thisRev,lmRev) + ' vs 前月';
+    if (thisBillingPaid > 0) content += ' · 含帳單$' + thisBillingPaid.toLocaleString();
+    content += '</div></div>';
     // 本月總支出 — 點擊展開支出細項
     content += '<div class="stat-card" onclick="financeDetailModal(\'expense\')" style="cursor:pointer;border:0.5px solid transparent;transition:border-color .15s" onmouseover="this.style.borderColor=\'var(--red)\'" onmouseout="this.style.borderColor=\'transparent\'">';
     content += '<div class="stat-l">本月總支出 <span style="font-size:10px;color:var(--t3)">點擊看細項</span></div>';
@@ -11704,31 +11775,89 @@ function shareScoreToLine(leadId) {
   var lead = leads.find(function(l){ return l.id === leadId; });
   if (!lead) return;
   var scores = calcScores(lead);
-  var scoreItems = [
-    ['銀行信貸', scores.bank, scores.bankBlocked],
-    ['汽車貸款', scores.car, scores.carBlocked],
-    ['機車貸款', scores.bike, scores.bikeBlocked],
-    ['手機商品貸', scores.phone, scores.phoneBlocked],
+
+  // 將分數轉為客戶版的程度描述
+  function levelOf(score, blocked) {
+    if (blocked) return { label: '較不適合', emoji: '⚠️', recommend: '建議改評估其他方案' };
+    if (score >= 80) return { label: '非常適合', emoji: '🌟', recommend: '建議優先送件' };
+    if (score >= 70) return { label: '適合', emoji: '✅', recommend: '條件良好，可送件' };
+    if (score >= 60) return { label: '可考慮', emoji: '👍', recommend: '可嘗試，額度可能受限' };
+    if (score >= 40) return { label: '需評估', emoji: '🤔', recommend: '建議先補強條件' };
+    if (score > 0)   return { label: '較不適合', emoji: '⚠️', recommend: '建議改評估其他方案' };
+    return null;  // 0 分（沒資格評估）
+  }
+
+  var lines = [];
+  lines.push('━━━━━━━━━━━━━━━━━');
+  lines.push('💼 您的貸款方案評估');
+  lines.push('━━━━━━━━━━━━━━━━━');
+  lines.push('');
+  lines.push('您好' + (lead.name?'，'+lead.name:'') + '：');
+  lines.push('依您提供的資料，初步評估結果如下：');
+  lines.push('');
+
+  // 各方案
+  var items = [
+    { name: '銀行信用貸款', score: scores.bank, blocked: scores.bankBlocked, icon: '🏦' },
+    { name: '汽車貸款', score: scores.car, blocked: scores.carBlocked, icon: '🚗' },
+    { name: '機車貸款', score: scores.bike, blocked: scores.bikeBlocked, icon: '🛵' },
+    { name: '手機商品貸', score: scores.phone, blocked: scores.phoneBlocked, icon: '📱' },
   ];
-  var lines = [
-    '═══════════════════════',
-    '📊 AI 貸款評估報告',
-    '═══════════════════════',
-    '姓名：' + (lead.name||'—'),
-    '需求資金：' + (lead.required_amount?'$'+lead.required_amount.toLocaleString():'未填'),
-    '資金用途：' + (lead.fund_purpose||'未填'),
-    '───────────────────────',
-    '評估機率',
-  ];
-  scoreItems.forEach(function(s) {
-    var bar = s[2] ? '■■■■■ 封鎖' : '█'.repeat(Math.round(s[1]/10)) + '░'.repeat(10-Math.round(s[1]/10)) + ' ' + s[1] + '%';
-    lines.push(s[0] + '：' + bar);
+  var hasAnyGood = false;
+  items.forEach(function(it) {
+    var lv = levelOf(it.score, it.blocked);
+    if (!lv) {
+      lines.push(it.icon + ' ' + it.name + '：暫不適合');
+      return;
+    }
+    lines.push(it.icon + ' ' + it.name + '：' + lv.emoji + ' ' + lv.label);
+    if (it.score >= 60 && !it.blocked) hasAnyGood = true;
   });
-  lines.push('───────────────────────');
-  if (lead.monthly_salary) lines.push('月薪：$' + lead.monthly_salary.toLocaleString() + (lead.has_salary_transfer?' （有薪轉）':' （無薪轉）'));
-  if (lead.credit_card_age) lines.push('信用卡：' + lead.credit_card_age);
-  lines.push('═══════════════════════');
-  lines.push('由 顧問PRO 系統產生 · ' + new Date().toLocaleDateString('zh-TW'));
+
+  // 不動產
+  if (scores.propStatus) {
+    lines.push('');
+    var propTxt = scores.propStatus === 'ok' ? '🏠 不動產：✅ 條件充足，可承作' :
+                  scores.propStatus === 'warn' ? '🏠 不動產：👍 可承作，金額略受限' :
+                  '🏠 不動產：⚠️ 借貸空間有限';
+    lines.push(propTxt);
+  }
+
+  lines.push('');
+  lines.push('───────────────');
+
+  // 建議文案
+  if (hasAnyGood) {
+    lines.push('');
+    lines.push('💡 建議方向');
+    items.forEach(function(it) {
+      var lv = levelOf(it.score, it.blocked);
+      if (lv && it.score >= 60 && !it.blocked) {
+        lines.push('・' + it.name + '：' + lv.recommend);
+      }
+    });
+  } else {
+    lines.push('');
+    lines.push('💡 給您的建議');
+    lines.push('目前各方案條件較嚴，建議：');
+    lines.push('1. 補充薪轉證明、近期收入');
+    lines.push('2. 整合既有信用紀錄');
+    lines.push('3. 由顧問為您規劃最佳方案');
+  }
+
+  if (lead.required_amount) {
+    lines.push('');
+    lines.push('您的需求資金：$' + lead.required_amount.toLocaleString());
+    if (lead.fund_purpose) lines.push('資金用途：' + lead.fund_purpose);
+  }
+
+  lines.push('');
+  lines.push('───────────────');
+  lines.push('📞 進一步諮詢請聯繫您的顧問');
+  lines.push('我們將為您量身規劃最適合的方案 🙏');
+  lines.push('');
+  lines.push('（' + new Date().toLocaleDateString('zh-TW') + ' 評估）');
+
   shareTextToLine(lines.join('\n'));
 }
 
