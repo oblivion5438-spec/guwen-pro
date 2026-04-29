@@ -4985,7 +4985,7 @@ async function showPropertyDocShareModal(leadId, item) {
     prevBox.querySelector('#prev-close').onclick = function(){ prevModal.remove(); };
     prevModal.onclick = function(e){ if(e.target===prevModal) prevModal.remove(); };
     prevBox.querySelector('#prev-copy').onclick = function(){ navigator.clipboard.writeText(text).then(function(){ alert('已複製！'); }); };
-    prevBox.querySelector('#prev-line').onclick = function(){ window.open('https://line.me/R/share?text='+encodeURIComponent(text),'_blank'); };
+    prevBox.querySelector('#prev-line').onclick = function(){ shareTextToLine(text); };
   };
 }
 
@@ -5865,7 +5865,7 @@ function renderFinance() {
       var total = pending.reduce(function(s,b){return s+(b.amount||0);},0);
       lines.push('待收款合計：$'+total.toLocaleString());
       lines.push('═══════════════════');
-      window.open('https://line.me/R/share?text='+encodeURIComponent(lines.join('\n')),'_blank');
+      shareTextToLine(lines.join('\n'));
     };
   }
 }
@@ -7761,7 +7761,7 @@ function shareBizCardLine() {
   if (d.email) lines.push('✉️ '+d.email);
   if (d.addr) lines.push('📍 '+d.addr);
   if (services.length > 0) { lines.push(''); lines.push('🔹 服務項目'); services.forEach(function(s){ lines.push('  · '+s); }); }
-  window.open('https://line.me/R/share?text='+encodeURIComponent(lines.join('\n')), '_blank');
+  shareTextToLine(lines.join('\n'));
 }
 
 // ══════════════════════════════
@@ -8194,7 +8194,7 @@ function renderSettings() {
 
   html += '<div style="display:flex;gap:8px;flex-wrap:wrap">';
   html += '<button onclick="showCustomerFormQR()" style="padding:8px 16px;border-radius:8px;border:0.5px solid var(--bdr2);background:transparent;color:var(--t1);cursor:pointer;font-family:var(--sans);font-size:13px">📱 顯示 QR Code</button>';
-  html += '<button onclick="window.open(\'https://line.me/R/share?text='+encodeURIComponent('請點選連結填寫貸款諮詢資料：\n'+inviteUrl)+'\',\'_blank\')" style="padding:8px 16px;border-radius:8px;border:none;background:#06C755;color:#FFF;cursor:pointer;font-family:var(--sans);font-size:13px;font-weight:600">📱 LINE 分享</button>';
+  html += '<button onclick="shareTextToLine(\'請點選連結填寫貸款諮詢資料：\\n'+inviteUrl+'\')" style="padding:8px 16px;border-radius:8px;border:none;background:#06C755;color:#FFF;cursor:pointer;font-family:var(--sans);font-size:13px;font-weight:600">📱 LINE 分享</button>';
   html += '</div>';
   html += '<div id="qr-container" style="display:none;margin-top:12px;text-align:center"></div>';
   html += '</div>';
@@ -9327,7 +9327,7 @@ function generateReferralLine(leadId, lead, box, modal) {
     navigator.clipboard.writeText(finalText).then(function(){ alert('已複製！可貼到 LINE 傳送'); });
   };
   previewBox.querySelector('#preview-line').onclick = function(){
-    window.open('https://line.me/R/share?text=' + encodeURIComponent(finalText), '_blank');
+    shareTextToLine(finalText);
   };
 }
 
@@ -11190,8 +11190,7 @@ function generateReview() {
   lineBtn.style.flex = '1';
   lineBtn.textContent = '📱 LINE';
   lineBtn.addEventListener('click', function() {
-    var url = 'https://line.me/R/share?text=' + encodeURIComponent(window._reviewText);
-    window.open(url, '_blank');
+    shareTextToLine(window._reviewText);
   });
 
   btnRow.appendChild(copyBtn);
@@ -11200,8 +11199,190 @@ function generateReview() {
   output.appendChild(btnRow);
 }
 
+// ══════════════════════════════
+// 📱 LINE 分享通用函式
+// 手機：直接喚起 LINE App
+// 桌機：跳出 Modal 提供「複製文字」「跳 LINE 軟體」「LINE 網頁版」三選項
+// ══════════════════════════════
+function shareTextToLine(text) {
+  if (!text) return;
+  var isMobile = /iPhone|iPad|iPod|Android|Mobile/i.test(navigator.userAgent);
+  if (isMobile) {
+    // 手機：用官方 URL 喚起 LINE App
+    var url = 'https://line.me/R/msg/text/?' + encodeURIComponent(text);
+    window.location.href = url;
+    return;
+  }
+  // 桌機：跳出 Modal
+  showLineShareModal(text);
+}
+
+// PC 版的智慧型分享 Modal
+function showLineShareModal(text) {
+  // 移除舊的 modal
+  var old = document.getElementById('line-share-modal');
+  if (old) old.remove();
+
+  var overlay = document.createElement('div');
+  overlay.id = 'line-share-modal';
+  overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.65);z-index:99999;display:flex;align-items:center;justify-content:center;padding:20px;font-family:var(--sans)';
+
+  var modal = document.createElement('div');
+  modal.style.cssText = 'background:var(--card);border:0.5px solid var(--bdr);border-radius:14px;width:100%;max-width:480px;max-height:90vh;overflow-y:auto;box-shadow:0 16px 48px rgba(0,0,0,.6)';
+
+  // 標題
+  var head = document.createElement('div');
+  head.style.cssText = 'display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:0.5px solid var(--bdr)';
+  head.innerHTML = '<div style="font-size:16px;font-weight:600;color:var(--t1)">📱 分享到 LINE</div>';
+  var closeBtn = document.createElement('button');
+  closeBtn.textContent = '✕';
+  closeBtn.style.cssText = 'background:transparent;border:none;color:var(--t2);font-size:20px;cursor:pointer;padding:0;width:28px;height:28px';
+  closeBtn.onclick = function(){ overlay.remove(); };
+  head.appendChild(closeBtn);
+  modal.appendChild(head);
+
+  // 內容
+  var body = document.createElement('div');
+  body.style.cssText = 'padding:18px 20px';
+
+  // 預覽 + 編輯
+  var prevLabel = document.createElement('div');
+  prevLabel.style.cssText = 'font-size:13px;color:var(--t2);margin-bottom:6px';
+  prevLabel.textContent = '預覽內容（可編輯）：';
+  body.appendChild(prevLabel);
+
+  var ta = document.createElement('textarea');
+  ta.value = text;
+  ta.style.cssText = 'width:100%;min-height:140px;max-height:280px;padding:10px 12px;background:var(--inp);border:0.5px solid var(--bdr2);border-radius:8px;color:var(--t1);font-family:var(--sans);font-size:13px;line-height:1.6;resize:vertical;box-sizing:border-box';
+  body.appendChild(ta);
+
+  // 操作按鈕（主要：複製文字）
+  var copyBtn = document.createElement('button');
+  copyBtn.style.cssText = 'width:100%;margin-top:12px;padding:13px;background:#06C755;color:#FFF;border:none;border-radius:9px;font-family:var(--sans);font-size:15px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px';
+  copyBtn.innerHTML = '<span>📋</span> 複製文字到剪貼簿';
+  copyBtn.onclick = function() {
+    var content = ta.value;
+    var done = false;
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(content);
+        done = true;
+      } else {
+        var t2 = document.createElement('textarea');
+        t2.value = content;
+        t2.style.position = 'fixed';
+        t2.style.opacity = '0';
+        document.body.appendChild(t2);
+        t2.select();
+        done = document.execCommand('copy');
+        document.body.removeChild(t2);
+      }
+    } catch(e) { done = false; }
+    if (done) {
+      copyBtn.innerHTML = '<span>✅</span> 已複製！打開 LINE 按 Ctrl+V 貼上';
+      copyBtn.style.background = '#039147';
+      setTimeout(function(){
+        copyBtn.innerHTML = '<span>📋</span> 複製文字到剪貼簿';
+        copyBtn.style.background = '#06C755';
+      }, 3000);
+    } else {
+      alert('複製失敗，請手動選取上方文字後按 Ctrl+C');
+      ta.select();
+    }
+  };
+  body.appendChild(copyBtn);
+
+  // 提示
+  var tip = document.createElement('div');
+  tip.style.cssText = 'background:var(--al);border:0.5px solid var(--bdr2);border-radius:8px;padding:10px 12px;margin-top:12px;font-size:12px;color:var(--t2);line-height:1.6';
+  tip.innerHTML = '💡 <strong style="color:var(--acc)">推薦做法</strong>：點上面「複製文字」→ 切到 LINE 軟體 → 選聯絡人 → 按 <kbd style="padding:1px 5px;background:var(--inp);border:0.5px solid var(--bdr2);border-radius:3px;font-family:monospace;font-size:11px">Ctrl + V</kbd> 貼上 → 送出';
+  body.appendChild(tip);
+
+  // 次要按鈕
+  var secLabel = document.createElement('div');
+  secLabel.style.cssText = 'font-size:12px;color:var(--t3);margin:14px 0 8px';
+  secLabel.textContent = '其他方式：';
+  body.appendChild(secLabel);
+
+  var btnRow = document.createElement('div');
+  btnRow.style.cssText = 'display:flex;gap:8px;flex-wrap:wrap';
+
+  var openLineBtn = document.createElement('button');
+  openLineBtn.style.cssText = 'flex:1;min-width:140px;padding:9px;background:var(--inp);border:0.5px solid var(--bdr2);border-radius:8px;color:var(--t1);font-family:var(--sans);font-size:12px;cursor:pointer';
+  openLineBtn.innerHTML = '💻 開啟 LINE 軟體';
+  openLineBtn.title = '嘗試喚起 LINE 桌面軟體（須先安裝）';
+  openLineBtn.onclick = function() {
+    // 嘗試喚起 LINE 軟體（line:// 協議）
+    var content = ta.value;
+    // 用 line:// scheme（部分 PC 環境支援喚起軟體）
+    var schemeUrl = 'line://msg/text/?' + encodeURIComponent(content);
+    window.location.href = schemeUrl;
+    setTimeout(function(){
+      if (!document.hidden) {
+        // 沒喚起就提示一下
+        var hint = document.createElement('div');
+        hint.style.cssText = 'margin-top:8px;padding:8px 10px;background:rgba(255,200,0,.1);border:0.5px solid rgba(255,200,0,.3);border-radius:6px;font-size:12px;color:var(--t2)';
+        hint.textContent = '⚠️ 沒有自動開啟 LINE 軟體？請改用「複製文字」貼到 LINE。';
+        if (!body.querySelector('.line-hint')) {
+          hint.className = 'line-hint';
+          body.appendChild(hint);
+        }
+      }
+    }, 1500);
+  };
+  btnRow.appendChild(openLineBtn);
+
+  var webBtn = document.createElement('button');
+  webBtn.style.cssText = 'flex:1;min-width:140px;padding:9px;background:var(--inp);border:0.5px solid var(--bdr2);border-radius:8px;color:var(--t1);font-family:var(--sans);font-size:12px;cursor:pointer';
+  webBtn.innerHTML = '🌐 LINE 網頁版';
+  webBtn.title = '開啟 LINE 網頁版（須先登入）';
+  webBtn.onclick = function() {
+    window.open('https://web.line.me/', '_blank');
+  };
+  btnRow.appendChild(webBtn);
+
+  body.appendChild(btnRow);
+
+  modal.appendChild(body);
+  overlay.appendChild(modal);
+  document.body.appendChild(overlay);
+
+  // 點背景關閉
+  overlay.onclick = function(e) {
+    if (e.target === overlay) overlay.remove();
+  };
+}
+
+// 顯示「已複製，請到 LINE 貼上」的浮動提示（保留向後相容）
+function showLineCopyToast() {
+  var old = document.getElementById('line-copy-toast');
+  if (old) old.remove();
+
+  var toast = document.createElement('div');
+  toast.id = 'line-copy-toast';
+  toast.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(6,199,85,.95);color:#FFF;padding:20px 28px;border-radius:14px;box-shadow:0 8px 32px rgba(0,0,0,.4);z-index:99999;font-family:var(--sans);font-size:15px;text-align:center;max-width:340px;line-height:1.6';
+  toast.innerHTML =
+    '<div style="font-size:32px;margin-bottom:8px">✅</div>' +
+    '<div style="font-weight:600;margin-bottom:6px">已複製到剪貼簿！</div>' +
+    '<div style="font-size:13px;opacity:.95">請打開 LINE（電腦版或網頁版）<br>到對話視窗按 Ctrl+V 貼上分享</div>' +
+    '<div style="margin-top:14px;display:flex;gap:8px;justify-content:center">' +
+    '<button id="line-toast-open" style="padding:7px 14px;background:rgba(255,255,255,.25);color:#FFF;border:1px solid rgba(255,255,255,.4);border-radius:7px;cursor:pointer;font-family:var(--sans);font-size:13px">開啟 LINE 網頁版</button>' +
+    '<button id="line-toast-close" style="padding:7px 14px;background:rgba(255,255,255,.15);color:#FFF;border:1px solid rgba(255,255,255,.3);border-radius:7px;cursor:pointer;font-family:var(--sans);font-size:13px">關閉</button>' +
+    '</div>';
+  document.body.appendChild(toast);
+
+  document.getElementById('line-toast-open').onclick = function() {
+    window.open('https://web.line.me/', '_blank');
+    toast.remove();
+  };
+  document.getElementById('line-toast-close').onclick = function() {
+    toast.remove();
+  };
+  setTimeout(function(){ if (toast.parentNode) toast.remove(); }, 6000);
+}
+
 function shareReviewToLine(text) {
-  window.open('https://line.me/R/share?text=' + encodeURIComponent(text), '_blank');
+  shareTextToLine(text);
 }
 
 // ══════════════════════════════
@@ -11236,7 +11417,7 @@ function shareScoreToLine(leadId) {
   if (lead.credit_card_age) lines.push('信用卡：' + lead.credit_card_age);
   lines.push('═══════════════════════');
   lines.push('由 顧問PRO 系統產生 · ' + new Date().toLocaleDateString('zh-TW'));
-  window.open('https://line.me/R/share?text=' + encodeURIComponent(lines.join('\n')), '_blank');
+  shareTextToLine(lines.join('\n'));
 }
 
 async function exportLeadPDF(leadId) {
@@ -11977,10 +12158,10 @@ function copyLink() {
 }
 function shareToLine() {
   var url = BASE_URL + '/app.html?ref=' + (currentMember ? currentMember.invite_code || '' : '');
-  window.open('https://line.me/R/share?text=' + encodeURIComponent('我在用顧問PRO做貸款評估：' + url), '_blank');
+  shareTextToLine('我在用顧問PRO做貸款評估：' + url);
 }
 function shareInviteToLine(code) {
-  window.open('https://line.me/R/share?text=' + encodeURIComponent('我的顧問PRO邀請碼：' + code + '\n' + BASE_URL), '_blank');
+  shareTextToLine('我的顧問PRO邀請碼：' + code + '\n' + BASE_URL);
 }
 function shareLeadLine(id) {
   var lead = leads.find(function(l) { return l.id === id; });
@@ -12104,7 +12285,7 @@ function shareLeadLine(id) {
   lines.push('━━━━━━━━━━━━━━━');
   lines.push('by 顧問PRO · 貸款評估平台');
 
-  window.open('https://line.me/R/share?text=' + encodeURIComponent(lines.join('\n')), '_blank');
+  shareTextToLine(lines.join('\n'));
 }
 
 // ══════════════════════════════
