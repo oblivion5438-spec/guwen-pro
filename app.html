@@ -1482,6 +1482,10 @@ async function init() {
 }
 
 async function loadMember() {
+  // 載入儲存的評分規則
+  loadScoreRulesFromStorage();
+  // 也載入儲存的不動產評分規則
+  if (typeof loadPropThresholdsFromStorage === 'function') loadPropThresholdsFromStorage();
   var r = await sb.from('members').select('*').eq('id', currentUser.id).single();
   if (r.data) {
     currentMember = r.data;
@@ -7456,7 +7460,28 @@ function saveScoreRules() {
   scoreRules.pawnDebtRatioBlock = g('sr-pawn-debt-block') || 90;
   scoreRules.pawnHasVehicle = g('sr-pawn-vehicle'); scoreRules.pawnSelfOwned = g('sr-pawn-self');
   scoreRules.pawnRenting = g('sr-pawn-rent');
+
+  // ✅ 寫入 localStorage（含所有封鎖開關），下次重新整理會自動載回
+  try {
+    var key = 'guwen_score_rules_' + (currentUser ? currentUser.id : 'guest');
+    localStorage.setItem(key, JSON.stringify(scoreRules));
+  } catch(e) { console.error('儲存評分規則失敗:', e); }
+
   alert('✓ 評分規則已儲存，下次評估立即生效');
+}
+
+// 載入評分規則（登入後呼叫）
+function loadScoreRulesFromStorage() {
+  if (!currentUser) return;
+  try {
+    var key = 'guwen_score_rules_' + currentUser.id;
+    var saved = localStorage.getItem(key);
+    if (saved) {
+      var parsed = JSON.parse(saved);
+      // 與預設規則合併（避免新增規則時舊資料缺欄位）
+      Object.keys(parsed).forEach(function(k) { scoreRules[k] = parsed[k]; });
+    }
+  } catch(e) { console.error('載入評分規則失敗:', e); }
 }
 
 function resetScoreRules() {
@@ -7501,7 +7526,23 @@ function renderPropThresholds() {
 function savePropThresholds() {
   propThresholds.t1 = parseInt(gv('pt-t1')) || 70;
   propThresholds.t2 = parseInt(gv('pt-t2')) || 80;
+  try {
+    var key = 'guwen_prop_thresholds_' + (currentUser ? currentUser.id : 'guest');
+    localStorage.setItem(key, JSON.stringify(propThresholds));
+  } catch(e) { console.error('儲存不動產門檻失敗:', e); }
   alert('不動產門檻已儲存');
+}
+
+function loadPropThresholdsFromStorage() {
+  if (!currentUser) return;
+  try {
+    var key = 'guwen_prop_thresholds_' + currentUser.id;
+    var saved = localStorage.getItem(key);
+    if (saved) {
+      var parsed = JSON.parse(saved);
+      Object.keys(parsed).forEach(function(k) { propThresholds[k] = parsed[k]; });
+    }
+  } catch(e) { console.error('載入不動產門檻失敗:', e); }
 }
 
 // ══════════════════════════════
