@@ -2307,6 +2307,20 @@ function renderAddLead() {
 
   el.appendChild(docSec);
 
+  // ── 補充資料區塊 ──
+  var extraSec = document.createElement('div');
+  extraSec.className = 'form-section';
+  var extraH = '<div class="fs-title">📝 補充資料</div>';
+  extraH += '<div style="font-size:12px;color:var(--t2);margin-bottom:12px">可上傳任何其他相關文件或截圖，並加上說明</div>';
+  extraH += '<div id="n-extra-list"></div>';
+  extraH += '<div style="display:flex;gap:8px;margin-top:10px">';
+  extraH += '<label style="padding:8px 16px;background:var(--inp);border:0.5px solid var(--bdr2);border-radius:8px;cursor:pointer;font-size:13px;font-family:var(--sans);color:var(--t1);display:flex;align-items:center;gap:6px">';
+  extraH += '<span>📎</span> 新增文件/圖片';
+  extraH += '<input type="file" id="n-extra-file" accept="image/*,.pdf,.doc,.docx,.xlsx" multiple style="display:none" onchange="handleExtraFileAdd(this,\'n-extra-list\')"></label>';
+  extraH += '</div>';
+  extraSec.innerHTML = extraH;
+  el.appendChild(extraSec);
+
   // 按鈕
   var btnsDiv = document.createElement('div'); btnsDiv.style.cssText = 'display:flex;gap:8px;margin-bottom:20px';
   var cBtn = document.createElement('button'); cBtn.className = 'btn-sm'; cBtn.textContent = '取消'; cBtn.onclick = function() { navTo('leads', null); };
@@ -2315,8 +2329,97 @@ function renderAddLead() {
   return; // DOM 方式建立，不需要最後的 el.innerHTML = html
 }
 
+
+// 補充資料上傳處理
+var extraFilesStore = {};
+
+function handleExtraFileAdd(input, listId, leadId) {
+  var files = Array.from(input.files);
+  if (!files.length) return;
+  var listEl = document.getElementById(listId);
+  if (!listEl) return;
+  files.forEach(function(file) {
+    var itemId = "extra-" + Date.now() + "-" + Math.random().toString(36).substr(2,5);
+    var isImg = file.type.startsWith("image/");
+    var sizeStr = file.size > 1048576 ? (file.size/1048576).toFixed(1)+"MB" : Math.round(file.size/1024)+"KB";
+    var item = document.createElement("div");
+    item.id = itemId;
+    item.style.cssText = "background:var(--inp);border:0.5px solid var(--bdr);border-radius:10px;padding:10px 12px;margin-bottom:8px";
+    var topRow = document.createElement("div");
+    topRow.style.cssText = "display:flex;align-items:center;gap:10px;margin-bottom:8px";
+    var iconEl = document.createElement("span");
+    iconEl.style.fontSize = "22px";
+    iconEl.textContent = isImg ? "🖼️" : "📄";
+    var infoEl = document.createElement("div");
+    infoEl.style.flex = "1";
+    var nameEl = document.createElement("div");
+    nameEl.style.cssText = "font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:200px";
+    nameEl.textContent = file.name;
+    var sizeEl = document.createElement("div");
+    sizeEl.style.cssText = "font-size:11px;color:var(--t3)";
+    sizeEl.textContent = sizeStr;
+    infoEl.appendChild(nameEl);
+    infoEl.appendChild(sizeEl);
+    var delBtn = document.createElement("button");
+    delBtn.style.cssText = "background:transparent;border:none;color:var(--red);font-size:18px;cursor:pointer;padding:4px;flex-shrink:0";
+    delBtn.textContent = "✕";
+    delBtn.onclick = function(){ item.remove(); };
+    topRow.appendChild(iconEl);
+    topRow.appendChild(infoEl);
+    topRow.appendChild(delBtn);
+    item.appendChild(topRow);
+    var noteRow = document.createElement("div");
+    noteRow.style.cssText = "display:flex;align-items:center;gap:6px";
+    var noteLabel = document.createElement("span");
+    noteLabel.style.cssText = "font-size:12px;color:var(--t2);flex-shrink:0";
+    noteLabel.textContent = "說明：";
+    var noteInput = document.createElement("input");
+    noteInput.type = "text";
+    noteInput.className = "fi";
+    noteInput.placeholder = "例：收入證明、補充說明...";
+    noteInput.style.cssText = "font-size:13px;padding:5px 10px";
+    noteRow.appendChild(noteLabel);
+    noteRow.appendChild(noteInput);
+    item.appendChild(noteRow);
+    if (isImg) {
+      var reader = new FileReader();
+      reader.onload = function(e) {
+        var preview = document.createElement("img");
+        preview.src = e.target.result;
+        preview.style.cssText = "width:100%;max-height:120px;object-fit:cover;border-radius:6px;margin-top:8px";
+        item.appendChild(preview);
+      };
+      reader.readAsDataURL(file);
+    }
+    if (leadId) {
+      var uploadBtn = document.createElement("button");
+      uploadBtn.className = "btn-sm";
+      uploadBtn.style.cssText = "margin-top:8px;font-size:12px;padding:4px 12px";
+      uploadBtn.textContent = "☁️ 上傳儲存";
+      uploadBtn.onclick = (function(f, ni, btn){ return function(){ uploadExtraDoc(f, ni.value, leadId, btn); }; })(file, noteInput, uploadBtn);
+      item.appendChild(uploadBtn);
+    } else {
+      if (!extraFilesStore[itemId]) extraFilesStore[itemId] = {};
+      extraFilesStore[itemId].file = file;
+      extraFilesStore[itemId].noteInput = noteInput;
+    }
+    listEl.appendChild(item);
+  });
+  input.value = "";
+}
+
+async function uploadExtraDoc(file, note, leadId, btn) {
+  if (!leadId || !currentUser) return;
+  if (btn) { btn.textContent = "上傳中…"; btn.disabled = true; }
+  var ext = file.name.split(".").pop().toLowerCase();
+  var path = leadId + "/extra_" + Date.now() + "." + ext;
+  var upRes = await sb.storage.from("lead-documents").upload(path, file, { upsert: true });
+  if (upRes.error) { if (btn) { btn.textContent = "❌ 失敗"; btn.disabled = false; } alert("上傳失敗：" + upRes.error.message); return; }
+  await sb.from("lead_documents").insert({ lead_id: leadId, member_id: currentUser.id, type: "extra", storage_path: path, ai_summary: note || null });
+  if (btn) { btn.textContent = "✅ 已上傳"; btn.style.background = "var(--grn)"; btn.style.color = "#FFF"; btn.disabled = true; }
+}
+
 function checkPositionForTaxId(posId, rowId) {
-  var posEl = document.getElementById(posId);
   var rowEl = document.getElementById(rowId);
   if (!posEl || !rowEl) return;
   var keywords = ["負責人","老闆","董事長","總經理","自營","執行長","合夥人","股東","業主"];
@@ -2912,6 +3015,18 @@ function showLeadDetail(id) {
       self.disabled = false;
     }, 0);
   };
+
+  // 補充資料區塊
+  html += '<div class="card" id="extra-docs-card-' + id + '">';
+  html += '<div class="ct">📝 補充資料</div>';
+  html += '<div style="font-size:13px;color:var(--t2);margin-bottom:10px">上傳任何其他相關文件、截圖或補充說明</div>';
+  html += '<div id="extra-docs-list-' + id + '"></div>';
+  html += '<div style="display:flex;gap:8px;margin-top:10px">';
+  html += '<label style="padding:8px 16px;background:var(--inp);border:0.5px solid var(--bdr2);border-radius:8px;cursor:pointer;font-size:13px;font-family:var(--sans);color:var(--t1);display:flex;align-items:center;gap:6px">';
+  html += '<span>📎</span> 新增文件/圖片';
+  html += '<input type="file" accept="image/*,.pdf,.doc,.docx,.xlsx" multiple style="display:none" onchange="handleExtraFileAdd(this,\'extra-docs-list-' + id + '\',\'' + id + '\')">';
+  html += '</label></div>';
+  html += '</div>';
 
   // 載入並渲染結案項目
   loadAndRenderClosings(id);
