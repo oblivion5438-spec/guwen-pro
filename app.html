@@ -7543,9 +7543,13 @@ async function renderPlatformRevenue(c) {
   var eventsRes = await sb.from('subscription_events')
     .select('member_id, event_type, from_plan, to_plan, monthly_price, effective_at')
     .order('effective_at', { ascending: true });
-  var events = eventsRes.data || [];
+  var allEvents = eventsRes.data || [];
 
-  var members = platformAdminMembers || [];
+  // ⚠️ 排除平台管理員（老闆不算在 SaaS 收入裡）
+  var members = (platformAdminMembers || []).filter(function(m){ return !m.is_platform_admin; });
+  var adminIds = (platformAdminMembers || []).filter(function(m){ return m.is_platform_admin; }).map(function(m){ return m.id; });
+  var events = allEvents.filter(function(e){ return adminIds.indexOf(e.member_id) < 0; });
+
   var now = new Date();
   var thisMonthKey = now.getFullYear() + '-' + String(now.getMonth()+1).padStart(2,'0');
 
@@ -7572,7 +7576,7 @@ async function renderPlatformRevenue(c) {
   // 沒有任何事件
   var monthlyRevenue = {};
   if (events.length === 0 || !earliestDate) {
-    c.innerHTML = renderRevenueHtml(mrr, arr, proCount, teamCount, 0, null, 0, {}, []);
+    c.innerHTML = renderRevenueHtml(mrr, arr, proCount, teamCount, 0, null, 0, {}, [], 0, members.length);
     return;
   }
 
@@ -7599,15 +7603,12 @@ async function renderPlatformRevenue(c) {
     // 對每個月決定當月該會員的方案
     allMonths.forEach(function(mKey) {
       var [y, mo] = mKey.split('-').map(Number);
-      var monthStart = new Date(y, mo - 1, 1);
-      // 找出此月份「之前或當下」最後一個生效的事件
+      var monthEnd = new Date(y, mo, 0, 23, 59, 59);
+      // 找出此月份結束前最後一個生效的事件（升級當月就計費）
       var activeEvent = null;
       for (var i = 0; i < memEvts.length; i++) {
         var evtDate = new Date(memEvts[i].effective_at);
-        // 事件在月初之前（含）就算當月生效
-        // 但事件如果發生在某月中，那個月也算（按月計費）
-        var evtMonth = new Date(evtDate.getFullYear(), evtDate.getMonth(), 1);
-        if (evtMonth <= monthStart) {
+        if (evtDate <= monthEnd) {
           activeEvent = memEvts[i];
         } else {
           break;
@@ -7638,7 +7639,7 @@ async function renderPlatformRevenue(c) {
   var lastMonthRev = monthlyRevenue[lastMonthKey] ? monthlyRevenue[lastMonthKey].total : 0;
   var monthGrowth = lastMonthRev > 0 ? Math.round((thisMonthRev - lastMonthRev) / lastMonthRev * 100) : (thisMonthRev > 0 ? null : 0);
 
-  c.innerHTML = renderRevenueHtml(mrr, arr, proCount, teamCount, totalRev, monthGrowth, thisMonthRev, monthlyRevenue, sortedMonths, events.length);
+  c.innerHTML = renderRevenueHtml(mrr, arr, proCount, teamCount, totalRev, monthGrowth, thisMonthRev, monthlyRevenue, sortedMonths, events.length, members.length);
 
   // 存到 window 給 CSV/事件 modal 用
   window._revenueMonthly = monthlyRevenue;
@@ -7646,7 +7647,7 @@ async function renderPlatformRevenue(c) {
   window._revenueEvents = events;
 }
 
-function renderRevenueHtml(mrr, arr, proCount, teamCount, totalRev, monthGrowth, thisMonthRev, monthlyRevenue, sortedMonths, eventCount) {
+function renderRevenueHtml(mrr, arr, proCount, teamCount, totalRev, monthGrowth, thisMonthRev, monthlyRevenue, sortedMonths, eventCount, memberTotalCount) {
   var thisMonthKey = (new Date()).getFullYear() + '-' + String((new Date()).getMonth()+1).padStart(2,'0');
   var maxMonth = 1;
   sortedMonths.forEach(function(k){ maxMonth = Math.max(maxMonth, monthlyRevenue[k].total); });
@@ -7657,9 +7658,11 @@ function renderRevenueHtml(mrr, arr, proCount, teamCount, totalRev, monthGrowth,
   html += '<div class="card" style="margin-bottom:12px;background:rgba(16,185,129,.08);border:0.5px solid rgba(16,185,129,.25)">';
   html += '<div style="font-size:13px;color:var(--t1);line-height:1.6">';
   html += '✅ <strong style="color:var(--grn)">精準計算（基於訂閱事件）</strong><br>';
-  html += '• 月費以 <strong>專業版 $' + PLAN_PRICE.pro + '/月</strong>、<strong>團隊版 $' + PLAN_PRICE.team + '/月</strong> 計算<br>';
-  html += '• 每月按該月份 1 日當下的方案狀態計費<br>';
-  html += '• 共追蹤 ' + (eventCount || 0) + ' 筆訂閱事件 <button onclick="showSubscriptionEvents()" style="margin-left:8px;padding:2px 8px;background:transparent;border:0.5px solid var(--bdr2);border-radius:6px;color:var(--t1);cursor:pointer;font-size:11px;font-family:var(--sans)">查看歷史</button>';
+  html += '• 月費：<strong>專業版 $' + PLAN_PRICE.pro + '/月</strong>、<strong>團隊版 $' + PLAN_PRICE.team + '/月</strong><br>';
+  html += '• 計費規則：<strong>升級當下起算該月</strong>（試用期不計費）<br>';
+  html += '• ⚠️ <strong style="color:#FFA500">平台管理員不計入</strong>（老闆自己不算 SaaS 收入）<br>';
+  html += '• 計費對象：' + memberTotalCount + ' 位會員 · 共追蹤 ' + (eventCount || 0) + ' 筆訂閱事件 ';
+  html += '<button onclick="showSubscriptionEvents()" style="margin-left:4px;padding:2px 8px;background:transparent;border:0.5px solid var(--bdr2);border-radius:6px;color:var(--t1);cursor:pointer;font-size:11px;font-family:var(--sans)">查看歷史</button>';
   html += '</div></div>';
 
   // 核心數字
