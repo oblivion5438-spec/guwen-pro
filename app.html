@@ -7091,6 +7091,7 @@ async function renderPlatformAdmin() {
     {key:'notifications', label:'🔔 通知' + (unreadCount > 0 ? ' (' + unreadCount + ')' : '')},
     {key:'members', label:'👥 會員列表'},
     {key:'paid', label:'💰 付費會員'},
+    {key:'revenue', label:'💼 收入分析'},
     {key:'leads', label:'📋 全平台客戶'},
     {key:'export', label:'📤 匯出'},
   ];
@@ -7147,6 +7148,8 @@ function renderPlatformAdminTab() {
     renderPlatformMembers(c);
   } else if (platformAdminTab === 'paid') {
     renderPlatformPaid(c);
+  } else if (platformAdminTab === 'revenue') {
+    renderPlatformRevenue(c);
   } else if (platformAdminTab === 'leads') {
     renderPlatformAllLeads(c);
   } else if (platformAdminTab === 'export') {
@@ -7519,6 +7522,303 @@ function exportPlatformCsv(filter) {
   var a = document.createElement('a');
   a.href = url;
   a.download = '顧問PRO_會員清單_' + new Date().toISOString().slice(0,10) + '.csv';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(function(){ URL.revokeObjectURL(url); }, 2000);
+}
+
+// ──────────────────────────────────────────
+// 💼 收入分析（精準版 — 從 subscription_events 計算）
+// 邏輯：依每位會員的訂閱事件時間軸算出每個月生效的方案
+// 然後加總每月 MRR
+// ──────────────────────────────────────────
+var PLAN_PRICE = { trial: 0, free: 0, pro: 799, team: 999 };
+var PLAN_LABEL = { trial: '試用版', free: '免費版', pro: '專業版', team: '團隊版' };
+
+async function renderPlatformRevenue(c) {
+  c.innerHTML = '<div style="text-align:center;padding:30px;color:var(--t2)">⏳ 計算收入中...</div>';
+
+  // 抓所有訂閱事件（依時間正序）
+  var eventsRes = await sb.from('subscription_events')
+    .select('member_id, event_type, from_plan, to_plan, monthly_price, effective_at')
+    .order('effective_at', { ascending: true });
+  var events = eventsRes.data || [];
+
+  var members = platformAdminMembers || [];
+  var now = new Date();
+  var thisMonthKey = now.getFullYear() + '-' + String(now.getMonth()+1).padStart(2,'0');
+
+  // ── 計算 MRR（當下狀態）──
+  var mrr = 0, proCount = 0, teamCount = 0;
+  members.forEach(function(m) {
+    var price = PLAN_PRICE[m.plan] || 0;
+    if (price > 0) {
+      mrr += price;
+      if (m.plan === 'pro') proCount++;
+      if (m.plan === 'team') teamCount++;
+    }
+  });
+  var arr = mrr * 12;
+
+  // ── 為每位會員建立時間軸 → 推算每個月狀態 ──
+  // 1. 找出最早事件月份
+  var earliestDate = null;
+  events.forEach(function(e) {
+    var d = new Date(e.effective_at);
+    if (!earliestDate || d < earliestDate) earliestDate = d;
+  });
+
+  // 沒有任何事件
+  var monthlyRevenue = {};
+  if (events.length === 0 || !earliestDate) {
+    c.innerHTML = renderRevenueHtml(mrr, arr, proCount, teamCount, 0, null, 0, {}, []);
+    return;
+  }
+
+  // 2. 從最早月份到本月，逐月計算
+  var earliestMonth = new Date(earliestDate.getFullYear(), earliestDate.getMonth(), 1);
+  var cursor = new Date(earliestMonth);
+  var allMonths = [];
+  while (cursor <= now) {
+    var key = cursor.getFullYear() + '-' + String(cursor.getMonth()+1).padStart(2,'0');
+    allMonths.push(key);
+    monthlyRevenue[key] = { pro: 0, team: 0, total: 0, payingMembers: [], memberPlans: {} };
+    cursor.setMonth(cursor.getMonth() + 1);
+  }
+
+  // 3. 為每位會員建立時間軸 → 套用到每個月
+  var memberEvents = {};
+  events.forEach(function(e) {
+    if (!memberEvents[e.member_id]) memberEvents[e.member_id] = [];
+    memberEvents[e.member_id].push(e);
+  });
+
+  Object.keys(memberEvents).forEach(function(memberId) {
+    var memEvts = memberEvents[memberId];
+    // 對每個月決定當月該會員的方案
+    allMonths.forEach(function(mKey) {
+      var [y, mo] = mKey.split('-').map(Number);
+      var monthStart = new Date(y, mo - 1, 1);
+      // 找出此月份「之前或當下」最後一個生效的事件
+      var activeEvent = null;
+      for (var i = 0; i < memEvts.length; i++) {
+        var evtDate = new Date(memEvts[i].effective_at);
+        // 事件在月初之前（含）就算當月生效
+        // 但事件如果發生在某月中，那個月也算（按月計費）
+        var evtMonth = new Date(evtDate.getFullYear(), evtDate.getMonth(), 1);
+        if (evtMonth <= monthStart) {
+          activeEvent = memEvts[i];
+        } else {
+          break;
+        }
+      }
+      if (activeEvent && (activeEvent.to_plan === 'pro' || activeEvent.to_plan === 'team')) {
+        var price = activeEvent.monthly_price || PLAN_PRICE[activeEvent.to_plan] || 0;
+        monthlyRevenue[mKey].total += price;
+        if (activeEvent.to_plan === 'pro') monthlyRevenue[mKey].pro += price;
+        if (activeEvent.to_plan === 'team') monthlyRevenue[mKey].team += price;
+        monthlyRevenue[mKey].payingMembers.push(memberId);
+        monthlyRevenue[mKey].memberPlans[memberId] = activeEvent.to_plan;
+      }
+    });
+  });
+
+  // 累計
+  var totalRev = 0;
+  allMonths.forEach(function(k) { totalRev += monthlyRevenue[k].total; });
+
+  // 排序月份（新到舊）
+  var sortedMonths = allMonths.slice().reverse();
+
+  // 計算成長率
+  var thisMonthRev = monthlyRevenue[thisMonthKey] ? monthlyRevenue[thisMonthKey].total : 0;
+  var lastMonthDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  var lastMonthKey = lastMonthDate.getFullYear() + '-' + String(lastMonthDate.getMonth()+1).padStart(2,'0');
+  var lastMonthRev = monthlyRevenue[lastMonthKey] ? monthlyRevenue[lastMonthKey].total : 0;
+  var monthGrowth = lastMonthRev > 0 ? Math.round((thisMonthRev - lastMonthRev) / lastMonthRev * 100) : (thisMonthRev > 0 ? null : 0);
+
+  c.innerHTML = renderRevenueHtml(mrr, arr, proCount, teamCount, totalRev, monthGrowth, thisMonthRev, monthlyRevenue, sortedMonths, events.length);
+
+  // 存到 window 給 CSV/事件 modal 用
+  window._revenueMonthly = monthlyRevenue;
+  window._revenueSortedMonths = sortedMonths;
+  window._revenueEvents = events;
+}
+
+function renderRevenueHtml(mrr, arr, proCount, teamCount, totalRev, monthGrowth, thisMonthRev, monthlyRevenue, sortedMonths, eventCount) {
+  var thisMonthKey = (new Date()).getFullYear() + '-' + String((new Date()).getMonth()+1).padStart(2,'0');
+  var maxMonth = 1;
+  sortedMonths.forEach(function(k){ maxMonth = Math.max(maxMonth, monthlyRevenue[k].total); });
+
+  var html = '';
+
+  // 提示（精準版）
+  html += '<div class="card" style="margin-bottom:12px;background:rgba(16,185,129,.08);border:0.5px solid rgba(16,185,129,.25)">';
+  html += '<div style="font-size:13px;color:var(--t1);line-height:1.6">';
+  html += '✅ <strong style="color:var(--grn)">精準計算（基於訂閱事件）</strong><br>';
+  html += '• 月費以 <strong>專業版 $' + PLAN_PRICE.pro + '/月</strong>、<strong>團隊版 $' + PLAN_PRICE.team + '/月</strong> 計算<br>';
+  html += '• 每月按該月份 1 日當下的方案狀態計費<br>';
+  html += '• 共追蹤 ' + (eventCount || 0) + ' 筆訂閱事件 <button onclick="showSubscriptionEvents()" style="margin-left:8px;padding:2px 8px;background:transparent;border:0.5px solid var(--bdr2);border-radius:6px;color:var(--t1);cursor:pointer;font-size:11px;font-family:var(--sans)">查看歷史</button>';
+  html += '</div></div>';
+
+  // 核心數字
+  html += '<div class="stat-grid" style="margin-bottom:14px">';
+  html += '<div class="stat-card"><div class="stat-l">月經常性收入 (MRR)</div><div class="stat-v" style="color:var(--grn)">$' + mrr.toLocaleString() + '</div><div class="stat-s">專業 ' + proCount + ' · 團隊 ' + teamCount + '</div></div>';
+  html += '<div class="stat-card"><div class="stat-l">年化收入 (ARR)</div><div class="stat-v" style="color:var(--acc)">$' + arr.toLocaleString() + '</div><div class="stat-s">MRR × 12</div></div>';
+  html += '<div class="stat-card"><div class="stat-l">本月收入</div><div class="stat-v">$' + thisMonthRev.toLocaleString() + '</div>';
+  if (monthGrowth !== null) {
+    var gColor = monthGrowth >= 0 ? 'var(--grn)' : 'var(--red)';
+    var gIcon = monthGrowth >= 0 ? '▲' : '▼';
+    html += '<div class="stat-s" style="color:' + gColor + '">' + gIcon + Math.abs(monthGrowth) + '% vs 上月</div>';
+  } else {
+    html += '<div class="stat-s">—</div>';
+  }
+  html += '</div>';
+  html += '<div class="stat-card"><div class="stat-l">累計總收入</div><div class="stat-v" style="color:var(--acc)">$' + totalRev.toLocaleString() + '</div><div class="stat-s">' + sortedMonths.length + ' 個月累計</div></div>';
+  html += '</div>';
+
+  // 方案分布
+  html += '<div class="card" style="margin-bottom:12px">';
+  html += '<div class="ct">📊 付費會員方案分布</div>';
+  var totalPaying = proCount + teamCount;
+  if (totalPaying === 0) {
+    html += '<div style="text-align:center;padding:20px;color:var(--t2)">目前還沒有付費會員</div>';
+  } else {
+    [
+      { label: '⭐ 專業版 ($' + PLAN_PRICE.pro + '/月)', count: proCount, rev: proCount * PLAN_PRICE.pro, color: 'var(--acc)' },
+      { label: '🏢 團隊版 ($' + PLAN_PRICE.team + '/月)', count: teamCount, rev: teamCount * PLAN_PRICE.team, color: '#FFA500' },
+    ].forEach(function(p) {
+      var pct = totalPaying > 0 ? Math.round(p.count / totalPaying * 100) : 0;
+      html += '<div style="margin-bottom:10px">';
+      html += '<div style="display:flex;justify-content:space-between;font-size:14px;margin-bottom:4px">';
+      html += '<span>' + p.label + '</span>';
+      html += '<span style="color:' + p.color + ';font-weight:600">' + p.count + ' 人 · 月收 $' + p.rev.toLocaleString() + '</span>';
+      html += '</div>';
+      html += '<div style="background:rgba(255,255,255,.05);border-radius:6px;height:8px;overflow:hidden"><div style="height:100%;background:' + p.color + ';width:' + pct + '%"></div></div>';
+      html += '</div>';
+    });
+  }
+  html += '</div>';
+
+  // 月份歷史
+  html += '<div class="card" style="margin-bottom:12px">';
+  html += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:6px">';
+  html += '<div class="ct" style="margin-bottom:0">📅 月份收入歷史</div>';
+  if (sortedMonths.length > 0) {
+    html += '<button class="btn-sm" onclick="exportRevenueCSV()">📥 匯出 CSV</button>';
+  }
+  html += '</div>';
+
+  if (sortedMonths.length === 0) {
+    html += '<div style="text-align:center;padding:20px;color:var(--t2)">尚無收入記錄<br><span style="font-size:12px">當有會員升級為付費版即會開始計算</span></div>';
+  } else {
+    sortedMonths.forEach(function(k) {
+      var data = monthlyRevenue[k];
+      var [y, mo] = k.split('-');
+      var monthLabel = y + '/' + parseInt(mo) + '月';
+      var isThisMonth = k === thisMonthKey;
+      var barWidth = Math.round(data.total / maxMonth * 100);
+
+      html += '<div style="margin-bottom:14px;' + (isThisMonth ? 'background:rgba(255,165,0,.05);padding:10px;border-radius:8px;border:0.5px solid rgba(255,165,0,.2);margin-left:-10px;margin-right:-10px;' : '') + '">';
+      html += '<div style="display:flex;justify-content:space-between;align-items:baseline;font-size:14px;margin-bottom:5px">';
+      html += '<span style="font-weight:600">' + monthLabel + (isThisMonth ? ' <span style="font-size:10px;color:#FFA500">本月</span>' : '') + '</span>';
+      html += '<span style="font-weight:700;color:var(--grn);font-size:16px">$' + data.total.toLocaleString() + '</span>';
+      html += '</div>';
+      html += '<div style="background:rgba(255,255,255,.06);border-radius:5px;height:6px;overflow:hidden;margin-bottom:5px"><div style="height:100%;background:linear-gradient(90deg,var(--grn),var(--acc));width:' + barWidth + '%"></div></div>';
+      html += '<div style="font-size:12px;color:var(--t2);display:flex;gap:14px;flex-wrap:wrap">';
+      if (data.pro > 0) html += '<span>⭐ 專業 $' + data.pro.toLocaleString() + '</span>';
+      if (data.team > 0) html += '<span style="color:#FFA500">🏢 團隊 $' + data.team.toLocaleString() + '</span>';
+      html += '<span style="color:var(--t3)">付費會員 ' + data.payingMembers.length + ' 人</span>';
+      html += '</div>';
+      html += '</div>';
+    });
+  }
+  html += '</div>';
+
+  return html;
+}
+
+// 顯示訂閱事件歷史 Modal
+function showSubscriptionEvents() {
+  var events = window._revenueEvents || [];
+  var members = platformAdminMembers || [];
+
+  var old = document.getElementById('sub-events-modal');
+  if (old) old.remove();
+
+  var overlay = document.createElement('div');
+  overlay.id = 'sub-events-modal';
+  overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.7);z-index:99999;display:flex;align-items:center;justify-content:center;padding:20px;font-family:var(--sans)';
+
+  var modal = document.createElement('div');
+  modal.style.cssText = 'background:var(--card);border:0.5px solid var(--bdr);border-radius:14px;width:100%;max-width:560px;max-height:85vh;display:flex;flex-direction:column';
+
+  var head = document.createElement('div');
+  head.style.cssText = 'display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:0.5px solid var(--bdr);flex-shrink:0';
+  head.innerHTML = '<div style="font-size:16px;font-weight:600">📜 訂閱事件歷史</div>';
+  var closeBtn = document.createElement('button');
+  closeBtn.textContent = '✕';
+  closeBtn.style.cssText = 'background:transparent;border:none;color:var(--t2);font-size:20px;cursor:pointer;width:28px';
+  closeBtn.onclick = function(){ overlay.remove(); };
+  head.appendChild(closeBtn);
+  modal.appendChild(head);
+
+  var body = document.createElement('div');
+  body.style.cssText = 'padding:14px 18px;overflow-y:auto;flex:1';
+
+  var typeIcon = {
+    subscribe: '🆕', upgrade: '⬆️', downgrade: '⬇️', cancel: '❌', change: '🔄', reactivate: '🔁'
+  };
+  var typeLabel = {
+    subscribe: '首次訂閱', upgrade: '升級', downgrade: '降級', cancel: '取消', change: '變更', reactivate: '重新啟用'
+  };
+
+  if (events.length === 0) {
+    body.innerHTML = '<div style="text-align:center;padding:30px;color:var(--t2)">尚無訂閱事件</div>';
+  } else {
+    var html = '';
+    events.slice().reverse().forEach(function(e) {
+      var member = members.find(function(m){ return m.id === e.member_id; });
+      var memberName = member ? (member.name || member.email) : '—';
+      html += '<div style="padding:10px 0;border-bottom:0.5px solid var(--bdr)">';
+      html += '<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">';
+      html += '<span style="font-size:18px">' + (typeIcon[e.event_type]||'🔔') + '</span>';
+      html += '<span style="font-size:14px;font-weight:600">' + memberName + '</span>';
+      html += '<span class="badge" style="background:rgba(255,165,0,.15);color:var(--acc);font-size:11px">' + (typeLabel[e.event_type]||e.event_type) + '</span>';
+      html += '</div>';
+      html += '<div style="font-size:13px;color:var(--t2);margin-left:26px">';
+      html += (e.from_plan||'—') + ' → <strong style="color:var(--t1)">' + (e.to_plan||'—') + '</strong>';
+      if (e.monthly_price > 0) html += ' · 月費 $' + e.monthly_price.toLocaleString();
+      html += '</div>';
+      html += '<div style="font-size:11px;color:var(--t3);margin-left:26px;margin-top:2px">' + new Date(e.effective_at).toLocaleString('zh-TW') + '</div>';
+      html += '</div>';
+    });
+    body.innerHTML = html;
+  }
+
+  modal.appendChild(body);
+  overlay.appendChild(modal);
+  document.body.appendChild(overlay);
+  overlay.onclick = function(e){ if (e.target === overlay) overlay.remove(); };
+}
+
+function exportRevenueCSV() {
+  var monthly = window._revenueMonthly || {};
+  var sorted = window._revenueSortedMonths || [];
+  if (sorted.length === 0) { alert('沒有資料可匯出'); return; }
+
+  var csv = '\uFEFF' + '月份,專業版收入,團隊版收入,合計,付費人數\n';
+  sorted.slice().reverse().forEach(function(k) {
+    var d = monthly[k];
+    csv += k + ',' + d.pro + ',' + d.team + ',' + d.total + ',' + d.payingMembers.length + '\n';
+  });
+
+  var blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement('a');
+  a.href = url;
+  a.download = '顧問PRO_月份收入_' + new Date().toISOString().slice(0,10) + '.csv';
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
