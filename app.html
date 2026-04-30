@@ -383,6 +383,7 @@ select.fi{-webkit-appearance:auto;appearance:auto;display:block;max-width:100%;w
       <button class="ds-ni" onclick="navTo('prop-thresholds',this)">🏠 不動產評分規則</button>
       <button class="ds-ni" onclick="navTo('appearance',this)">🎨 外觀設定</button>
       <button class="ds-ni" onclick="navTo('settings',this)">⚙️ 帳號設定</button>
+      <button class="ds-ni" id="platform-admin-nav" onclick="navTo('platform-admin',this)" style="display:none;color:#FFA500;font-weight:600">🔐 平台管理</button>
       <button class="ds-ni" onclick="navTo('upgrade',this)" style="color:var(--acc);font-weight:600">⭐ 升級方案</button>
       <button class="ds-ni" onclick="navTo('report',this)">🚩 問題回報</button>
       <button class="ds-ni" onclick="doLogout()" style="color:var(--red);margin-top:4px">🚪 登出</button>
@@ -462,6 +463,7 @@ select.fi{-webkit-appearance:auto;appearance:auto;display:block;max-width:100%;w
         <button class="mob-sb-item" onclick="mobNav('prop-thresholds')">🏠 不動產評分規則</button>
         <button class="mob-sb-item" onclick="mobNav('appearance')">🎨 外觀設定</button>
         <button class="mob-sb-item" onclick="mobNav('settings')">⚙️ 帳號設定</button>
+        <button class="mob-sb-item" id="platform-admin-mob" onclick="mobNav('platform-admin')" style="display:none;color:#FFA500;font-weight:600">🔐 平台管理</button>
         <button class="mob-sb-item" onclick="mobNav('upgrade')" style="color:var(--acc);font-weight:600">⭐ 升級方案</button>
         <button class="mob-sb-item" onclick="mobNav('report')">🚩 問題回報</button>
 
@@ -1541,6 +1543,14 @@ async function loadMember() {
     var dtName = document.getElementById('dt-name'); if(dtName) dtName.textContent=r.data.name+(r.data.company?' · '+r.data.company:'');
     // 更新業務模組側欄
     updateBusinessModules(r.data.business_roles || []);
+
+    // 平台管理員：顯示「🔐 平台管理」選單
+    if (r.data.is_platform_admin === true) {
+      var pAdminNav = document.getElementById('platform-admin-nav');
+      if (pAdminNav) pAdminNav.style.display = '';
+      var pAdminMob = document.getElementById('platform-admin-mob');
+      if (pAdminMob) pAdminMob.style.display = '';
+    }
   }
   // 啟動 Realtime 訂閱通知角標
   startNotifRealtime();
@@ -1886,7 +1896,7 @@ function navTo(key, el) {
   document.querySelectorAll('.ds-ni').forEach(function(n) { n.classList.remove('on'); });
   if (el && el.classList && el.classList.contains('ds-ni')) el.classList.add('on');
   // 更新桌機 topbar 標題
-  var titles = {'dash':'儀表板','leads':'客戶名單','add-lead':'新增客戶資料','calendar':'行事曆','finance':'收支理財工具','team':'團隊管理','connections':'🤝 對接管理','notifications':'🔔 通知中心','invite':'邀請碼 / 折扣','calc':'貸款試算','review':'照會生成','antifraud':'詐騙辨識','score-rules':'評分規則','prop-thresholds':'不動產評分規則','appearance':'外觀設定','settings':'帳號設定','report':'問題回報','car-dealer':'🚙 中古車商','car-finance':'🚗 融資車貸','pawn':'🏛 民間借款','broker':'💼 貸款仲介','biz-card':'🪪 顧問名片','monthly-report':'📋 月報匯出','upgrade':'⭐ 升級方案'};
+  var titles = {'dash':'儀表板','leads':'客戶名單','add-lead':'新增客戶資料','calendar':'行事曆','finance':'收支理財工具','team':'團隊管理','connections':'🤝 對接管理','notifications':'🔔 通知中心','invite':'邀請碼 / 折扣','calc':'貸款試算','review':'照會生成','antifraud':'詐騙辨識','score-rules':'評分規則','prop-thresholds':'不動產評分規則','appearance':'外觀設定','settings':'帳號設定','report':'問題回報','car-dealer':'🚙 中古車商','car-finance':'🚗 融資車貸','pawn':'🏛 民間借款','broker':'💼 貸款仲介','biz-card':'🪪 顧問名片','monthly-report':'📋 月報匯出','upgrade':'⭐ 升級方案','platform-admin':'🔐 平台管理'};
   var dt = document.getElementById('dt-title'); if (dt) dt.textContent = titles[key] || '';
   var renders = {
     'dash': renderDash, 'leads': renderLeads, 'add-lead': renderAddLead,
@@ -1901,6 +1911,7 @@ function navTo(key, el) {
     'pawn': renderPawn,
     'connections': renderConnections,
     'notifications': renderNotifications,
+    'platform-admin': renderPlatformAdmin,
     'broker': renderBroker,
     'biz-card': renderBizCard,
     'monthly-report': renderMonthlyReport,
@@ -7024,6 +7035,471 @@ function renderTeamSalary(el, isLeader, isAdmin) {
       '<div class="ri"><span class="rl">底薪合計</span><span class="rv" style="color:var(--red)">-$' + totalSalary.toLocaleString() + '/月</span></div>' +
     '</div>';
   el.appendChild(sumCard);
+}
+
+// ══════════════════════════════════════════════════════════
+// 🔐 平台管理員後台
+// 只有 members.is_platform_admin = true 才能進入
+// ══════════════════════════════════════════════════════════
+var platformAdminTab = 'overview';
+var platformAdminMembers = [];
+var platformAdminLoaded = false;
+
+async function renderPlatformAdmin() {
+  var el = document.getElementById('member-content');
+  el.innerHTML = '';
+
+  // 二次權限驗證
+  if (!currentMember || currentMember.is_platform_admin !== true) {
+    el.innerHTML = '<div class="card" style="text-align:center;padding:40px"><div style="font-size:48px;margin-bottom:14px">🔒</div><div style="font-size:18px;font-weight:600;margin-bottom:8px">權限不足</div><div style="font-size:13px;color:var(--t2)">此頁面僅限平台管理員存取</div></div>';
+    return;
+  }
+
+  // 標題
+  var head = document.createElement('div');
+  head.innerHTML = '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:8px">' +
+    '<div style="font-size:22px;font-weight:700;color:#FFA500">🔐 平台管理員後台</div>' +
+    '<button class="btn-sm" onclick="loadPlatformAdminData(true)">🔄 重新整理</button>' +
+    '</div>';
+  el.appendChild(head);
+
+  // Tabs
+  var tabBar = document.createElement('div');
+  tabBar.style.cssText = 'display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px;overflow-x:auto;padding-bottom:4px';
+  var tabs = [
+    {key:'overview', label:'📊 平台總覽'},
+    {key:'members', label:'👥 會員列表'},
+    {key:'paid', label:'💰 付費會員'},
+    {key:'leads', label:'📋 全平台客戶'},
+    {key:'export', label:'📤 匯出'},
+  ];
+  tabs.forEach(function(t) {
+    var on = platformAdminTab === t.key;
+    var btn = document.createElement('button');
+    btn.style.cssText = 'padding:7px 14px;border-radius:20px;font-size:14px;cursor:pointer;border:0.5px solid '+(on?'#FFA500':'var(--bdr2)')+';background:'+(on?'rgba(255,165,0,.12)':'transparent')+';color:'+(on?'#FFA500':'var(--t1)')+';font-family:var(--sans);white-space:nowrap';
+    btn.textContent = t.label;
+    btn.onclick = function() { platformAdminTab = t.key; renderPlatformAdmin(); };
+    tabBar.appendChild(btn);
+  });
+  el.appendChild(tabBar);
+
+  // 內容區
+  var content = document.createElement('div');
+  content.id = 'platform-admin-content';
+  content.innerHTML = '<div style="text-align:center;padding:30px;color:var(--t2)">⏳ 載入中...</div>';
+  el.appendChild(content);
+
+  if (!platformAdminLoaded) {
+    await loadPlatformAdminData();
+  } else {
+    renderPlatformAdminTab();
+  }
+}
+
+async function loadPlatformAdminData(forceReload) {
+  if (forceReload) platformAdminLoaded = false;
+  try {
+    // 抓所有會員（service_role 級別在前端做不到，用 RLS 政策放寬）
+    var res = await sb.from('members').select('*').order('created_at', { ascending: false });
+    platformAdminMembers = res.data || [];
+
+    // 抓所有客戶（依 RLS，要看到所有客戶需要對應政策）
+    var leadsRes = await sb.from('leads').select('id, member_id, name, status, required_amount, created_at').order('created_at', { ascending: false }).limit(500);
+    window.platformAdminLeads = leadsRes.data || [];
+
+    platformAdminLoaded = true;
+    renderPlatformAdminTab();
+  } catch(e) {
+    document.getElementById('platform-admin-content').innerHTML = '<div class="card" style="color:var(--red)">載入失敗：' + e.message + '</div>';
+  }
+}
+
+function renderPlatformAdminTab() {
+  var c = document.getElementById('platform-admin-content');
+  if (!c) return;
+
+  if (platformAdminTab === 'overview') {
+    renderPlatformOverview(c);
+  } else if (platformAdminTab === 'members') {
+    renderPlatformMembers(c);
+  } else if (platformAdminTab === 'paid') {
+    renderPlatformPaid(c);
+  } else if (platformAdminTab === 'leads') {
+    renderPlatformAllLeads(c);
+  } else if (platformAdminTab === 'export') {
+    renderPlatformExport(c);
+  }
+}
+
+function renderPlatformOverview(c) {
+  var members = platformAdminMembers;
+  var leadsAll = window.platformAdminLeads || [];
+
+  var total = members.length;
+  var trial = members.filter(function(m){ return !m.plan || m.plan === 'trial'; }).length;
+  var pro = members.filter(function(m){ return m.plan === 'pro'; }).length;
+  var team = members.filter(function(m){ return m.plan === 'team'; }).length;
+  var paid = pro + team;
+
+  // 本月新增
+  var now = new Date();
+  var tms = new Date(now.getFullYear(), now.getMonth(), 1);
+  var lms = new Date(now.getFullYear(), now.getMonth()-1, 1);
+  var newThisMonth = members.filter(function(m){ return new Date(m.created_at) >= tms; }).length;
+  var newLastMonth = members.filter(function(m){
+    var d = new Date(m.created_at);
+    return d >= lms && d < tms;
+  }).length;
+
+  // 月營收估算
+  var monthlyRev = pro * 799 + team * 999;
+
+  // 試用即將到期
+  var trialEnding = members.filter(function(m){
+    if (!m.trial_end) return false;
+    var d = new Date(m.trial_end);
+    var daysLeft = Math.ceil((d - now) / 86400000);
+    return daysLeft >= 0 && daysLeft <= 7 && (!m.plan || m.plan === 'trial');
+  });
+
+  var html = '';
+  html += '<div class="stat-grid" style="margin-bottom:14px">';
+  html += '<div class="stat-card"><div class="stat-l">會員總數</div><div class="stat-v">'+total+'</div><div class="stat-s">本月 +'+newThisMonth+'（前月 '+newLastMonth+'）</div></div>';
+  html += '<div class="stat-card"><div class="stat-l">付費會員</div><div class="stat-v" style="color:var(--grn)">'+paid+'</div><div class="stat-s">轉換率 '+(total>0?Math.round(paid/total*100):0)+'%</div></div>';
+  html += '<div class="stat-card"><div class="stat-l">月營收估算</div><div class="stat-v" style="color:var(--acc)">$'+monthlyRev.toLocaleString()+'</div><div class="stat-s">專業'+pro+' · 團隊'+team+'</div></div>';
+  html += '<div class="stat-card"><div class="stat-l">全平台客戶</div><div class="stat-v">'+leadsAll.length+'</div><div class="stat-s">最近 500 筆</div></div>';
+  html += '</div>';
+
+  // 方案分布
+  html += '<div class="card" style="margin-bottom:12px">';
+  html += '<div class="ct">方案分布</div>';
+  var plans = [
+    {key:'trial', label:'🎁 試用版', count:trial, color:'var(--t2)'},
+    {key:'pro', label:'⭐ 專業版 ($799/月)', count:pro, color:'var(--acc)'},
+    {key:'team', label:'🏢 團隊版 ($999/月)', count:team, color:'#FFA500'},
+  ];
+  plans.forEach(function(p) {
+    var pct = total > 0 ? Math.round(p.count/total*100) : 0;
+    html += '<div style="margin-bottom:10px">';
+    html += '<div style="display:flex;justify-content:space-between;font-size:14px;margin-bottom:4px"><span>'+p.label+'</span><span style="color:'+p.color+';font-weight:600">'+p.count+' 人 ('+pct+'%)</span></div>';
+    html += '<div style="background:rgba(255,255,255,.05);border-radius:6px;height:8px;overflow:hidden"><div style="height:100%;background:'+p.color+';width:'+pct+'%"></div></div>';
+    html += '</div>';
+  });
+  html += '</div>';
+
+  // 試用即將到期
+  if (trialEnding.length > 0) {
+    html += '<div class="card" style="margin-bottom:12px;border:0.5px solid rgba(255,200,0,.3)">';
+    html += '<div class="ct" style="color:var(--yel)">⚠️ 試用即將到期（7 天內）</div>';
+    trialEnding.forEach(function(m) {
+      var d = new Date(m.trial_end);
+      var daysLeft = Math.ceil((d - now) / 86400000);
+      html += '<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:0.5px solid var(--bdr)">';
+      html += '<div><div style="font-size:14px;font-weight:500">'+(m.name||'—')+'</div><div style="font-size:12px;color:var(--t2)">'+(m.email||'—')+'</div></div>';
+      html += '<div style="font-size:13px;color:'+(daysLeft<=3?'var(--red)':'var(--yel)')+';font-weight:600">'+(daysLeft<=0?'已到期':daysLeft+' 天')+'</div>';
+      html += '</div>';
+    });
+    html += '</div>';
+  }
+
+  c.innerHTML = html;
+}
+
+function renderPlatformMembers(c) {
+  var members = platformAdminMembers;
+  var html = '';
+
+  // 搜尋框
+  html += '<div class="card" style="margin-bottom:12px">';
+  html += '<input id="platform-search" class="fi" placeholder="🔍 搜尋姓名 / Email / 公司 / 電話..." oninput="filterPlatformMembers()" style="font-size:14px">';
+  html += '<div style="font-size:12px;color:var(--t3);margin-top:6px">共 '+members.length+' 位會員</div>';
+  html += '</div>';
+
+  html += '<div id="platform-members-list">';
+  html += renderPlatformMembersList(members);
+  html += '</div>';
+
+  c.innerHTML = html;
+}
+
+function renderPlatformMembersList(members) {
+  var leadsAll = window.platformAdminLeads || [];
+  var html = '';
+  if (members.length === 0) {
+    return '<div class="card" style="text-align:center;color:var(--t2)">沒有符合的會員</div>';
+  }
+  members.forEach(function(m) {
+    var memberLeads = leadsAll.filter(function(l){ return l.member_id === m.id; });
+    var closed = memberLeads.filter(function(l){ return l.status === 'closed'; }).length;
+    var planLabel = {trial:'試用版', pro:'專業版', team:'團隊版'}[m.plan] || '試用版';
+    var planColor = {pro:'var(--acc)', team:'#FFA500'}[m.plan] || 'var(--t2)';
+    var isYou = m.id === currentUser.id;
+    var firstChar = (m.name || '?').charAt(0);
+
+    html += '<div class="card" style="margin-bottom:10px;cursor:pointer" onclick="showPlatformMemberDetail(\''+m.id+'\')">';
+    html += '<div style="display:flex;align-items:center;gap:12px">';
+    html += '<div style="width:46px;height:46px;border-radius:50%;background:rgba(255,165,0,.15);color:#FFA500;display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:600;flex-shrink:0">'+firstChar+'</div>';
+    html += '<div style="flex:1;min-width:0">';
+    html += '<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap"><span style="font-size:15px;font-weight:600">'+(m.name||'—')+'</span>';
+    html += '<span class="badge" style="background:rgba(255,165,0,.15);color:'+planColor+';font-size:11px">'+planLabel+'</span>';
+    if (isYou) html += '<span class="badge b-grn" style="font-size:11px">我</span>';
+    if (m.is_platform_admin) html += '<span class="badge" style="background:rgba(255,165,0,.15);color:#FFA500;font-size:11px">🔐 管理員</span>';
+    html += '</div>';
+    html += '<div style="font-size:13px;color:var(--t2);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+(m.email||'—')+(m.company?' · '+m.company:'')+'</div>';
+    html += '<div style="font-size:12px;color:var(--t3);margin-top:2px">客戶 '+memberLeads.length+' · 成交 '+closed+' · 加入 '+new Date(m.created_at).toLocaleDateString('zh-TW')+'</div>';
+    html += '</div>';
+    html += '<div style="font-size:18px;color:var(--t3)">›</div>';
+    html += '</div>';
+    html += '</div>';
+  });
+  return html;
+}
+
+function filterPlatformMembers() {
+  var q = (document.getElementById('platform-search').value || '').toLowerCase().trim();
+  var filtered = !q ? platformAdminMembers : platformAdminMembers.filter(function(m){
+    return (m.name||'').toLowerCase().includes(q)
+        || (m.email||'').toLowerCase().includes(q)
+        || (m.company||'').toLowerCase().includes(q)
+        || (m.phone||'').includes(q);
+  });
+  document.getElementById('platform-members-list').innerHTML = renderPlatformMembersList(filtered);
+}
+
+function showPlatformMemberDetail(memberId) {
+  var m = platformAdminMembers.find(function(x){ return x.id === memberId; });
+  if (!m) return;
+  var leadsAll = window.platformAdminLeads || [];
+  var memberLeads = leadsAll.filter(function(l){ return l.member_id === memberId; });
+  var closed = memberLeads.filter(function(l){ return l.status === 'closed'; });
+  var totalAmt = closed.reduce(function(s,l){return s+(l.required_amount||0);},0);
+
+  // 移除舊 modal
+  var old = document.getElementById('platform-member-modal');
+  if (old) old.remove();
+
+  var planLabel = {trial:'試用版', pro:'專業版', team:'團隊版'}[m.plan] || '試用版';
+  var trialEndStr = m.trial_end ? new Date(m.trial_end).toLocaleDateString('zh-TW') : '—';
+
+  var overlay = document.createElement('div');
+  overlay.id = 'platform-member-modal';
+  overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.7);z-index:99999;display:flex;align-items:center;justify-content:center;padding:20px;font-family:var(--sans)';
+
+  var modal = document.createElement('div');
+  modal.style.cssText = 'background:var(--card);border:0.5px solid var(--bdr);border-radius:14px;width:100%;max-width:560px;max-height:90vh;display:flex;flex-direction:column;box-shadow:0 16px 48px rgba(0,0,0,.6)';
+
+  var head = document.createElement('div');
+  head.style.cssText = 'display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:0.5px solid var(--bdr);flex-shrink:0';
+  head.innerHTML = '<div style="font-size:16px;font-weight:600">👤 會員詳細資料</div>';
+  var closeBtn = document.createElement('button');
+  closeBtn.textContent = '✕';
+  closeBtn.style.cssText = 'background:transparent;border:none;color:var(--t2);font-size:20px;cursor:pointer;padding:0;width:28px;height:28px';
+  closeBtn.onclick = function(){ overlay.remove(); };
+  head.appendChild(closeBtn);
+  modal.appendChild(head);
+
+  var body = document.createElement('div');
+  body.style.cssText = 'padding:16px 20px;overflow-y:auto;flex:1';
+
+  var b = '';
+  b += '<div style="margin-bottom:12px"><div style="font-size:13px;color:var(--t2);font-weight:600;margin-bottom:6px">基本資料</div>';
+  b += '<div class="ri"><span class="rl">姓名</span><span class="rv">'+(m.name||'—')+'</span></div>';
+  b += '<div class="ri"><span class="rl">Email</span><span class="rv" style="font-size:13px">'+(m.email||'—')+'</span></div>';
+  b += '<div class="ri"><span class="rl">電話</span><span class="rv">'+(m.phone||'—')+'</span></div>';
+  b += '<div class="ri"><span class="rl">LINE</span><span class="rv">'+(m.line_id||'—')+'</span></div>';
+  b += '<div class="ri"><span class="rl">公司</span><span class="rv">'+(m.company||'—')+'</span></div>';
+  b += '<div class="ri"><span class="rl">註冊日</span><span class="rv">'+new Date(m.created_at).toLocaleString('zh-TW')+'</span></div>';
+  b += '</div>';
+
+  b += '<div style="margin-bottom:12px"><div style="font-size:13px;color:var(--t2);font-weight:600;margin-bottom:6px">方案資訊</div>';
+  b += '<div class="ri"><span class="rl">當前方案</span><span class="rv">'+planLabel+'</span></div>';
+  b += '<div class="ri"><span class="rl">試用到期</span><span class="rv">'+trialEndStr+'</span></div>';
+  if (m.paypal_subscription_id) {
+    b += '<div class="ri"><span class="rl">PayPal ID</span><span class="rv" style="font-size:11px;font-family:monospace">'+m.paypal_subscription_id+'</span></div>';
+  }
+  b += '<div class="ri"><span class="rl">邀請碼</span><span class="rv" style="font-family:monospace">'+(m.invite_code||'—')+'</span></div>';
+  if (m.referred_by) {
+    var refBy = platformAdminMembers.find(function(x){return x.id === m.referred_by;});
+    b += '<div class="ri"><span class="rl">推薦人</span><span class="rv">'+(refBy ? refBy.name : m.referred_by)+'</span></div>';
+  }
+  b += '</div>';
+
+  if (m.business_roles && m.business_roles.length > 0) {
+    var roleLabels = {broker:'貸款仲介', 'car-dealer':'中古車商', 'car-finance':'融資車貸', pawn:'民間借款'};
+    var roleStr = m.business_roles.map(function(r){return roleLabels[r] || r;}).join('、');
+    b += '<div style="margin-bottom:12px"><div style="font-size:13px;color:var(--t2);font-weight:600;margin-bottom:6px">業務身份</div>';
+    b += '<div style="font-size:14px">'+roleStr+'</div></div>';
+  }
+
+  b += '<div style="margin-bottom:12px"><div style="font-size:13px;color:var(--t2);font-weight:600;margin-bottom:6px">業績統計</div>';
+  b += '<div class="ri"><span class="rl">客戶總數</span><span class="rv">'+memberLeads.length+'</span></div>';
+  b += '<div class="ri"><span class="rl">已成交</span><span class="rv" style="color:var(--grn)">'+closed.length+'</span></div>';
+  b += '<div class="ri"><span class="rl">需求資金合計</span><span class="rv">$'+totalAmt.toLocaleString()+'</span></div>';
+  b += '</div>';
+
+  b += '<div style="margin-bottom:12px"><div style="font-size:13px;color:var(--t2);font-weight:600;margin-bottom:6px">其他</div>';
+  if (m.consent_at) b += '<div class="ri"><span class="rl">同意時間</span><span class="rv">'+new Date(m.consent_at).toLocaleString('zh-TW')+'</span></div>';
+  if (m.consent_version) b += '<div class="ri"><span class="rl">同意版本</span><span class="rv">'+m.consent_version+'</span></div>';
+  b += '<div class="ri"><span class="rl">會員 ID</span><span class="rv" style="font-size:10px;font-family:monospace;color:var(--t3)">'+m.id+'</span></div>';
+  b += '</div>';
+
+  // 管理動作
+  b += '<div style="margin-top:14px;padding-top:14px;border-top:0.5px solid var(--bdr)">';
+  b += '<div style="font-size:13px;color:var(--t2);font-weight:600;margin-bottom:8px">⚙️ 管理動作</div>';
+  b += '<div style="display:grid;grid-template-columns:repeat(2,1fr);gap:6px">';
+  if (m.plan !== 'pro') b += '<button onclick="adminUpdatePlan(\''+m.id+'\',\'pro\')" class="btn-sm">升級為專業版</button>';
+  if (m.plan !== 'team') b += '<button onclick="adminUpdatePlan(\''+m.id+'\',\'team\')" class="btn-sm">升級為團隊版</button>';
+  if (m.plan && m.plan !== 'trial') b += '<button onclick="adminUpdatePlan(\''+m.id+'\',\'trial\')" class="btn-sm" style="color:var(--yel)">降為試用版</button>';
+  b += '<button onclick="adminExtendTrial(\''+m.id+'\')" class="btn-sm">試用 +30 天</button>';
+  b += '</div></div>';
+
+  body.innerHTML = b;
+  modal.appendChild(body);
+  overlay.appendChild(modal);
+  document.body.appendChild(overlay);
+  overlay.onclick = function(e){ if (e.target === overlay) overlay.remove(); };
+}
+
+async function adminUpdatePlan(memberId, newPlan) {
+  var m = platformAdminMembers.find(function(x){return x.id === memberId;});
+  if (!m) return;
+  if (!confirm('確定將 '+(m.name||memberId)+' 的方案改為「'+({trial:'試用版',pro:'專業版',team:'團隊版'}[newPlan])+'」嗎？')) return;
+  try {
+    await sb.from('members').update({plan: newPlan}).eq('id', memberId);
+    m.plan = newPlan;
+    alert('✓ 方案已更新');
+    var modal = document.getElementById('platform-member-modal');
+    if (modal) modal.remove();
+    renderPlatformAdminTab();
+  } catch(e) { alert('更新失敗：' + e.message); }
+}
+
+async function adminExtendTrial(memberId) {
+  var m = platformAdminMembers.find(function(x){return x.id === memberId;});
+  if (!m) return;
+  var current = m.trial_end ? new Date(m.trial_end) : new Date();
+  if (current < new Date()) current = new Date();
+  current.setDate(current.getDate() + 30);
+  try {
+    await sb.from('members').update({trial_end: current.toISOString()}).eq('id', memberId);
+    m.trial_end = current.toISOString();
+    alert('✓ 試用期延長 30 天，新到期日：' + current.toLocaleDateString('zh-TW'));
+    var modal = document.getElementById('platform-member-modal');
+    if (modal) modal.remove();
+    renderPlatformAdminTab();
+  } catch(e) { alert('更新失敗：' + e.message); }
+}
+
+function renderPlatformPaid(c) {
+  var paid = platformAdminMembers.filter(function(m){ return m.plan === 'pro' || m.plan === 'team'; });
+  var html = '<div class="card" style="margin-bottom:12px"><div style="font-size:13px;color:var(--t2)">付費會員（專業版 + 團隊版）共 '+paid.length+' 位，月營收約 $'+(paid.reduce(function(s,m){return s + (m.plan==='team'?999:799);},0)).toLocaleString()+'</div></div>';
+  html += renderPlatformMembersList(paid);
+  c.innerHTML = html;
+}
+
+function renderPlatformAllLeads(c) {
+  var leadsAll = window.platformAdminLeads || [];
+  var html = '<div class="card" style="margin-bottom:12px">';
+  html += '<input id="leads-search" class="fi" placeholder="🔍 搜尋客戶姓名..." oninput="filterPlatformLeads()" style="font-size:14px">';
+  html += '<div style="font-size:12px;color:var(--t3);margin-top:6px">最近 500 筆，共 '+leadsAll.length+' 件</div>';
+  html += '</div>';
+  html += '<div id="leads-list">'+renderPlatformLeadsList(leadsAll)+'</div>';
+  c.innerHTML = html;
+}
+
+function renderPlatformLeadsList(leadsArr) {
+  var html = '';
+  if (leadsArr.length === 0) return '<div class="card" style="text-align:center;color:var(--t2)">沒有資料</div>';
+  leadsArr.slice(0, 200).forEach(function(l) {
+    var owner = platformAdminMembers.find(function(m){return m.id === l.member_id;});
+    var statusLbl = {pending:'進行中', closed:'已成交', cancelled:'已取消'}[l.status] || l.status;
+    var statusColor = {closed:'var(--grn)', cancelled:'var(--t3)'}[l.status] || 'var(--yel)';
+    html += '<div style="background:var(--card);border:0.5px solid var(--bdr);border-radius:10px;padding:10px 12px;margin-bottom:8px">';
+    html += '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">';
+    html += '<div style="flex:1;min-width:0">';
+    html += '<div style="font-size:14px;font-weight:600">'+(l.name||'—')+'</div>';
+    html += '<div style="font-size:12px;color:var(--t2);margin-top:2px">顧問：'+(owner?owner.name:'—')+(owner&&owner.company?' · '+owner.company:'')+'</div>';
+    html += '<div style="font-size:11px;color:var(--t3);margin-top:1px">'+new Date(l.created_at).toLocaleString('zh-TW')+'</div>';
+    html += '</div>';
+    html += '<div style="text-align:right;flex-shrink:0"><div style="font-size:12px;color:'+statusColor+';font-weight:600">'+statusLbl+'</div>';
+    if (l.required_amount) html += '<div style="font-size:13px;color:var(--t1);margin-top:2px">$'+l.required_amount.toLocaleString()+'</div>';
+    html += '</div>';
+    html += '</div></div>';
+  });
+  if (leadsArr.length > 200) html += '<div style="text-align:center;padding:14px;color:var(--t3);font-size:12px">僅顯示前 200 筆</div>';
+  return html;
+}
+
+function filterPlatformLeads() {
+  var q = (document.getElementById('leads-search').value || '').toLowerCase().trim();
+  var leadsAll = window.platformAdminLeads || [];
+  var filtered = !q ? leadsAll : leadsAll.filter(function(l){
+    return (l.name||'').toLowerCase().includes(q);
+  });
+  document.getElementById('leads-list').innerHTML = renderPlatformLeadsList(filtered);
+}
+
+function renderPlatformExport(c) {
+  var html = '<div class="card">';
+  html += '<div class="ct">📤 匯出資料</div>';
+  html += '<div style="font-size:13px;color:var(--t2);margin-bottom:14px">下載會員資料 CSV，可匯入 Excel 開啟</div>';
+  html += '<div style="display:flex;flex-direction:column;gap:8px">';
+  html += '<button class="btn-p" onclick="exportPlatformCsv(\'all\')">📥 匯出所有會員 CSV</button>';
+  html += '<button class="btn-sm" onclick="exportPlatformCsv(\'paid\')">💰 只匯出付費會員</button>';
+  html += '<button class="btn-sm" onclick="exportPlatformCsv(\'trial\')">🎁 只匯出試用會員</button>';
+  html += '</div></div>';
+  c.innerHTML = html;
+}
+
+function exportPlatformCsv(filter) {
+  var members = platformAdminMembers;
+  if (filter === 'paid') members = members.filter(function(m){return m.plan==='pro'||m.plan==='team';});
+  else if (filter === 'trial') members = members.filter(function(m){return !m.plan || m.plan==='trial';});
+  if (members.length === 0) { alert('沒有資料可匯出'); return; }
+
+  var leadsAll = window.platformAdminLeads || [];
+  var headers = ['姓名','Email','電話','LINE','公司','方案','試用到期','邀請碼','業務身份','客戶數','成交數','註冊日','PayPal_ID'];
+  var rows = members.map(function(m) {
+    var memberLeads = leadsAll.filter(function(l){return l.member_id===m.id;});
+    var closed = memberLeads.filter(function(l){return l.status==='closed';}).length;
+    var planLabel = {trial:'試用版', pro:'專業版', team:'團隊版'}[m.plan] || '試用版';
+    var roleLabels = {broker:'貸款仲介', 'car-dealer':'中古車商', 'car-finance':'融資車貸', pawn:'民間借款'};
+    var roles = (m.business_roles||[]).map(function(r){return roleLabels[r]||r;}).join('、');
+    return [
+      m.name||'',
+      m.email||'',
+      m.phone||'',
+      m.line_id||'',
+      m.company||'',
+      planLabel,
+      m.trial_end ? new Date(m.trial_end).toLocaleDateString('zh-TW') : '',
+      m.invite_code||'',
+      roles,
+      memberLeads.length,
+      closed,
+      new Date(m.created_at).toLocaleDateString('zh-TW'),
+      m.paypal_subscription_id||''
+    ];
+  });
+
+  var csv = '\uFEFF' + headers.join(',') + '\n';
+  rows.forEach(function(r) {
+    csv += r.map(function(v){
+      v = String(v);
+      if (v.includes(',') || v.includes('"') || v.includes('\n')) v = '"' + v.replace(/"/g, '""') + '"';
+      return v;
+    }).join(',') + '\n';
+  });
+
+  var blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement('a');
+  a.href = url;
+  a.download = '顧問PRO_會員清單_' + new Date().toISOString().slice(0,10) + '.csv';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(function(){ URL.revokeObjectURL(url); }, 2000);
 }
 
 function addCustomStatus(leadId) {
