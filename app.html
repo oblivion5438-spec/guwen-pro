@@ -1550,6 +1550,12 @@ async function loadMember() {
       if (pAdminNav) pAdminNav.style.display = '';
       var pAdminMob = document.getElementById('platform-admin-mob');
       if (pAdminMob) pAdminMob.style.display = '';
+      // 載入未讀通知數
+      setTimeout(function(){ loadPlatformUnreadCount(); }, 1500);
+      // 每 60 秒更新一次
+      if (!window._platformUnreadTimer) {
+        window._platformUnreadTimer = setInterval(loadPlatformUnreadCount, 60000);
+      }
     }
   }
   // 啟動 Realtime 訂閱通知角標
@@ -1788,17 +1794,30 @@ async function doRegister() {
   // 查詢邀請人（推薦碼）
   var referredBy = null;
   if (refCode) {
-    var refRes = await sb.from('members').select('id').eq('invite_code', refCode).maybeSingle();
-    if (refRes.data) referredBy = refRes.data.id;
+    try {
+      var refRes = await sb.from('members').select('id').eq('invite_code', refCode).maybeSingle();
+      if (refRes.data) referredBy = refRes.data.id;
+    } catch(e) { console.warn('查邀請碼失敗:', e); }
   }
-  await sb.from('members').insert({
+
+  // 寫入 members 表（用 upsert 保險）
+  var insertRes = await sb.from('members').upsert({
     id: r.data.user.id, email: email, name: name,
     invite_code: invCode, plan: 'trial',
     trial_end: trialEnd,
     referred_by: referredBy,
     consent_at: new Date().toISOString(),
     consent_version: '2025-v1'
-  });
+  }, { onConflict: 'id' });
+
+  if (insertRes.error) {
+    hideLoading();
+    console.error('members insert 失敗:', insertRes.error);
+    // 即使如此，auth 帳號已建立，告知使用者
+    showErr('帳號已建立但會員資料寫入失敗：' + insertRes.error.message + '\n請聯絡管理員或重新登入後再試一次。');
+    return;
+  }
+
   hideLoading();
   showOk('🎉 帳號建立成功！7 天免費試用已開始\n請檢查 Email 確認信後登入。');
 }
@@ -7066,8 +7085,10 @@ async function renderPlatformAdmin() {
   // Tabs
   var tabBar = document.createElement('div');
   tabBar.style.cssText = 'display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px;overflow-x:auto;padding-bottom:4px';
+  var unreadCount = (window._platformUnread || 0);
   var tabs = [
     {key:'overview', label:'📊 平台總覽'},
+    {key:'notifications', label:'🔔 通知' + (unreadCount > 0 ? ' (' + unreadCount + ')' : '')},
     {key:'members', label:'👥 會員列表'},
     {key:'paid', label:'💰 付費會員'},
     {key:'leads', label:'📋 全平台客戶'},
@@ -7120,6 +7141,8 @@ function renderPlatformAdminTab() {
 
   if (platformAdminTab === 'overview') {
     renderPlatformOverview(c);
+  } else if (platformAdminTab === 'notifications') {
+    renderPlatformNotifications(c);
   } else if (platformAdminTab === 'members') {
     renderPlatformMembers(c);
   } else if (platformAdminTab === 'paid') {
@@ -7500,6 +7523,114 @@ function exportPlatformCsv(filter) {
   a.click();
   document.body.removeChild(a);
   setTimeout(function(){ URL.revokeObjectURL(url); }, 2000);
+}
+
+// ──────────────────────────────────────────
+// 🔔 平台通知中心
+// ──────────────────────────────────────────
+async function renderPlatformNotifications(c) {
+  c.innerHTML = '<div style="text-align:center;padding:30px;color:var(--t2)">⏳ 載入中...</div>';
+  try {
+    var res = await sb.from('platform_notifications')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(100);
+    var notifs = res.data || [];
+
+    var html = '';
+    var unread = notifs.filter(function(n){ return !n.read_at; }).length;
+
+    html += '<div class="card" style="margin-bottom:12px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">';
+    html += '<div><div style="font-size:15px;font-weight:600">通知歷史</div><div style="font-size:12px;color:var(--t2)">未讀 ' + unread + ' 則 · 共 ' + notifs.length + ' 則</div></div>';
+    if (unread > 0) {
+      html += '<button class="btn-sm" onclick="markAllNotifRead()">✓ 全部標為已讀</button>';
+    }
+    html += '</div>';
+
+    if (notifs.length === 0) {
+      html += '<div class="card" style="text-align:center;padding:40px"><div style="font-size:42px;margin-bottom:10px">📭</div><div style="color:var(--t2)">目前沒有通知</div></div>';
+    } else {
+      var typeStyle = {
+        'new_member':   {emoji:'🆕', color:'#3B82F6', label:'新會員註冊'},
+        'plan_upgrade': {emoji:'💰', color:'#10B981', label:'升級方案'},
+        'plan_cancel':  {emoji:'❌', color:'#EF4444', label:'取消訂閱'},
+        'trial_ending': {emoji:'⏰', color:'#F59E0B', label:'試用即將到期'},
+        'report':       {emoji:'🚩', color:'#8B5CF6', label:'問題回報'},
+      };
+
+      notifs.forEach(function(n) {
+        var t = typeStyle[n.type] || {emoji:'🔔', color:'var(--t2)', label:'通知'};
+        var isUnread = !n.read_at;
+        html += '<div class="card" style="margin-bottom:8px;border-left:3px solid ' + t.color + ';' + (isUnread ? 'background:rgba(255,165,0,.04)' : '') + '">';
+        html += '<div style="display:flex;align-items:flex-start;gap:10px">';
+        html += '<span style="font-size:24px;flex-shrink:0">' + t.emoji + '</span>';
+        html += '<div style="flex:1;min-width:0">';
+        html += '<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">';
+        html += '<span style="font-size:14px;font-weight:600">' + (n.title || t.label) + '</span>';
+        if (isUnread) html += '<span style="background:#EF4444;color:#FFF;font-size:10px;padding:1px 6px;border-radius:8px">NEW</span>';
+        html += '</div>';
+        if (n.body) html += '<div style="font-size:13px;color:var(--t1);margin-top:4px;white-space:pre-line">' + n.body + '</div>';
+        html += '<div style="font-size:11px;color:var(--t3);margin-top:4px">' + new Date(n.created_at).toLocaleString('zh-TW') + '</div>';
+        html += '</div>';
+        if (isUnread) {
+          html += '<button onclick="markNotifRead(\'' + n.id + '\')" style="padding:4px 8px;background:transparent;border:0.5px solid var(--bdr2);border-radius:6px;color:var(--t2);font-size:11px;cursor:pointer;flex-shrink:0">標為已讀</button>';
+        }
+        html += '</div></div>';
+      });
+    }
+
+    c.innerHTML = html;
+    // 更新角標
+    window._platformUnread = unread;
+    updatePlatformAdminBadge();
+  } catch(e) {
+    c.innerHTML = '<div class="card" style="color:var(--red)">載入失敗：' + e.message + '</div>';
+  }
+}
+
+async function markNotifRead(notifId) {
+  try {
+    await sb.from('platform_notifications').update({ read_at: new Date().toISOString() }).eq('id', notifId);
+    renderPlatformNotifications(document.getElementById('platform-admin-content'));
+  } catch(e) { alert('標記失敗：' + e.message); }
+}
+
+async function markAllNotifRead() {
+  if (!confirm('確定要把所有通知標為已讀？')) return;
+  try {
+    await sb.from('platform_notifications').update({ read_at: new Date().toISOString() }).is('read_at', null);
+    renderPlatformNotifications(document.getElementById('platform-admin-content'));
+  } catch(e) { alert('標記失敗：' + e.message); }
+}
+
+// 載入未讀數，用於角標
+async function loadPlatformUnreadCount() {
+  if (!currentMember || currentMember.is_platform_admin !== true) return;
+  try {
+    var res = await sb.from('platform_notifications').select('id', { count: 'exact', head: true }).is('read_at', null);
+    window._platformUnread = res.count || 0;
+    updatePlatformAdminBadge();
+  } catch(e) { /* 靜默 */ }
+}
+
+function updatePlatformAdminBadge() {
+  var unread = window._platformUnread || 0;
+  var nav = document.getElementById('platform-admin-nav');
+  if (nav) {
+    var existing = nav.querySelector('.platform-badge');
+    if (existing) existing.remove();
+    nav.innerHTML = '🔐 平台管理';
+    if (unread > 0) {
+      nav.innerHTML += ' <span class="platform-badge" style="background:#EF4444;color:#FFF;font-size:11px;padding:1px 7px;border-radius:10px;margin-left:4px;font-weight:600">' + unread + '</span>';
+    }
+  }
+  var mob = document.getElementById('platform-admin-mob');
+  if (mob) {
+    mob.innerHTML = '🔐 平台管理';
+    if (unread > 0) {
+      mob.innerHTML += ' <span style="background:#EF4444;color:#FFF;font-size:11px;padding:1px 7px;border-radius:10px;margin-left:4px;font-weight:600">' + unread + '</span>';
+    }
+  }
 }
 
 function addCustomStatus(leadId) {
