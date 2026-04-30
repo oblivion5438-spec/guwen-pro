@@ -9196,6 +9196,58 @@ function showCustomerFormQR() {
     '<div style="font-size:12px;color:var(--t2)">客戶掃描後可直接填寫資料</div>';
 }
 
+// 儲存個人資料（帳號設定頁）
+async function saveProfileSettings() {
+  var name = (document.getElementById('set-name').value || '').trim();
+  var company = (document.getElementById('set-company').value || '').trim();
+  var phone = (document.getElementById('set-phone').value || '').trim();
+  var lineId = (document.getElementById('set-line').value || '').trim();
+  var msg = document.getElementById('profile-save-msg');
+
+  if (!name) {
+    msg.style.display = 'block';
+    msg.style.color = 'var(--red)';
+    msg.textContent = '⚠️ 姓名為必填';
+    return;
+  }
+
+  msg.style.display = 'block';
+  msg.style.color = 'var(--t2)';
+  msg.textContent = '⏳ 儲存中...';
+
+  try {
+    var res = await sb.from('members').update({
+      name: name,
+      company: company || null,
+      phone: phone || null,
+      line_id: lineId || null
+    }).eq('id', currentUser.id);
+
+    if (res.error) throw res.error;
+
+    // 更新本地快取
+    if (currentMember) {
+      currentMember.name = name;
+      currentMember.company = company || null;
+      currentMember.phone = phone || null;
+      currentMember.line_id = lineId || null;
+    }
+
+    // 更新側欄頂部顯示
+    var dtName = document.getElementById('dt-name');
+    if (dtName) dtName.textContent = name + (company ? ' · ' + company : '');
+    var dtAv = document.getElementById('dt-avatar');
+    if (dtAv) dtAv.textContent = (name || '?').charAt(0);
+
+    msg.style.color = 'var(--grn)';
+    msg.textContent = '✅ 已儲存';
+    setTimeout(function(){ msg.style.display = 'none'; }, 3000);
+  } catch(e) {
+    msg.style.color = 'var(--red)';
+    msg.textContent = '❌ 儲存失敗：' + e.message;
+  }
+}
+
 function renderSettings() {
   var m = currentMember || {};
   var el = document.getElementById('member-content');
@@ -9240,6 +9292,20 @@ function renderSettings() {
   html += '<button onclick="shareTextToLine(\'請點選連結填寫貸款諮詢資料：\\n'+inviteUrl+'\')" style="padding:8px 16px;border-radius:8px;border:none;background:#06C755;color:#FFF;cursor:pointer;font-family:var(--sans);font-size:13px;font-weight:600">📱 LINE 分享</button>';
   html += '</div>';
   html += '<div id="qr-container" style="display:none;margin-top:12px;text-align:center"></div>';
+  html += '</div>';
+
+  // 👤 個人資料編輯
+  html += '<div class="card">';
+  html += '<div class="ct">👤 個人資料</div>';
+  html += '<div style="font-size:13px;color:var(--t2);margin-bottom:10px">您的姓名與公司會顯示在客戶報告、PDF、LINE 分享中</div>';
+  html += '<div class="frow"><div class="flbl">姓名 <span style="color:var(--red)">*</span></div><input class="fi" id="set-name" value="'+(m.name||'').replace(/"/g,'&quot;')+'" placeholder="王小明"></div>';
+  html += '<div class="frow"><div class="flbl">公司名稱</div><input class="fi" id="set-company" value="'+(m.company||'').replace(/"/g,'&quot;')+'" placeholder="XX 顧問有限公司"></div>';
+  html += '<div class="frow"><div class="flbl">電話</div><input class="fi" id="set-phone" value="'+(m.phone||'').replace(/"/g,'&quot;')+'" placeholder="0912-345-678"></div>';
+  html += '<div class="frow"><div class="flbl">LINE ID</div><input class="fi" id="set-line" value="'+(m.line_id||'').replace(/"/g,'&quot;')+'" placeholder="abc1234"></div>';
+  html += '<div style="display:flex;gap:8px;margin-top:8px">';
+  html += '<button onclick="saveProfileSettings()" class="btn-p" style="flex:1">💾 儲存變更</button>';
+  html += '</div>';
+  html += '<div id="profile-save-msg" style="font-size:13px;margin-top:8px;display:none"></div>';
   html += '</div>';
 
   // 語言設定
