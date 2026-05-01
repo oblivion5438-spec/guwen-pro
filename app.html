@@ -3381,6 +3381,7 @@ async function saveLead() {
     birthday: birthdayVal,
     tax_id: gv('n-tax-id') || null,
     age: parseInt(gv('n-age')) || null, work_type: [gv('n-company'),gv('n-position')].filter(Boolean).join(' · ') || null,
+    company_phone: gv('n-biztel') || null,
     alert_status: gv('n-alert'), address: gv('n-addr'), huji_address: gv('n-huji'),
     required_amount: parseInt(gv('n-amount')) || null, fund_purpose: gv('n-purpose'),
     monthly_salary: parseInt(gv('n-salary')) || null,
@@ -3615,6 +3616,7 @@ function showLeadDetail(id) {
     html += '<div class="ri"><span class="rl">年齡</span><span class="rv">' + lead.age + '歲</span></div>';
   }
   html += '<div class="ri"><span class="rl">工作資訊</span><span class="rv">' + (lead.work_type||'未填') + '</span></div>';
+  if (lead.company_phone) html += '<div class="ri"><span class="rl">公司電話</span><span class="rv">' + lead.company_phone + '</span></div>';
   html += '<div class="ri"><span class="rl">警示協商</span><span class="rv"><span class="badge b-' + (lead.alert_status==='none'?'grn':'red') + '">' + (lead.alert_status==='none'?'否':lead.alert_status) + '</span></span></div>';
   if (lead.address) html += '<div class="ri"><span class="rl">居住地址</span><span class="rv" style="font-size:13px">' + lead.address + '</span></div>';
   if (lead.housing_status && lead.housing_status !== 'none') {
@@ -4338,6 +4340,7 @@ async function saveLeadEdit(id) {
     birthday:           bdayValue,
     age:                ageValue,
     work_type: [gv('company'), gv('position')].filter(Boolean).join(' · ') || null,
+    company_phone:      gv('biztel') || null,
     alert_status:       gv('alert') || 'none',
     address:            gv('addr') || null,
     huji_address:       gv('huji') || null,
