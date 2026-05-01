@@ -845,8 +845,30 @@ function uploadDoc(event, leadId, type, aiPrompt) {
     });
   });
   event.target.value = ''; // 清空 input 讓相同檔案能再選
-  // 立刻刷新 UI（看到 pending 標記）
+
+  // 記住編輯狀態
+  var editEl = document.getElementById('lead-edit-' + leadId);
+  var wasEditing = editEl && editEl.style.display !== 'none';
+
   showLeadDetail(leadId);
+
+  // 恢復編輯模式
+  if (wasEditing) {
+    setTimeout(function() {
+      var newEdit = document.getElementById('lead-edit-' + leadId);
+      var newView = document.getElementById('lead-view-' + leadId);
+      var newDocsEdit = document.getElementById('docs-edit-only-' + leadId);
+      var newDocsStatus = document.getElementById('docs-status-' + leadId);
+      var newSaveBottom = document.getElementById('save-bottom-' + leadId);
+      var newBtn = document.getElementById('edit-btn-' + leadId);
+      if (newEdit) newEdit.style.display = 'block';
+      if (newView) newView.style.display = 'none';
+      if (newDocsEdit) newDocsEdit.style.display = 'block';
+      if (newDocsStatus) newDocsStatus.style.display = 'none';
+      if (newSaveBottom) newSaveBottom.style.display = 'block';
+      if (newBtn) newBtn.textContent = '✕ 取消';
+    }, 50);
+  }
 }
 
 // 真正執行儲存：把 pending 上傳到 Supabase
@@ -907,13 +929,57 @@ async function saveLeadEditDocs(leadId) {
 }
 
 async function deleteDoc(leadId, type, idx) {
-  if (!confirm('確定刪除此文件？')) return;
+  if (!confirm('確定刪除此文件？此動作無法復原。')) return;
   var docs = leadDocuments[leadId] && leadDocuments[leadId][type];
   if (!docs || !docs[idx]) return;
   var doc = docs[idx];
-  if (doc.id) await sb.from('lead_documents').delete().eq('id', doc.id);
-  docs.splice(idx, 1);
-  showLeadDetail(leadId);
+
+  // 記住目前是否在編輯模式（重畫後要恢復）
+  var editEl = document.getElementById('lead-edit-' + leadId);
+  var wasEditing = editEl && editEl.style.display !== 'none';
+
+  try {
+    // 刪 DB 記錄
+    if (doc.id) {
+      var delDb = await sb.from('lead_documents').delete().eq('id', doc.id);
+      if (delDb.error) throw delDb.error;
+    }
+    // 刪 Storage 檔案（從 url 反推 storage_path 太麻煩，要重抓 doc 才行）
+    // 這邊用簡單方式：嘗試從 url 解析 path
+    if (doc.url) {
+      try {
+        var pathMatch = doc.url.match(/lead-documents\/(.+?)(\?|$)/);
+        if (pathMatch && pathMatch[1]) {
+          await sb.storage.from('lead-documents').remove([decodeURIComponent(pathMatch[1])]);
+        }
+      } catch(e) { console.warn('Storage 刪除失敗:', e); }
+    }
+
+    // 從記憶體移除
+    docs.splice(idx, 1);
+
+    // 重畫
+    showLeadDetail(leadId);
+    // 重畫後恢復編輯模式
+    if (wasEditing) {
+      setTimeout(function() {
+        var newEdit = document.getElementById('lead-edit-' + leadId);
+        var newView = document.getElementById('lead-view-' + leadId);
+        var newDocsEdit = document.getElementById('docs-edit-only-' + leadId);
+        var newDocsStatus = document.getElementById('docs-status-' + leadId);
+        var newSaveBottom = document.getElementById('save-bottom-' + leadId);
+        var newBtn = document.getElementById('edit-btn-' + leadId);
+        if (newEdit) newEdit.style.display = 'block';
+        if (newView) newView.style.display = 'none';
+        if (newDocsEdit) newDocsEdit.style.display = 'block';
+        if (newDocsStatus) newDocsStatus.style.display = 'none';
+        if (newSaveBottom) newSaveBottom.style.display = 'block';
+        if (newBtn) newBtn.textContent = '✕ 取消';
+      }, 50);
+    }
+  } catch(e) {
+    alert('刪除失敗：' + (e.message || e));
+  }
 }
 
 // 移除暫存（尚未真的上傳的）
@@ -922,7 +988,30 @@ function removePendingDoc(leadId, type, idx) {
   if (!arr || !arr[idx]) return;
   if (arr[idx].previewUrl) URL.revokeObjectURL(arr[idx].previewUrl);
   arr.splice(idx, 1);
+
+  // 記住編輯狀態
+  var editEl = document.getElementById('lead-edit-' + leadId);
+  var wasEditing = editEl && editEl.style.display !== 'none';
+
   showLeadDetail(leadId);
+
+  // 恢復編輯模式
+  if (wasEditing) {
+    setTimeout(function() {
+      var newEdit = document.getElementById('lead-edit-' + leadId);
+      var newView = document.getElementById('lead-view-' + leadId);
+      var newDocsEdit = document.getElementById('docs-edit-only-' + leadId);
+      var newDocsStatus = document.getElementById('docs-status-' + leadId);
+      var newSaveBottom = document.getElementById('save-bottom-' + leadId);
+      var newBtn = document.getElementById('edit-btn-' + leadId);
+      if (newEdit) newEdit.style.display = 'block';
+      if (newView) newView.style.display = 'none';
+      if (newDocsEdit) newDocsEdit.style.display = 'block';
+      if (newDocsStatus) newDocsStatus.style.display = 'none';
+      if (newSaveBottom) newSaveBottom.style.display = 'block';
+      if (newBtn) newBtn.textContent = '✕ 取消';
+    }, 50);
+  }
 }
 
 function fileToBase64(file) {
@@ -3700,7 +3789,38 @@ function showLeadDetail(id) {
   html += '</div></div>';
   html += '</div>';
 
-  // 政府資料查閱
+  // 📄 瀏覽模式下顯示「文件上傳狀態」（簡潔卡片，不能上傳）
+  html += '<div class="card" id="docs-status-' + id + '">';
+  html += '<div class="ct">📂 文件上傳狀態</div>';
+  html += '<div style="font-size:12px;color:var(--t3);margin-bottom:10px">如需上傳或修改，請點上方「✏️ 編輯」</div>';
+  // 各類型文件數
+  var docTypes = [
+    {key:'mydata',       icon:'📋', label:'MyData 政府資料'},
+    {key:'id_card',      icon:'🪪', label:'雙證件'},
+    {key:'asset',        icon:'🔍', label:'動產擔保查詢'},
+    {key:'verdict',      icon:'⚖️', label:'裁判書查詢'},
+    {key:'traffic',      icon:'🚗', label:'交通違規'},
+    {key:'license',      icon:'📜', label:'技術士證照'},
+    {key:'house_photos', icon:'🏠', label:'屋況照片'},
+    {key:'land_reg',     icon:'📄', label:'土地謄本'},
+    {key:'build_reg',    icon:'📄', label:'建物謄本'},
+  ];
+  docTypes.forEach(function(t) {
+    var docs = leadDocuments[id] ? (leadDocuments[id][t.key] || []) : [];
+    var has = docs.length > 0;
+    html += '<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:0.5px solid var(--bdr)">';
+    html += '<div style="display:flex;align-items:center;gap:8px"><span style="font-size:16px">' + t.icon + '</span><span style="font-size:14px;color:var(--t1)">' + t.label + '</span></div>';
+    if (has) {
+      html += '<span style="font-size:12px;color:var(--grn);font-weight:600">✅ 已上傳 ' + docs.length + ' 筆</span>';
+    } else {
+      html += '<span style="font-size:12px;color:var(--t3)">— 未上傳</span>';
+    }
+    html += '</div>';
+  });
+  html += '</div>';
+
+  // 政府資料查閱（包進編輯模式專用 DIV，預設隱藏）
+  html += '<div id="docs-edit-only-' + id + '" style="display:none">';
   html += '<div class="card"><div class="ct">政府資料查閱 <span style="font-size:12px;color:var(--t2);font-weight:400">查詢後可截圖上傳儲存於系統</span></div>';
 
   // MyData
@@ -3808,9 +3928,6 @@ function showLeadDetail(id) {
   html += '<div style="font-size:12px;color:var(--t3);margin-top:4px">以上查詢依個資法第19條第1項第5款（客戶已同意），查詢公開登記資料。</div>';
   html += '</div>';
 
-  html += '<div class="card"><div class="ct">建立時間</div>';
-  html += '<div style="font-size:14px;color:var(--t2)">' + new Date(lead.created_at).toLocaleString('zh-TW') + '</div></div>';
-
   // 補充資料區塊（必須在 el.innerHTML 之前先加入字串）
   html += '<div class="card" id="extra-docs-card-' + id + '" style="margin-top:14px">';
   html += '<div class="ct">📎 補充資料 / 截圖上傳</div>';
@@ -3828,6 +3945,13 @@ function showLeadDetail(id) {
   html += '<button class="btn-p" id="save-edit-btn2-' + id + '" style="flex:2;font-size:15px;padding:12px">💾 儲存所有變更</button>';
   html += '</div>';
   html += '</div>';
+
+  // 結束 docs-edit-only DIV（編輯模式才看得到的「政府資料 + 補充資料 + 底部儲存按鈕」）
+  html += '</div>';
+
+  // 建立時間（瀏覽和編輯都看得到）
+  html += '<div class="card"><div class="ct">建立時間</div>';
+  html += '<div style="font-size:14px;color:var(--t2)">' + new Date(lead.created_at).toLocaleString('zh-TW') + '</div></div>';
 
   el.innerHTML = html;
 
@@ -4157,11 +4281,15 @@ function toggleLeadEdit(id) {
   var edit = document.getElementById('lead-edit-' + id);
   var btn  = document.getElementById('edit-btn-' + id);
   var saveBottom = document.getElementById('save-bottom-' + id);
+  var docsEditOnly = document.getElementById('docs-edit-only-' + id);  // 編輯時的政府資料+補充資料+儲存按鈕
+  var docsStatus = document.getElementById('docs-status-' + id);        // 瀏覽時的文件狀態
   if (!view || !edit) return;
   var isEditing = edit.style.display !== 'none';
   view.style.display = isEditing ? 'block' : 'none';
   edit.style.display = isEditing ? 'none'  : 'block';
   if (saveBottom) saveBottom.style.display = isEditing ? 'none' : 'block';
+  if (docsEditOnly) docsEditOnly.style.display = isEditing ? 'none' : 'block';
+  if (docsStatus) docsStatus.style.display = isEditing ? 'block' : 'none';
   if (btn) btn.textContent = isEditing ? '✏️ 編輯' : '✕ 取消';
   // 取消編輯時清空 pending 暫存
   if (isEditing && pendingEditDocs[id]) {
