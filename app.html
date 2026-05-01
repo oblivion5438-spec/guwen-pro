@@ -1771,28 +1771,32 @@ async function loadMember() {
     // 更新業務模組側欄
     updateBusinessModules(r.data.business_roles || []);
 
-    // 載入收支理財資料（從 localStorage）
+    // 載入收支理財資料（從 localStorage，速度快）
     loadFinanceData();
 
-    // 載入團隊邀請紅點
-    setTimeout(function(){ loadTeamInviteCount(); }, 1200);
-    if (!window._teamInviteTimer) {
-      window._teamInviteTimer = setInterval(loadTeamInviteCount, 60000);
-    }
-
-    // 平台管理員：顯示「🔐 平台管理」選單
+    // 平台管理員：顯示「🔐 平台管理」選單（立即）
     if (r.data.is_platform_admin === true) {
       var pAdminNav = document.getElementById('platform-admin-nav');
       if (pAdminNav) pAdminNav.style.display = '';
       var pAdminMob = document.getElementById('platform-admin-mob');
       if (pAdminMob) pAdminMob.style.display = '';
-      // 載入未讀通知數
-      setTimeout(function(){ loadPlatformUnreadCount(); }, 1500);
-      // 每 60 秒更新一次
-      if (!window._platformUnreadTimer) {
-        window._platformUnreadTimer = setInterval(loadPlatformUnreadCount, 60000);
-      }
     }
+
+    // ⚡ 把所有「次要」的網路請求延後到首屏渲染完，不阻塞登入流程
+    setTimeout(function(){
+      // 團隊邀請紅點
+      loadTeamInviteCount();
+      if (!window._teamInviteTimer) {
+        window._teamInviteTimer = setInterval(loadTeamInviteCount, 60000);
+      }
+      // 平台管理員未讀通知
+      if (r.data.is_platform_admin === true) {
+        loadPlatformUnreadCount();
+        if (!window._platformUnreadTimer) {
+          window._platformUnreadTimer = setInterval(loadPlatformUnreadCount, 60000);
+        }
+      }
+    }, 2000);
   }
   // 啟動 Realtime 訂閱通知角標
   startNotifRealtime();
@@ -2229,17 +2233,19 @@ async function renderDash() {
   var r = await sb.from('leads').select('*').eq('member_id', currentUser.id).order('created_at', { ascending: false });
   leads = r.data || [];
 
-  // 載入客戶來源（被轉介來的）
-  var refRes = await sb.from('referrals')
+  // ⚡ 載入客戶來源（轉介）改為背景進行，不阻塞首屏
+  sb.from('referrals')
     .select('lead_id, sender:sender_id(id,name)')
     .eq('receiver_id', currentUser.id)
-    .eq('status', 'pending');
-  if (refRes.data) {
-    refRes.data.forEach(function(ref) {
-      var lead = leads.find(function(l){ return l.id === ref.lead_id; });
-      if (lead && ref.sender) lead.referral_source = ref.sender.name || '業者';
+    .eq('status', 'pending')
+    .then(function(refRes) {
+      if (refRes.data) {
+        refRes.data.forEach(function(ref) {
+          var lead = leads.find(function(l){ return l.id === ref.lead_id; });
+          if (lead && ref.sender) lead.referral_source = ref.sender.name || '業者';
+        });
+      }
     });
-  }
 
   var now = new Date();
   var tms = new Date(now.getFullYear(), now.getMonth(), 1);
