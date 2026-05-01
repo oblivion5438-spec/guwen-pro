@@ -13483,46 +13483,57 @@ function shareScoreToLine(leadId) {
 
 async function exportLeadPDF(leadId) {
   var lead = leads.find(function(l){ return l.id === leadId; });
-  if (!lead) return;
+  if (!lead) { alert('找不到客戶資料'); return; }
 
-  // 從 Supabase 重新取得最新資料
-  var freshRes = await sb.from('leads').select('*').eq('id', leadId).single();
-  if (freshRes.data) lead = freshRes.data;
-
-  // 從 lead_documents 表讀取所有文件（這才是真正儲存的地方）
-  var docsRes = await sb.from('lead_documents').select('*').eq('lead_id', leadId).order('created_at');
-  var allDocs = [];
-  if (docsRes.data && docsRes.data.length > 0) {
-    docsRes.data.forEach(function(doc) {
-      var url = sb.storage.from('lead-documents').getPublicUrl(doc.storage_path).data.publicUrl;
-      allDocs.push({
-        type: doc.type,
-        url: url,
-        name: doc.storage_path.split('/').pop(),
-        ai_summary: doc.ai_summary
-      });
-    });
-  }
-
-  // 也加入 leads.documents 欄位的文件（客戶填寫上傳的）
-  if (lead.documents) {
-    try {
-      var formDocs = typeof lead.documents === 'string' ? JSON.parse(lead.documents) : lead.documents;
-      if (Array.isArray(formDocs)) allDocs = allDocs.concat(formDocs);
-    } catch(e) {}
-  }
-
-  var scores = calcScores(lead);
+  // ⚠️ 先打開分頁（不能等 await 之後再開，會被瀏覽器擋彈窗）
   var w = window.open('', '_blank');
-  var housingLabels = {self_own:'本人名下（自有）',self_live:'自住（非本人名下）',family:'親屬房子',rent:'租屋',other:'其他'};
-  var docLabels = {
-    mydata:'MyData 截圖', movable:'動產擔保查詢',
-    verdict:'司法裁判書', traffic:'監理網罰單',
-    license:'技術士證照', vehicle:'行照',
-    build_reg:'建物謄本', land_reg:'土地謄本',
-    house_photos:'屋況照片', id_card:'雙證件',
-    asset:'資產文件', extra:'補充資料', other:'其他文件'
-  };
+  if (!w) {
+    alert('⚠️ 瀏覽器擋住了彈出視窗\n\n請允許「'+location.host+'」的彈出視窗，或：\n1. 點網址列右上角的彈窗圖示\n2. 選擇「永遠允許」\n3. 重新點 PDF 按鈕');
+    return;
+  }
+  // 先寫一段「載入中」進去，避免使用者誤以為當機
+  w.document.open();
+  w.document.write('<html><head><meta charset="utf-8"><title>產生 PDF 中...</title></head><body style="font-family:sans-serif;text-align:center;padding:80px 20px;color:#666"><div style="font-size:24px;margin-bottom:10px">⏳</div><div>產生 PDF 中，請稍候...</div></body></html>');
+  w.document.close();
+
+  try {
+    // 從 Supabase 重新取得最新資料
+    var freshRes = await sb.from('leads').select('*').eq('id', leadId).single();
+    if (freshRes.data) lead = freshRes.data;
+
+    // 從 lead_documents 表讀取所有文件（這才是真正儲存的地方）
+    var docsRes = await sb.from('lead_documents').select('*').eq('lead_id', leadId).order('created_at');
+    var allDocs = [];
+    if (docsRes.data && docsRes.data.length > 0) {
+      docsRes.data.forEach(function(doc) {
+        var url = sb.storage.from('lead-documents').getPublicUrl(doc.storage_path).data.publicUrl;
+        allDocs.push({
+          type: doc.type,
+          url: url,
+          name: doc.storage_path.split('/').pop(),
+          ai_summary: doc.ai_summary
+        });
+      });
+    }
+
+    // 也加入 leads.documents 欄位的文件（客戶填寫上傳的）
+    if (lead.documents) {
+      try {
+        var formDocs = typeof lead.documents === 'string' ? JSON.parse(lead.documents) : lead.documents;
+        if (Array.isArray(formDocs)) allDocs = allDocs.concat(formDocs);
+      } catch(e) {}
+    }
+
+    var scores = calcScores(lead);
+    var housingLabels = {self_own:'本人名下（自有）',self_live:'自住（非本人名下）',family:'親屬房子',rent:'租屋',other:'其他'};
+    var docLabels = {
+      mydata:'MyData 截圖', movable:'動產擔保查詢',
+      verdict:'司法裁判書', traffic:'監理網罰單',
+      license:'技術士證照', vehicle:'行照',
+      build_reg:'建物謄本', land_reg:'土地謄本',
+      house_photos:'屋況照片', id_card:'雙證件',
+      asset:'資產文件', extra:'補充資料', other:'其他文件'
+    };
 
   var scoreItems = [
     ['銀行信貸', scores.bank, scores.bankBlocked],
@@ -13730,7 +13741,8 @@ async function exportLeadPDF(leadId) {
     }).join('');
   }
 
-  // 寫出 HTML
+  // 寫出 HTML（先重設文件清掉「載入中」）
+  w.document.open();
   w.document.write('<!DOCTYPE html><html><head><meta charset="UTF-8"><title>'+lead.name+' 客戶完整資料</title><style>');
   w.document.write('body{font-family:-apple-system,sans-serif;padding:32px;color:#111;max-width:850px;margin:0 auto;background:#fff}');
   w.document.write('h2{font-size:15px;font-weight:700;margin:24px 0 8px;padding-bottom:5px;border-bottom:2px solid #C8511A;color:#C8511A}');
@@ -13800,6 +13812,14 @@ async function exportLeadPDF(leadId) {
   w.document.write('<div style="text-align:center;margin-top:14px"><button onclick="window.print()" style="padding:10px 24px;background:#C8511A;color:#FFF;border:none;border-radius:8px;font-size:15px;cursor:pointer;font-family:inherit;font-weight:600">🖨️ 列印 / 儲存 PDF</button></div>');
   w.document.write('</body></html>');
   w.document.close();
+  } catch(err) {
+    console.error('PDF 產生失敗:', err);
+    if (w && !w.closed) {
+      w.document.body.innerHTML = '<div style="font-family:sans-serif;text-align:center;padding:40px 20px;color:#c0392b"><div style="font-size:36px;margin-bottom:10px">⚠️</div><div style="font-size:18px;font-weight:600;margin-bottom:8px">PDF 產生失敗</div><div style="font-size:14px;color:#666;margin-bottom:14px">' + (err.message || err) + '</div><button onclick="window.close()" style="padding:8px 18px;background:#666;color:#FFF;border:none;border-radius:6px;cursor:pointer">關閉</button></div>';
+    } else {
+      alert('PDF 產生失敗：' + (err.message || err));
+    }
+  }
 }
 
 function exportReviewPDF(text) {
