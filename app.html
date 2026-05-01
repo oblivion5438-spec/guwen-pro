@@ -3174,27 +3174,27 @@ function handleLeadDocUpload(e) {
 }
 
 async function uploadPendingLeadDocs(leadId) {
-  var docLabels = {
-    mydata:'mydata', movable:'movable', verdict:'verdict', traffic:'traffic',
-    license:'license', vehicle:'vehicle', build_reg:'build_reg', land_reg:'land_reg',
-    house_photos:'house_photos', id_card:'id_card'
-  };
-  var allDocs = [];
+  // 上傳所有 pending 的檔案到 Supabase Storage + lead_documents 表
   for (var key in pendingLeadDocs) {
     var items = pendingLeadDocs[key];
     for (var i = 0; i < items.length; i++) {
       var item = items[i];
-      var ext = item.name.split('.').pop();
+      var ext = (item.name || 'file').split('.').pop();
       var path = 'leads/' + leadId + '/' + key + '_' + Date.now() + '_' + i + '.' + ext;
       var res = await sb.storage.from('lead-documents').upload(path, item.file, {upsert:true});
       if (!res.error) {
-        var urlRes = sb.storage.from('lead-documents').getPublicUrl(path);
-        allDocs.push({type:key, url:urlRes.data.publicUrl, name:item.name});
+        // 寫入 lead_documents 表（這樣詳情頁才看得到）
+        await sb.from('lead_documents').insert({
+          lead_id: leadId,
+          member_id: currentUser.id,
+          type: key,
+          storage_path: path,
+          ai_summary: null
+        });
+      } else {
+        console.error('上傳失敗:', item.name, res.error);
       }
     }
-  }
-  if (allDocs.length > 0) {
-    await sb.from('leads').update({documents: allDocs}).eq('id', leadId);
   }
   pendingLeadDocs = {};
 }
@@ -3658,7 +3658,30 @@ function showLeadDetail(id) {
     html += '</div></div>';
   });
   html += '<div style="font-size:12px;color:var(--t3);margin-top:8px">💡 可複製連結傳給客戶，客戶點開後登入即可下載對應文件</div>';
+
+  // ── 上傳區（客戶傳回 PDF/截圖後上傳保存）──
+  html += '<div style="border-top:0.5px dashed rgba(42,106,184,.3);margin:10px 0 6px"></div>';
+  var mydataDocs = leadDocuments[id] ? (leadDocuments[id].mydata || []) : [];
+  var mydataInputId = 'file-' + id + '-mydata';
+  html += '<div style="font-size:13px;color:var(--t2);margin-bottom:6px">📎 客戶下載後傳回的 PDF / 截圖：</div>';
+  html += '<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:4px">';
+  html += '<input type="file" id="' + mydataInputId + '" accept="image/*,application/pdf" multiple style="display:none" onchange="uploadDoc(event,\'' + id + '\',\'mydata\',\'這是客戶從 MyData 下載的政府資料 PDF/截圖。請整理出關鍵資訊（所得金額、投保單位、財產項目等）以條列方式呈現。\')">';
+  html += '<button onclick="document.getElementById(\'' + mydataInputId + '\').click()" style="display:inline-flex;align-items:center;gap:5px;padding:5px 12px;background:var(--card);border:0.5px solid var(--bdr2);border-radius:6px;cursor:pointer;font-size:13px;color:var(--t1);font-family:var(--sans);white-space:nowrap">📎 上傳 MyData 檔案</button>';
+  if (mydataDocs.length > 0) html += '<span style="font-size:12px;color:var(--t3)">已儲存 ' + mydataDocs.length + ' 筆</span>';
   html += '</div>';
+  mydataDocs.forEach(function(doc, di) {
+    html += renderDocResult(id, 'mydata', doc, di);
+  });
+  html += '<div id="doc-loading-' + id + '-mydata" style="display:none;font-size:13px;color:var(--t2);margin-top:8px;padding:8px 0">⏳ AI 讀取中...</div>';
+  html += '</div>';
+
+  // 🪪 雙證件
+  html += buildDocSection({
+    id: id, type: 'id_card', lead: lead,
+    color: '', borderColor: 'var(--bdr2)',
+    title: '🪪 雙證件 (身分證 + 第二證件)',
+    aiPrompt: '這是客戶的雙證件影本（身分證+健保卡/駕照等）。請提取：1.姓名 2.身分證字號（前 3 碼後遮蔽）3.出生日期 4.戶籍地址。以條列方式呈現。'
+  });
 
   // 動產擔保
   html += buildDocSection({
