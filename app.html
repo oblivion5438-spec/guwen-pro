@@ -1047,9 +1047,54 @@ function saveIncome() {
   var date = document.getElementById('inc-date') ? document.getElementById('inc-date').value : '';
   if (!name||!amount) { alert('請填寫名稱和金額'); return; }
   extraIncome.push({ icon:icon, name:name, amount:amount, date:date });
+  saveFinanceData();
   renderFinance();
 }
-function removeIncome(idx) { extraIncome.splice(idx,1); renderFinance(); }
+function removeIncome(idx) {
+  extraIncome.splice(idx, 1);
+  saveFinanceData();
+  renderFinance();
+}
+
+// 刪除固定支出（依 ID）
+function removeExpense(id) {
+  if (!confirm('確定刪除此支出項目？')) return;
+  var origLen = fixedExpenses.length;
+  fixedExpenses = fixedExpenses.filter(function(e){ return e.id !== id; });
+  if (fixedExpenses.length === origLen) {
+    // 找不到對應 ID，可能 onclick 傳了字串型別
+    fixedExpenses = fixedExpenses.filter(function(e){ return String(e.id) !== String(id); });
+  }
+  saveFinanceData();
+  renderFinance();
+}
+
+// 儲存收支資料到 localStorage（避免重新整理就消失）
+function saveFinanceData() {
+  if (!currentUser) return;
+  var key = 'guwen_finance_' + currentUser.id;
+  try {
+    localStorage.setItem(key, JSON.stringify({
+      fixedExpenses: fixedExpenses,
+      extraExpenses: extraExpenses,
+      extraIncome: extraIncome
+    }));
+  } catch(e) { console.warn('儲存收支資料失敗:', e); }
+}
+
+// 載入收支資料
+function loadFinanceData() {
+  if (!currentUser) return;
+  var key = 'guwen_finance_' + currentUser.id;
+  try {
+    var raw = localStorage.getItem(key);
+    if (!raw) return;
+    var d = JSON.parse(raw);
+    if (Array.isArray(d.fixedExpenses)) fixedExpenses = d.fixedExpenses;
+    if (Array.isArray(d.extraExpenses)) extraExpenses = d.extraExpenses;
+    if (Array.isArray(d.extraIncome)) extraIncome = d.extraIncome;
+  } catch(e) { console.warn('載入收支資料失敗:', e); }
+}
 
 // 貸款計數器
 let loanCounters = { credit:0, car:0, bike:0, phone:0, pawn:0 };
@@ -1725,6 +1770,9 @@ async function loadMember() {
     var dtName = document.getElementById('dt-name'); if(dtName) dtName.textContent=r.data.name+(r.data.company?' · '+r.data.company:'');
     // 更新業務模組側欄
     updateBusinessModules(r.data.business_roles || []);
+
+    // 載入收支理財資料（從 localStorage）
+    loadFinanceData();
 
     // 載入團隊邀請紅點
     setTimeout(function(){ loadTeamInviteCount(); }, 1200);
@@ -6401,6 +6449,7 @@ function saveRemind() {
   if (!name)    { alert('請填寫提醒名稱'); return; }
   if (!due_day) { alert('請填寫繳款日期'); return; }
   fixedExpenses.push({ id: Date.now(), icon:icon, name:name, amount:amount||0, due_day:due_day, remind_days:remind });
+  saveFinanceData();
   renderFinance();
 }
 
@@ -6415,9 +6464,15 @@ function saveExtra() {
   var date = document.getElementById('ext-date') ? document.getElementById('ext-date').value : '';
   if (!name||!amount) { alert('請填寫名稱和金額'); return; }
   extraExpenses.push({ icon:icon, name:name, amount:amount, date:date });
+  saveFinanceData();
   renderFinance();
 }
-function removeExtra(idx) { extraExpenses.splice(idx,1); renderFinance(); }
+function removeExtra(idx) {
+  if (!confirm('確定刪除此額外支出？')) return;
+  extraExpenses.splice(idx,1);
+  saveFinanceData();
+  renderFinance();
+}
 
 
 // ══════════════════════════════
@@ -7000,6 +7055,22 @@ function renderTeamMembers(el, isLeader, isAdmin) {
     if (isMe) h += '<span class="badge b-grn">我</span>';
     h += '</div>';
     h += '<div style="font-size:13px;color:var(--t2);margin-top:2px">本月 ' + thisMonthLeads.length + ' 件 · 成交 ' + thisMonthClosed.length + ' 件 · 累計 ' + memberLeads.length + ' 件</div>';
+    // 管理員顯示權限範圍
+    if (tm.role === 'admin') {
+      var scope = tm.view_scope || 'all';
+      var scopeText = '';
+      if (scope === 'all') {
+        scopeText = '👁️ 可看：全團客戶';
+      } else if (scope === 'specific') {
+        var visibleCount = (tm.viewable_member_ids||[]).length;
+        scopeText = '👁️ 可看：指定 ' + visibleCount + ' 位團員客戶';
+      }
+      if (scopeText) {
+        h += '<div style="font-size:12px;color:#FFA500;margin-top:2px">' + scopeText + '</div>';
+      }
+    } else if (tm.role === 'leader') {
+      h += '<div style="font-size:12px;color:var(--acc);margin-top:2px">👁️ 可看：全團客戶（團長）</div>';
+    }
     h += '</div>';
 
     if (isLeader && !isMe) {
@@ -7007,6 +7078,7 @@ function renderTeamMembers(el, isLeader, isAdmin) {
       if (tm.role === 'member') {
         h += '<button class="btn-sm" style="font-size:12px;padding:3px 8px" onclick="setMemberRole(\'' + tm.id + '\',\'admin\')">升管理員</button>';
       } else if (tm.role === 'admin') {
+        h += '<button class="btn-sm" style="font-size:12px;padding:3px 8px;border-color:rgba(255,165,0,.4);color:#FFA500" onclick="showAdminPermModal(\'' + tm.id + '\')">⚙️ 權限設定</button>';
         h += '<button class="btn-sm" style="font-size:12px;padding:3px 8px" onclick="setMemberRole(\'' + tm.id + '\',\'member\')">降為成員</button>';
       }
       h += '<button class="btn-sm" style="font-size:12px;padding:3px 8px;color:var(--red);border-color:rgba(192,64,48,.3)" onclick="removeMember(\'' + tm.id + '\',\'' + (m.name||'') + '\')">移除</button>';
@@ -7032,6 +7104,143 @@ function renderTeamMembers(el, isLeader, isAdmin) {
 async function setMemberRole(tmId, newRole) {
   await sb.from('team_members').update({ role: newRole }).eq('id', tmId);
   renderTeam();
+}
+
+// 團長為某管理員設定「能看哪些團員的客戶」
+function showAdminPermModal(tmId) {
+  var targetTm = teamMembers.find(function(x){ return x.id === tmId; });
+  if (!targetTm) { alert('找不到該成員'); return; }
+  var targetMember = targetTm.members || {};
+
+  // 移除舊 modal
+  var old = document.getElementById('admin-perm-modal');
+  if (old) old.remove();
+
+  var overlay = document.createElement('div');
+  overlay.id = 'admin-perm-modal';
+  overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.7);z-index:99999;display:flex;align-items:center;justify-content:center;padding:20px;font-family:var(--sans)';
+
+  var modal = document.createElement('div');
+  modal.style.cssText = 'background:var(--card);border:0.5px solid var(--bdr);border-radius:14px;width:100%;max-width:480px;max-height:90vh;display:flex;flex-direction:column;box-shadow:0 16px 48px rgba(0,0,0,.6)';
+
+  // 標題
+  var head = document.createElement('div');
+  head.style.cssText = 'display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:0.5px solid var(--bdr);flex-shrink:0';
+  head.innerHTML = '<div><div style="font-size:16px;font-weight:600">⚙️ 管理員權限設定</div><div style="font-size:13px;color:var(--t2);margin-top:2px">' + (targetMember.name||'—') + '</div></div>';
+  var closeBtn = document.createElement('button');
+  closeBtn.textContent = '✕';
+  closeBtn.style.cssText = 'background:transparent;border:none;color:var(--t2);font-size:20px;cursor:pointer;width:28px;height:28px';
+  closeBtn.onclick = function(){ overlay.remove(); };
+  head.appendChild(closeBtn);
+  modal.appendChild(head);
+
+  // 內容
+  var body = document.createElement('div');
+  body.style.cssText = 'padding:16px 20px;overflow-y:auto;flex:1';
+
+  var currentScope = targetTm.view_scope || 'all';
+  var currentVisibleIds = targetTm.viewable_member_ids || [];
+
+  var bh = '';
+  // 模式選擇
+  bh += '<div style="font-size:14px;font-weight:600;color:var(--t1);margin-bottom:8px">📋 此管理員能看到哪些客戶？</div>';
+  bh += '<div style="display:flex;flex-direction:column;gap:8px;margin-bottom:14px">';
+  bh += '<label style="display:flex;gap:10px;align-items:flex-start;padding:12px;background:var(--inp);border:0.5px solid '+(currentScope==='all'?'var(--acc)':'var(--bdr2)')+';border-radius:8px;cursor:pointer">';
+  bh += '<input type="radio" name="adm-scope" value="all" '+(currentScope==='all'?'checked':'')+' style="margin-top:2px" onchange="togglePermScope()">';
+  bh += '<div><div style="font-weight:500">🌍 全團所有客戶</div><div style="font-size:12px;color:var(--t2);margin-top:2px">看得到所有團員的客戶資料（含未來新加入的）</div></div>';
+  bh += '</label>';
+
+  bh += '<label style="display:flex;gap:10px;align-items:flex-start;padding:12px;background:var(--inp);border:0.5px solid '+(currentScope==='specific'?'var(--acc)':'var(--bdr2)')+';border-radius:8px;cursor:pointer">';
+  bh += '<input type="radio" name="adm-scope" value="specific" '+(currentScope==='specific'?'checked':'')+' style="margin-top:2px" onchange="togglePermScope()">';
+  bh += '<div><div style="font-weight:500">🎯 指定團員客戶</div><div style="font-size:12px;color:var(--t2);margin-top:2px">只看勾選的團員，其他團員的客戶看不到</div></div>';
+  bh += '</label>';
+  bh += '</div>';
+
+  // 團員勾選清單（specific 模式才顯示）
+  bh += '<div id="member-select-area" style="display:'+(currentScope==='specific'?'block':'none')+'">';
+  bh += '<div style="font-size:13px;font-weight:600;color:var(--t2);margin-bottom:8px">勾選此管理員可看的團員：</div>';
+  bh += '<div style="display:flex;gap:6px;margin-bottom:8px">';
+  bh += '<button onclick="toggleAllMembers(true)" class="btn-sm" style="font-size:12px;padding:4px 10px">全選</button>';
+  bh += '<button onclick="toggleAllMembers(false)" class="btn-sm" style="font-size:12px;padding:4px 10px">全不選</button>';
+  bh += '</div>';
+
+  // 列出所有團員（除了管理員自己 + 團長）
+  teamMembers.forEach(function(tm) {
+    if (tm.member_id === targetTm.member_id) return; // 跳過自己（自己永遠看自己）
+    var m = tm.members || {};
+    var checked = currentVisibleIds.indexOf(tm.member_id) >= 0;
+    bh += '<label class="adm-perm-row" style="display:flex;align-items:center;gap:10px;padding:8px 10px;background:var(--card);border:0.5px solid var(--bdr);border-radius:8px;margin-bottom:6px;cursor:pointer">';
+    bh += '<input type="checkbox" class="adm-mem-cb" data-mid="'+tm.member_id+'" '+(checked?'checked':'')+' style="width:16px;height:16px">';
+    bh += '<div style="width:32px;height:32px;border-radius:50%;background:var(--al);color:var(--acc);display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:600">'+(m.name||'?').charAt(0)+'</div>';
+    bh += '<div style="flex:1"><div style="font-size:14px;font-weight:500">'+(m.name||'—')+'</div>';
+    bh += '<div style="font-size:11px;color:var(--t3)">'+(tm.role==='leader'?'團長':tm.role==='admin'?'管理員':'成員')+'</div></div>';
+    bh += '</label>';
+  });
+  bh += '</div>';
+
+  body.innerHTML = bh;
+  modal.appendChild(body);
+
+  // 底部按鈕
+  var foot = document.createElement('div');
+  foot.style.cssText = 'padding:14px 20px;border-top:0.5px solid var(--bdr);display:flex;gap:8px;flex-shrink:0';
+  foot.innerHTML =
+    '<button onclick="document.getElementById(\'admin-perm-modal\').remove()" class="btn-sm" style="flex:1">取消</button>' +
+    '<button onclick="saveAdminPerm(\''+tmId+'\')" class="btn-p" style="flex:2">💾 儲存權限</button>';
+  modal.appendChild(foot);
+
+  overlay.appendChild(modal);
+  document.body.appendChild(overlay);
+  overlay.onclick = function(e){ if (e.target === overlay) overlay.remove(); };
+}
+
+function togglePermScope() {
+  var scope = document.querySelector('input[name="adm-scope"]:checked').value;
+  var area = document.getElementById('member-select-area');
+  if (area) area.style.display = scope === 'specific' ? 'block' : 'none';
+  // 更新 label 邊框顏色
+  document.querySelectorAll('input[name="adm-scope"]').forEach(function(r){
+    var label = r.closest('label');
+    if (label) label.style.borderColor = r.checked ? 'var(--acc)' : 'var(--bdr2)';
+  });
+}
+
+function toggleAllMembers(checked) {
+  document.querySelectorAll('.adm-mem-cb').forEach(function(cb){ cb.checked = checked; });
+}
+
+async function saveAdminPerm(tmId) {
+  var scope = document.querySelector('input[name="adm-scope"]:checked').value;
+  var visibleIds = [];
+  if (scope === 'specific') {
+    document.querySelectorAll('.adm-mem-cb:checked').forEach(function(cb){
+      visibleIds.push(cb.dataset.mid);
+    });
+    if (visibleIds.length === 0) {
+      if (!confirm('您沒有勾選任何團員，此管理員將看不到任何其他團員的客戶（只看自己的）。確定要繼續嗎？')) return;
+    }
+  }
+
+  var payload = {
+    view_scope: scope,
+    viewable_member_ids: scope === 'specific' ? visibleIds : null
+  };
+
+  try {
+    var res = await sb.from('team_members').update(payload).eq('id', tmId);
+    if (res.error) throw res.error;
+    var modal = document.getElementById('admin-perm-modal');
+    if (modal) modal.remove();
+    // 顯示成功提示
+    var toast = document.createElement('div');
+    toast.style.cssText = 'position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--grn);color:#FFF;padding:10px 18px;border-radius:8px;z-index:99999;font-size:14px;font-weight:600;box-shadow:0 4px 12px rgba(0,0,0,.4)';
+    toast.textContent = '✅ 權限已更新';
+    document.body.appendChild(toast);
+    setTimeout(function(){ toast.remove(); }, 2500);
+    renderTeam();
+  } catch(e) {
+    alert('儲存失敗：' + e.message);
+  }
 }
 
 async function removeMember(tmId, name) {
