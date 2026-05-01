@@ -1162,7 +1162,22 @@ function calcScores(lead) {
   // ── 銀行信貸 ──
   var bank = 0;
   var bankBlocked = false;
-  var laborIns = lead.labor_insurance_years || 'none'; // none, 6m+, 1y+, 2y+
+  // 勞保年資：可能是舊值（none/6m+/1y+/2y+）或新值（純數字 0.5、2.5、3 等）
+  var laborRaw = lead.labor_insurance_years;
+  var laborIns;
+  if (laborRaw == null || laborRaw === '' || laborRaw === 'none' || Number(laborRaw) === 0) {
+    laborIns = 'none';
+  } else if (typeof laborRaw === 'string' && /^\d+m\+$|^\d+y\+$/.test(laborRaw)) {
+    // 舊版字串值維持原樣
+    laborIns = laborRaw;
+  } else {
+    // 新版：純數字（年）
+    var yrs = parseFloat(laborRaw) || 0;
+    if (yrs >= 2) laborIns = '2y+';
+    else if (yrs >= 1) laborIns = '1y+';
+    else if (yrs >= 0.5) laborIns = '6m+';
+    else laborIns = 'none';
+  }
   var hasHealthIns = lead.has_health_insurance;
   if (hasAlert && R.bankAlertBlock) {
     bankBlocked = true;
@@ -1403,7 +1418,20 @@ function calcScores(lead) {
 function buildScoreReasons(lead, scores) {
   var R = scoreRules;
   var salary = lead.monthly_salary || 0;
-  var laborIns = lead.labor_insurance_years || 'none';
+  // 勞保年資：相容新舊格式
+  var laborRaw = lead.labor_insurance_years;
+  var laborIns;
+  if (laborRaw == null || laborRaw === '' || laborRaw === 'none' || Number(laborRaw) === 0) {
+    laborIns = 'none';
+  } else if (typeof laborRaw === 'string' && /^\d+m\+$|^\d+y\+$/.test(laborRaw)) {
+    laborIns = laborRaw;
+  } else {
+    var yrs = parseFloat(laborRaw) || 0;
+    if (yrs >= 2) laborIns = '2y+';
+    else if (yrs >= 1) laborIns = '1y+';
+    else if (yrs >= 0.5) laborIns = '6m+';
+    else laborIns = 'none';
+  }
   var laborType = lead.labor_type || '';
   var ccAge = lead.credit_card_age || 'none';
   var hasTransfer = lead.has_salary_transfer;
@@ -2533,7 +2561,7 @@ function renderAddLead() {
   html += '<div class="frow2"><div class="frow"><div class="flbl">月薪（元）</div><input class="fi" id="n-salary" type="number" placeholder="40000" inputmode="numeric"></div>';
   html += '<div class="frow"><div class="flbl">有無薪轉</div><select class="fi" id="n-transfer"><option value="true">有</option><option value="false">無</option></select></div></div>';
   // 勞保：年資 + 投保單位
-  html += '<div class="frow2"><div class="frow"><div class="flbl">勞保年資</div><select class="fi" id="n-labor"><option value="none">未投保</option><option value="6m+">6個月以上</option><option value="1y+">1年以上</option><option value="2y+">2年以上</option></select></div>';
+  html += '<div class="frow2"><div class="frow"><div class="flbl">勞保年資（年）</div><input class="fi" id="n-labor" type="number" min="0" step="0.5" placeholder="例：2.5"></div>';
   html += '<div class="frow"><div class="flbl">投保單位性質</div><select class="fi" id="n-labor-type"><option value="">未填</option><option value="company">一般公司（勞保）</option><option value="govt">政府機關（公保）</option><option value="farmer">農漁（農保）</option><option value="union">職業工會（自付）</option><option value="national">國民年金（國保）</option><option value="self">自營業主</option></select></div></div>';
   html += '<div class="frow2"><div class="frow"><div class="flbl">信用卡持卡</div><select class="fi" id="n-cc"><option value="none">無卡</option><option value="3m+">3個月以上</option><option value="6m+">6個月以上</option><option value="1y+">1年以上</option><option value="2y+">2年以上</option><option value="3y+">3年以上</option><option value="5y+">5年以上</option></select></div>';
   html += '<div class="frow"><div class="flbl">汽車駕照</div><select class="fi" id="n-car-lic"><option value="true">有</option><option value="false">無</option></select></div></div>';
@@ -2544,7 +2572,9 @@ function renderAddLead() {
   html += '</div>';
 
   html += '<div class="form-section"><div class="fs-title">📋 未過件與貸款記錄</div>';
-  html += '<div class="frow2"><div class="frow"><div class="flbl">銀行端未過件距今</div><select class="fi" id="n-bank-rej"><option value="none">無</option><option value="&lt;1m">未滿1個月</option><option value="1-3m">1–3個月</option><option value="3-6m">3–6個月</option></select></div>';
+  html += '<div class="frow2"><div class="frow"><div class="flbl">3個月內銀行婉拒次數</div><select class="fi" id="n-bank-rej-cnt"><option value="0">無</option><option value="1">1次</option><option value="2">2次</option><option value="3">3次</option><option value="4">4次以上（封鎖）</option></select></div>';
+  html += '<div class="frow"><div class="flbl">3個月內融資婉拒次數</div><select class="fi" id="n-fin-rej-cnt"><option value="0">無</option><option value="1">1次</option><option value="2">2次</option><option value="3">3次</option><option value="4">4次以上（封鎖）</option></select></div></div>';
+  html += '<div class="frow2" style="margin-top:6px"><div class="frow"><div class="flbl">銀行端未過件距今</div><select class="fi" id="n-bank-rej"><option value="none">無</option><option value="&lt;1m">未滿1個月</option><option value="1-3m">1–3個月</option><option value="3-6m">3–6個月</option></select></div>';
   html += '<div class="frow"><div class="flbl">融資端未過件距今</div><select class="fi" id="n-fin-rej"><option value="none">無</option><option value="&lt;1m">未滿1個月</option><option value="1-3m">1–3個月</option><option value="3-6m">3–6個月</option></select></div></div>';
   // 信貸6個月內申辦
   html += '<div class="frow2"><div class="frow"><div class="flbl">信貸6個月內申辦</div><select class="fi" id="n-bank-new"><option value="false">否</option><option value="true">是（6個月內剛申辦）</option></select></div>';
@@ -3386,12 +3416,14 @@ async function saveLead() {
     required_amount: parseInt(gv('n-amount')) || null, fund_purpose: gv('n-purpose'),
     monthly_salary: parseInt(gv('n-salary')) || null,
     has_salary_transfer: gv('n-transfer') === 'true',
-    labor_insurance_years: gv('n-labor'),
+    labor_insurance_years: gv('n-labor') || null,
     labor_type: gv('n-labor-type') || null,
     credit_card_age: gv('n-cc'),
     has_car_license: gv('n-car-lic') === 'true', has_bike_license: gv('n-bike-lic') === 'true',
     has_property: hasProp, has_collateral: gv('n-collateral') === 'true',
     bank_recent_reject: gv('n-bank-rej'), finance_recent_reject: gv('n-fin-rej'),
+    bank_reject_count: parseInt(gv('n-bank-rej-cnt')) || 0,
+    fin_reject_count: parseInt(gv('n-fin-rej-cnt')) || 0,
     advisor_note: gv('n-note'), status: 'new',
     property_ratio: propRatio, property_valuation: hasProp ? propVal : null,
     property_loan1: p1 || null, property_loan2: p2 || null, property_loan3: p3 || null,
@@ -3726,11 +3758,7 @@ function showLeadDetail(id) {
   html += '<div class="sl">收入財務</div>';
   html += '<div class="frow2"><div class="frow"><div class="flbl">月薪（元）</div><input class="fi" id="ef-salary-' + id + '" type="number" value="' + (lead.monthly_salary||'') + '"></div>';
   html += '<div class="frow"><div class="flbl">薪轉</div><select class="fi" id="ef-transfer-' + id + '"><option value="true"' + (lead.has_salary_transfer?' selected':'') + '>有</option><option value="false"' + (!lead.has_salary_transfer?' selected':'') + '>無</option></select></div></div>';
-  html += '<div class="frow2" style="margin-top:6px"><div class="frow"><div class="flbl">勞保年資</div><select class="fi" id="ef-labor-' + id + '">';
-  [['none','未投保'],['6m+','6個月以上'],['1y+','1年以上'],['2y+','2年以上']].forEach(function(o){
-    html += '<option value="'+o[0]+'"'+(lead.labor_insurance_years===o[0]?' selected':'')+'>'+o[1]+'</option>';
-  });
-  html += '</select></div>';
+  html += '<div class="frow2" style="margin-top:6px"><div class="frow"><div class="flbl">勞保年資（年）</div><input class="fi" id="ef-labor-' + id + '" type="number" min="0" step="0.5" value="' + (lead.labor_insurance_years && /^\d/.test(String(lead.labor_insurance_years)) ? lead.labor_insurance_years : '') + '" placeholder="例：2.5"></div>';
   html += '<div class="frow"><div class="flbl">投保單位性質</div><select class="fi" id="ef-labor-type-' + id + '">';
   [['','未填'],['company','一般公司（勞保）'],['govt','政府機關（公保）'],['farmer','農漁（農保）'],['union','職業工會（自付）'],['national','國民年金（國保）'],['self','自營業主']].forEach(function(o){
     html += '<option value="'+o[0]+'"'+((lead.labor_type||'')===o[0]?' selected':'')+'>'+o[1]+'</option>';
@@ -3743,6 +3771,30 @@ function showLeadDetail(id) {
   html += '</select></div></div>';
   html += '<div class="frow2" style="margin-top:6px"><div class="frow"><div class="flbl">汽車駕照</div><select class="fi" id="ef-carlic-' + id + '"><option value="true"' + (lead.has_car_license?' selected':'') + '>有</option><option value="false"' + (!lead.has_car_license?' selected':'') + '>無</option></select></div>';
   html += '<div class="frow"><div class="flbl">機車駕照</div><select class="fi" id="ef-bikeic-' + id + '"><option value="true"' + (lead.has_bike_license?' selected':'') + '>有</option><option value="false"' + (!lead.has_bike_license?' selected':'') + '>無</option></select></div></div>';
+
+  // ⭐ 信用紀錄（影響評分）
+  html += '<div class="sl" style="margin-top:14px">信用紀錄（會影響 AI 評分）</div>';
+  html += '<div class="frow2"><div class="frow"><div class="flbl">3個月內銀行婉拒次數</div><select class="fi" id="ef-bank-rej-cnt-' + id + '">';
+  var brc = parseInt(lead.bank_reject_count) || 0;
+  [[0,'無'],[1,'1次'],[2,'2次'],[3,'3次'],[4,'4次以上（封鎖）']].forEach(function(o){
+    html += '<option value="'+o[0]+'"'+(brc===o[0]?' selected':'')+'>'+o[1]+'</option>';
+  });
+  html += '</select></div>';
+  html += '<div class="frow"><div class="flbl">3個月內融資婉拒次數</div><select class="fi" id="ef-fin-rej-cnt-' + id + '">';
+  var frc = parseInt(lead.fin_reject_count) || 0;
+  [[0,'無'],[1,'1次'],[2,'2次'],[3,'3次'],[4,'4次以上（封鎖）']].forEach(function(o){
+    html += '<option value="'+o[0]+'"'+(frc===o[0]?' selected':'')+'>'+o[1]+'</option>';
+  });
+  html += '</select></div></div>';
+  html += '<div class="frow2" style="margin-top:6px"><div class="frow"><div class="flbl">最長遲繳天數</div><input class="fi" id="ef-late-pay-' + id + '" type="number" value="' + (lead.late_pay_days||0) + '" placeholder="0" inputmode="numeric"></div>';
+  html += '<div class="frow"><div class="flbl">負債比 %</div><input class="fi" id="ef-debt-ratio-' + id + '" type="number" value="' + (lead.debt_ratio||0) + '" placeholder="0" inputmode="numeric"></div></div>';
+  html += '<div class="frow2" style="margin-top:6px"><div class="frow"><div class="flbl">信貸6個月內剛申辦</div><select class="fi" id="ef-bank-new-' + id + '"><option value="false"'+(!lead.bank_new_credit?' selected':'')+'>否</option><option value="true"'+(lead.bank_new_credit?' selected':'')+'>是</option></select></div>';
+  html += '<div class="frow"><div class="flbl">名下有汽車貸款</div><select class="fi" id="ef-has-car-loan-' + id + '" onchange="document.getElementById(\'ef-car-loan-age-row-'+id+'\').style.display=this.value===\'true\'?\'block\':\'none\'"><option value="false"'+(!lead.has_car_loan?' selected':'')+'>否</option><option value="true"'+(lead.has_car_loan?' selected':'')+'>是</option></select></div></div>';
+  html += '<div class="frow" id="ef-car-loan-age-row-' + id + '" style="display:'+(lead.has_car_loan?'block':'none')+';margin-top:6px"><div class="flbl">汽車貸款辦理時間</div><select class="fi" id="ef-car-loan-age-' + id + '">';
+  [['lt3m','3個月內'],['3-6m','3-6個月'],['6m+','6個月以上']].forEach(function(o){
+    html += '<option value="'+o[0]+'"'+((lead.car_loan_age||'lt3m')===o[0]?' selected':'')+'>'+o[1]+'</option>';
+  });
+  html += '</select></div>';
 
   // 不動產（編輯模式）
   html += '<div class="sl">不動產</div>';
@@ -3806,6 +3858,7 @@ function showLeadDetail(id) {
     {key:'house_photos', icon:'🏠', label:'屋況照片'},
     {key:'land_reg',     icon:'📄', label:'土地謄本'},
     {key:'build_reg',    icon:'📄', label:'建物謄本'},
+    {key:'extra',        icon:'📎', label:'補充資料 / 其他'},
   ];
   docTypes.forEach(function(t) {
     var docs = leadDocuments[id] ? (leadDocuments[id][t.key] || []) : [];
@@ -4347,13 +4400,20 @@ async function saveLeadEdit(id) {
     housing_status:     gv('housing') || 'none',
     monthly_salary:     parseInt(gv('salary')) || null,
     has_salary_transfer:gv('transfer') === 'true',
-    labor_insurance_years: gv('labor') || 'none',
+    labor_insurance_years: gv('labor') || null,
     labor_type:         gv('labor-type') || null,
     credit_card_age:    gv('cc') || null,
     has_car_license:    gv('carlic') === 'true',
     has_bike_license:   gv('bikeic') === 'true',
     has_property:       gv('property') === 'true',
     has_collateral:     gv('collateral') === 'true',
+    bank_reject_count:  parseInt(gv('bank-rej-cnt')) || 0,
+    fin_reject_count:   parseInt(gv('fin-rej-cnt')) || 0,
+    late_pay_days:      parseInt(gv('late-pay')) || 0,
+    debt_ratio:         parseInt(gv('debt-ratio')) || 0,
+    bank_new_credit:    gv('bank-new') === 'true',
+    has_car_loan:       gv('has-car-loan') === 'true',
+    car_loan_age:       gv('has-car-loan') === 'true' ? (gv('car-loan-age') || 'lt3m') : null,
     property_valuation: parseFloat(gv('prop-val')) || null,
     prop_items: JSON.stringify(collectPropItemsEdit(id)),
     prop_has_bldg: collectPropItemsEdit(id).some(function(p){ return p.type==='bldg'; }),
