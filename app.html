@@ -1726,6 +1726,12 @@ async function loadMember() {
     // 更新業務模組側欄
     updateBusinessModules(r.data.business_roles || []);
 
+    // 載入團隊邀請紅點
+    setTimeout(function(){ loadTeamInviteCount(); }, 1200);
+    if (!window._teamInviteTimer) {
+      window._teamInviteTimer = setInterval(loadTeamInviteCount, 60000);
+    }
+
     // 平台管理員：顯示「🔐 平台管理」選單
     if (r.data.is_platform_admin === true) {
       var pAdminNav = document.getElementById('platform-admin-nav');
@@ -6458,9 +6464,19 @@ function injectTestData() {
 async function renderTeam() {
   var el = document.getElementById('member-content');
 
-  // 檢查方案：只有 team 方案才能使用團隊功能
+  // 檢查方案：team 全功能 / pro 可加入但不能建立 / 其他鎖
   var plan = currentMember ? (currentMember.plan || 'free') : 'free';
-  if (plan !== 'team') {
+  var canCreateTeam = (plan === 'team');
+  var canJoinTeam = (plan === 'pro' || plan === 'team');
+
+  // ⭐ 先查是否有待處理的團隊邀請（不論方案，都要讓他能接受）
+  var pendingRes = await sb.from('team_members')
+    .select('*, teams(name)')
+    .eq('member_id', currentUser.id)
+    .eq('status', 'pending');
+  var pendingInvites = pendingRes.data || [];
+
+  if (!canJoinTeam && pendingInvites.length === 0) {
     el.innerHTML = '';
     var lockCard = document.createElement('div'); lockCard.className = 'card';
     lockCard.innerHTML =
@@ -6497,6 +6513,43 @@ async function renderTeam() {
     return;
   }
 
+  // ⭐ 如果有待處理邀請（不論方案），優先顯示邀請接受介面
+  if (pendingInvites.length > 0) {
+    el.innerHTML = '';
+
+    // 邀請卡片（最上方，醒目）
+    var inviteCard = document.createElement('div');
+    inviteCard.className = 'card';
+    inviteCard.style.cssText = 'border:2px solid #FFA500;background:rgba(255,165,0,.06)';
+    var ih = '<div style="text-align:center;padding:8px 0 14px">';
+    ih += '<div style="font-size:36px;margin-bottom:8px">📨</div>';
+    ih += '<div style="font-size:18px;font-weight:700;color:#FFA500;margin-bottom:4px">您有 ' + pendingInvites.length + ' 個團隊邀請</div>';
+    ih += '<div style="font-size:13px;color:var(--t2)">請選擇是否加入</div>';
+    ih += '</div>';
+    pendingInvites.forEach(function(inv) {
+      var teamName = (inv.teams && inv.teams.name) ? inv.teams.name : '未知團隊';
+      var roleLabel = inv.role === 'admin' ? '管理員' : '一般成員';
+      ih += '<div style="background:var(--card);border:0.5px solid var(--bdr);border-radius:10px;padding:14px;margin-bottom:10px">';
+      ih += '<div style="font-size:16px;font-weight:600;margin-bottom:4px">🏢 ' + teamName + '</div>';
+      ih += '<div style="font-size:13px;color:var(--t2);margin-bottom:10px">邀請您以「<strong style="color:var(--acc)">' + roleLabel + '</strong>」身份加入</div>';
+      ih += '<div style="display:flex;gap:8px">';
+      ih += '<button class="btn-grn" style="flex:2" onclick="acceptInvite(\'' + inv.id + '\')">✓ 接受邀請</button>';
+      ih += '<button class="btn-sm" style="flex:1;color:var(--red)" onclick="declineInvite(\'' + inv.id + '\')">拒絕</button>';
+      ih += '</div></div>';
+    });
+
+    // 提示：如果是非團隊版會員，要說明
+    if (!canJoinTeam) {
+      ih += '<div style="background:rgba(42,106,184,.08);border:0.5px solid rgba(42,106,184,.3);border-radius:8px;padding:10px 12px;font-size:13px;color:var(--t1);line-height:1.6">';
+      ih += '💡 接受邀請後，您將以團隊成員身份加入並可使用團隊功能（無需自己付費團隊版）';
+      ih += '</div>';
+    }
+
+    inviteCard.innerHTML = ih;
+    el.appendChild(inviteCard);
+    return;
+  }
+
   // 查詢我是否已在團隊
   var myTeam = await sb.from('team_members')
     .select('*, teams(*)')
@@ -6505,7 +6558,7 @@ async function renderTeam() {
     .single();
 
   if (!myTeam.data) {
-    renderTeamWelcome(el);
+    renderTeamWelcome(el, canCreateTeam);
     return;
   }
 
@@ -6598,12 +6651,15 @@ async function createTeam() {
 
 async function acceptInvite(inviteId) {
   await sb.from('team_members').update({ status: 'active', joined_at: new Date().toISOString() }).eq('id', inviteId);
+  loadTeamInviteCount();  // 更新紅點
   renderTeam();
 }
 
 async function declineInvite(inviteId) {
+  if (!confirm('確定要拒絕這個團隊邀請？')) return;
   await sb.from('team_members').update({ status: 'left' }).eq('id', inviteId);
-  loadPendingInvites();
+  loadTeamInviteCount();  // 更新紅點
+  renderTeam();  // 重整頁面（如果還有其他邀請會繼續顯示）
 }
 
 function renderTeamMain(el, isLeader, isAdmin, myRole) {
@@ -8253,6 +8309,36 @@ async function markAllNotifRead() {
     await sb.from('platform_notifications').update({ read_at: new Date().toISOString() }).is('read_at', null);
     renderPlatformNotifications(document.getElementById('platform-admin-content'));
   } catch(e) { alert('標記失敗：' + e.message); }
+}
+
+// 載入團隊邀請數，更新側欄角標
+async function loadTeamInviteCount() {
+  try {
+    var res = await sb.from('team_members').select('id', { count: 'exact', head: true })
+      .eq('member_id', currentUser.id)
+      .eq('status', 'pending');
+    var n = res.count || 0;
+    updateTeamInviteBadge(n);
+  } catch(e) { /* 靜默 */ }
+}
+
+function updateTeamInviteBadge(n) {
+  // 找側欄「團隊管理」按鈕（用 onclick 內含 'team' 來找）
+  var allBtns = document.querySelectorAll('.ds-ni, .mob-sb-item');
+  allBtns.forEach(function(btn) {
+    var oc = btn.getAttribute('onclick') || '';
+    if (oc.indexOf("'team'") >= 0 && oc.indexOf("'platform-admin'") < 0) {
+      // 移除舊角標
+      var old = btn.querySelector('.team-invite-badge');
+      if (old) old.remove();
+      // 重設文字（只有「🏢 團隊管理」）
+      btn.innerHTML = '🏢 團隊管理';
+      // 有邀請才加角標
+      if (n > 0) {
+        btn.innerHTML += ' <span class="team-invite-badge" style="background:#EF4444;color:#FFF;font-size:11px;padding:1px 7px;border-radius:10px;margin-left:4px;font-weight:600">' + n + '</span>';
+      }
+    }
+  });
 }
 
 // 載入未讀數，用於角標
