@@ -4537,21 +4537,30 @@ async function updateStatus(id, status) {
     b.textContent = statusText(status);
   });
 
-  // 背景執行 DB 和行事曆（不等待）
-  sb.from('leads').update({ status: status }).eq('id', id);
+  // ⭐ 真正寫入資料庫（含錯誤處理）
+  try {
+    var res = await sb.from('leads').update({ status: status }).eq('id', id);
+    if (res.error) throw res.error;
+  } catch(err) {
+    console.error('儲存案件進度失敗:', err);
+    alert('⚠️ 儲存案件進度失敗：' + (err.message || err) + '\n\n請重新整理頁面再試。');
+    return;
+  }
+
+  // 行事曆（不影響主要儲存）
   if (currentUser && lead) {
-    var today = new Date().toISOString().split('T')[0];
-    var schedTitle = (lead.name||'客戶') + ' · ' + statusText(status);
-    sb.from('schedules').delete()
-      .eq('member_id', currentUser.id).eq('lead_id', id)
-      .eq('schedule_date', today).eq('type', 'auto_status');
-    setTimeout(function(){
-      sb.from('schedules').insert({
+    try {
+      var today = new Date().toISOString().split('T')[0];
+      var schedTitle = (lead.name||'客戶') + ' · ' + statusText(status);
+      await sb.from('schedules').delete()
+        .eq('member_id', currentUser.id).eq('lead_id', id)
+        .eq('schedule_date', today).eq('type', 'auto_status');
+      await sb.from('schedules').insert({
         member_id: currentUser.id, lead_id: id, title: schedTitle,
         schedule_date: today, type: 'auto_status',
         description: '案件進度：' + statusText(status), is_done: false
       });
-    }, 500);
+    } catch(e) { console.warn('更新行事曆失敗:', e); }
   }
 }
 
