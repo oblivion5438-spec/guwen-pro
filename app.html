@@ -1126,8 +1126,32 @@ function updateDistricts() {
 function showLoading(txt) {
   document.getElementById('loading-text').textContent = txt || '載入中…';
   document.getElementById('loading').classList.add('show');
+
+  // 清掉舊的計時器
+  if (window._slowLoadingTimer) clearTimeout(window._slowLoadingTimer);
+  if (window._verySlowLoadingTimer) clearTimeout(window._verySlowLoadingTimer);
+
+  // 3 秒後改文字「伺服器響應較慢」
+  window._slowLoadingTimer = setTimeout(function(){
+    var el = document.getElementById('loading-text');
+    if (el && document.getElementById('loading').classList.contains('show')) {
+      el.innerHTML = '🐌 伺服器響應較慢，請稍候...<br><span style="font-size:12px;color:rgba(255,255,255,.6);font-weight:400">首次連線需喚醒資料庫，約 5~10 秒</span>';
+    }
+  }, 3000);
+
+  // 15 秒還沒好 → 提供刷新建議
+  window._verySlowLoadingTimer = setTimeout(function(){
+    var el = document.getElementById('loading-text');
+    if (el && document.getElementById('loading').classList.contains('show')) {
+      el.innerHTML = '⚠️ 載入時間過長<br><span style="font-size:12px;color:rgba(255,255,255,.7);font-weight:400">請檢查網路，或<a href="#" onclick="location.reload();return false" style="color:#FFA500">重新整理</a>再試</span>';
+    }
+  }, 15000);
 }
-function hideLoading() { document.getElementById('loading').classList.remove('show'); }
+function hideLoading() {
+  document.getElementById('loading').classList.remove('show');
+  if (window._slowLoadingTimer) { clearTimeout(window._slowLoadingTimer); window._slowLoadingTimer = null; }
+  if (window._verySlowLoadingTimer) { clearTimeout(window._verySlowLoadingTimer); window._verySlowLoadingTimer = null; }
+}
 function showPage(name) {
   document.querySelectorAll('.page').forEach(function(p) { p.classList.remove('active'); });
   document.getElementById('page-' + name).classList.add('active');
