@@ -2472,26 +2472,26 @@ async function renderDash() {
     var evRes = await sb.from('schedules')
       .select('*')
       .eq('member_id', currentUser.id)
-      .gte('event_date', todayStr)
-      .lte('event_date', in7)
-      .order('event_date', {ascending: true})
+      .gte('schedule_date', todayStr)
+      .lte('schedule_date', in7)
+      .order('schedule_date', {ascending: true})
       .limit(10);
     var events = evRes.data || [];
     if (events.length === 0) {
-      weekEl.innerHTML = '<div style="text-align:center;padding:14px;color:var(--t2);font-size:13px">本週尚無行程<br><button onclick="navTo(\'calendar\',null)" style="margin-top:8px;padding:6px 16px;border-radius:7px;border:0.5px solid var(--bdr2);background:transparent;color:var(--acc);cursor:pointer;font-family:var(--sans);font-size:13px">+ 新增行程</button></div>';
+      weekEl.innerHTML = '<div style="text-align:center;padding:14px;color:var(--t2);font-size:13px">本週尚無行程<br><button onclick="navTo(\'calendar\',null);setTimeout(showAddSchedule,200)" style="margin-top:8px;padding:6px 16px;border-radius:7px;border:0.5px solid var(--bdr2);background:transparent;color:var(--acc);cursor:pointer;font-family:var(--sans);font-size:13px">+ 新增行程</button></div>';
       return;
     }
     var dayNames = ['日','一','二','三','四','五','六'];
     var html2 = '';
     events.forEach(function(ev) {
-      var d = new Date(ev.event_date + 'T00:00:00');
-      var isToday = ev.event_date === todayStr;
+      var d = new Date(ev.schedule_date + 'T00:00:00');
+      var isToday = ev.schedule_date === todayStr;
       var dayLabel = isToday ? '今天' : (d.getMonth()+1)+'/'+d.getDate()+'（'+dayNames[d.getDay()]+'）';
       var typeColors = {meeting:'var(--acc)', followup:'#2D7AB8', document:'#B88020', other:'var(--t2)'};
-      var col = typeColors[ev.event_type] || 'var(--t2)';
+      var col = typeColors[ev.type] || 'var(--t2)';
       html2 += '<div onclick="navTo(\'calendar\',null)" style="display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:9px;margin-bottom:5px;background:var(--inp);cursor:pointer;border:0.5px solid '+(isToday?'var(--acc)':'transparent')+'">';
       html2 += '<div style="text-align:center;min-width:44px;flex-shrink:0"><div style="font-size:11px;color:'+(isToday?'var(--acc)':'var(--t2)')+'">'+dayLabel+'</div>';
-      if (ev.event_time) html2 += '<div style="font-size:13px;font-weight:600;color:var(--t0)">'+ev.event_time.slice(0,5)+'</div>';
+      if (ev.schedule_time) html2 += '<div style="font-size:13px;font-weight:600;color:var(--t0)">'+ev.schedule_time.slice(0,5)+'</div>';
       html2 += '</div>';
       html2 += '<div style="width:3px;height:36px;border-radius:2px;background:'+col+';flex-shrink:0"></div>';
       html2 += '<div style="flex:1;min-width:0"><div style="font-size:14px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+( ev.title||'行程')+'</div>';
@@ -2615,6 +2615,7 @@ function renderAddLead() {
 
   html += '<div class="form-section"><div class="fs-title">🪪 個人基本</div>';
   html += '<div class="frow"><div class="flbl">姓名 <span class="req">*</span></div><input class="fi" id="n-name" placeholder="真實姓名"></div>';
+  html += '<div class="frow"><div class="flbl">手機號碼</div><input class="fi" id="n-phone" type="tel" placeholder="0912-345-678" inputmode="numeric"></div>';
   html += '<div class="frow"><div class="flbl">身分證字號</div><input class="fi" id="n-idno" placeholder="A123456789" maxlength="10" style="letter-spacing:2px;font-family:monospace" oninput="validateIDField(this)"></div>';
   html += '<div id="n-idno-err" style="font-size:13px;color:var(--red);display:none;margin-top:-10px;margin-bottom:8px">格式錯誤（英文+數字共10碼）</div>';
 
@@ -3491,6 +3492,7 @@ async function saveLead() {
 
   var payload = {
     member_id: currentUser.id, name: name,
+    phone: gv('n-phone') || null,
     id_number_hash: idnoRaw || null,
     birthday: birthdayVal,
     tax_id: gv('n-tax-id') || null,
@@ -3719,6 +3721,7 @@ function showLeadDetail(id) {
   html += '<div id="lead-view-' + id + '">';
   html += '<div class="sl">個人識別</div>';
   html += '<div class="ri"><span class="rl">姓名</span><span class="rv">' + (lead.name||'—') + '</span></div>';
+  if (lead.phone) html += '<div class="ri"><span class="rl">手機</span><span class="rv"><a href="tel:' + lead.phone + '" style="color:var(--acc);text-decoration:none">' + lead.phone + '</a></span></div>';
   if (lead.id_number_hash) html += '<div class="ri"><span class="rl">身分證</span><span class="rv" style="font-family:monospace">' + lead.id_number_hash.substring(0,3) + '******</span></div>';
   if (lead.birthday) {
     var bdate = new Date(lead.birthday);
@@ -3804,6 +3807,7 @@ function showLeadDetail(id) {
   html += '<div id="lead-edit-' + id + '" style="display:none">';
   html += '<div class="sl">個人識別</div>';
   html += '<div class="frow"><div class="flbl">姓名</div><input class="fi" id="ef-name-' + id + '" value="' + (lead.name||'') + '"></div>';
+  html += '<div class="frow" style="margin-top:6px"><div class="flbl">手機號碼</div><input class="fi" id="ef-phone-' + id + '" type="tel" value="' + (lead.phone||'').replace(/"/g,'&quot;') + '" placeholder="0912-345-678" inputmode="numeric"></div>';
   html += '<div class="frow" style="margin-top:6px"><div class="flbl">身分證字號</div><input class="fi" id="ef-idno-' + id + '" placeholder="A123456789" maxlength="10" style="letter-spacing:2px;font-family:monospace" value="' + (lead.id_number_hash||'') + '" oninput="validateIDFieldEdit(this,\'' + id + '\')"></div>';
   html += '<div id="ef-idno-err-' + id + '" style="font-size:12px;color:var(--red);display:none;margin-bottom:4px">格式錯誤（英文+9位數字，共10碼）</div>';
   // 出生日期（民國年份）
@@ -4473,6 +4477,7 @@ async function saveLeadEdit(id) {
   var idno = gv('idno').trim().toUpperCase();
   var payload = {
     name:               gv('name').trim() || null,
+    phone:              gv('phone') || null,
     id_number_hash:     idno || null,
     birthday:           bdayValue,
     age:                ageValue,
@@ -10637,9 +10642,31 @@ async function saveSchedule() {
   var data = { member_id: currentUser.id, title: title, schedule_date: date, type: type, description: desc||null };
   if (time) data.schedule_time = time;
   if (leadId) data.lead_id = leadId;
-  var res = await sb.from('schedules').insert(data);
-  if (res.error) { alert('儲存失敗：' + res.error.message); return; }
-  renderCalendar();
+
+  try {
+    var res = await sb.from('schedules').insert(data);
+    if (res.error) throw res.error;
+
+    // 清空表單欄位
+    ['sch-title','sch-time','sch-desc'].forEach(function(id){
+      var el = document.getElementById(id);
+      if (el) el.value = '';
+    });
+    // 隱藏新增表單
+    var form = document.getElementById('add-schedule-form');
+    if (form) form.style.display = 'none';
+
+    // 成功提示
+    var toast = document.createElement('div');
+    toast.style.cssText = 'position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--grn);color:#FFF;padding:10px 18px;border-radius:8px;z-index:99999;font-size:14px;font-weight:600;box-shadow:0 4px 12px rgba(0,0,0,.4)';
+    toast.textContent = '✅ 行程已新增';
+    document.body.appendChild(toast);
+    setTimeout(function(){ toast.remove(); }, 2500);
+
+    renderCalendar();
+  } catch(err) {
+    alert('儲存失敗：' + (err.message || err));
+  }
 }
 
 async function doneSchedule(id) {
