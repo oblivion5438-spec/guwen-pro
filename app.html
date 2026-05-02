@@ -3743,7 +3743,15 @@ async function saveLead() {
         penalty_fee: penEl ? (parseInt(penEl.value)||0) : 0 });
     }
   });
-  if (loans.length > 0) await sb.from('lead_loans').insert(loans);
+  if (loans.length > 0) {
+    try {
+      var loanRes = await sb.from('lead_loans').insert(loans);
+      if (loanRes.error) throw loanRes.error;
+    } catch(loanErr) {
+      console.error('儲存貸款資料失敗:', loanErr);
+      alert('⚠️ 客戶基本資料已建立，但貸款資料儲存失敗：\n' + (loanErr.message || loanErr) + '\n\n錯誤詳情：' + JSON.stringify(loanErr));
+    }
+  }
 
   // 上傳暫存文件
   if (Object.keys(pendingLeadDocs).length > 0) {
@@ -3861,17 +3869,17 @@ function showLeadDetail(id) {
     html += s.l + '</button>';
   });
 
-  // 自訂狀態（值是 custom:名稱）
+  // 自訂狀態（用 data-attribute 避免字串轉義問題）
   customStatuses.forEach(function(cs, ci) {
     var statusVal = 'custom:' + cs;
     var active = lead.status === statusVal;
-    var safeName = String(cs).replace(/'/g,"\\'");
+    var escapedName = String(cs).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
     html += '<span style="display:inline-flex;align-items:center;gap:2px">';
-    html += '<button id="sbtn-' + id + '-custom-' + ci + '" onclick="selectStatus(\'' + id + '\',\'' + statusVal.replace(/'/g,"\\'") + '\')" ';
+    html += '<button class="custom-status-btn" data-lead-id="' + id + '" data-status-name="' + escapedName + '" data-status-idx="' + ci + '" id="sbtn-' + id + '-custom-' + ci + '" ';
     html += 'style="padding:7px 13px;border-radius:20px;font-size:13px;font-family:var(--sans);cursor:pointer;transition:none;';
     html += active ? 'border:1.5px solid var(--acc);background:var(--acc);color:#FFF;font-weight:600">' : 'border:0.5px solid var(--bdr2);background:transparent;color:var(--t2);font-weight:400">';
-    html += cs + '</button>';
-    html += '<button onclick="removeCustomStatus(\'' + id + '\',' + ci + ')" style="padding:4px 6px;border-radius:20px;font-size:11px;border:0.5px solid rgba(192,64,48,.3);background:transparent;color:var(--red);cursor:pointer;font-family:var(--sans)">✕</button>';
+    html += escapedName + '</button>';
+    html += '<button class="custom-status-del" data-lead-id="' + id + '" data-status-idx="' + ci + '" style="padding:4px 6px;border-radius:20px;font-size:11px;border:0.5px solid rgba(192,64,48,.3);background:transparent;color:var(--red);cursor:pointer;font-family:var(--sans)">✕</button>';
     html += '</span>';
   });
 
@@ -4031,6 +4039,7 @@ function showLeadDetail(id) {
   html += '<div class="frow2" style="margin-top:6px"><div class="frow"><div class="flbl">公司名稱</div><input class="fi" id="ef-company-' + id + '" value="' + existCompany.replace(/"/g,'&quot;') + '" placeholder="XX 股份有限公司"></div>' +
     '<div class="frow"><div class="flbl">職位</div><input class="fi" id="ef-position-' + id + '" value="' + existPosition.replace(/"/g,'&quot;') + '" placeholder="業務專員"></div></div>';
   html += '<div class="frow" style="margin-top:6px"><div class="flbl">公司電話 <span style="font-size:12px;color:var(--t3)">（不會主動致電）</span></div><input class="fi" id="ef-biztel-' + id + '" type="tel" value="' + (lead.company_phone||'') + '" placeholder="02-12345678"></div>';
+  html += '<div class="frow" style="margin-top:6px"><div class="flbl">統一編號（公司戶填）</div><input class="fi" id="ef-tax-id-' + id + '" value="' + (lead.tax_id||'') + '" placeholder="12345678" maxlength="8"></div>';
   html += '<div class="frow" style="margin-top:6px"><div class="flbl">警示/協商</div><select class="fi" id="ef-alert-' + id + '"><option value="none"' + (lead.alert_status==='none'?' selected':'') + '>否</option><option value="alert"' + (lead.alert_status==='alert'?' selected':'') + '>警示戶</option><option value="negotiation"' + (lead.alert_status==='negotiation'?' selected':'') + '>協商中</option><option value="rehabilitation"' + (lead.alert_status==='rehabilitation'?' selected':'') + '>更生</option><option value="liquidation"' + (lead.alert_status==='liquidation'?' selected':'') + '>清算</option></select></div>';
   html += '<div class="frow" style="margin-top:6px"><div class="flbl">居住地址</div><input class="fi" id="ef-addr-' + id + '" value="' + (lead.address||'') + '" placeholder="完整地址"></div>';
   html += '<div class="frow" style="margin-top:6px"><div class="flbl">戶籍地址</div><input class="fi" id="ef-huji-' + id + '" value="' + (lead.huji_address||'') + '" placeholder="不同戶籍才填"></div>';
@@ -4121,6 +4130,18 @@ function showLeadDetail(id) {
   html += '<div class="sl">需求</div>';
   html += '<div class="frow2"><div class="frow"><div class="flbl">需求資金（元）</div><input class="fi" id="ef-amount-' + id + '" type="number" value="' + (lead.required_amount||'') + '"></div>';
   html += '<div class="frow"><div class="flbl">資金用途</div><select class="fi" id="ef-purpose-' + id + '"><option' + (lead.fund_purpose==='週轉'?' selected':'') + '>週轉</option><option' + (lead.fund_purpose==='整合負債'?' selected':'') + '>整合負債</option><option' + (lead.fund_purpose==='購屋'?' selected':'') + '>購屋</option><option' + (lead.fund_purpose==='購車'?' selected':'') + '>購車</option><option' + (lead.fund_purpose==='其他'?' selected':'') + '>其他</option></select></div></div>';
+
+  // 💰 現有貸款編輯區
+  html += '<div class="sl">💰 現有貸款（含信貸/車貸/機車貸/手機貸/民間借款）</div>';
+  html += '<div id="ef-loans-' + id + '" style="background:var(--inp);border-radius:9px;padding:10px 12px;margin-bottom:8px"><div style="text-align:center;color:var(--t3);font-size:13px;padding:10px">⏳ 載入中...</div></div>';
+  html += '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px;margin-bottom:14px">';
+  html += '<button class="btn-sm" type="button" onclick="addEditLoan(\''+id+'\',\'credit\')" style="font-size:12px">+ 銀行信貸</button>';
+  html += '<button class="btn-sm" type="button" onclick="addEditLoan(\''+id+'\',\'car_new\')" style="font-size:12px">+ 汽車貸</button>';
+  html += '<button class="btn-sm" type="button" onclick="addEditLoan(\''+id+'\',\'bike\')" style="font-size:12px">+ 機車貸</button>';
+  html += '<button class="btn-sm" type="button" onclick="addEditLoan(\''+id+'\',\'phone\')" style="font-size:12px">+ 手機貸</button>';
+  html += '<button class="btn-sm" type="button" onclick="addEditLoan(\''+id+'\',\'pawn\')" style="font-size:12px">+ 民間借款</button>';
+  html += '</div>';
+
   html += '<div style="display:flex;gap:8px;margin-top:12px">';
   html += '<button class="btn-sm" id="cancel-edit-btn-' + id + '">取消</button>';
   html += '<button class="btn-p" id="save-edit-btn-' + id + '" style="flex:1">儲存變更</button>';
@@ -4639,6 +4660,10 @@ function toggleLeadEdit(id) {
     });
     delete pendingEditDocs[id];
   }
+  // ⭐ 進入編輯模式時，載入現有貸款資料
+  if (!isEditing) {
+    loadEditLoans(id);
+  }
 }
 
 async function saveLeadEdit(id) {
@@ -4679,6 +4704,7 @@ async function saveLeadEdit(id) {
     age:                ageValue,
     work_type: [gv('company'), gv('position')].filter(Boolean).join(' · ') || null,
     company_phone:      gv('biztel') || null,
+    tax_id:             gv('tax-id') || null,
     alert_status:       gv('alert') || 'none',
     address:            gv('addr') || null,
     huji_address:       gv('huji') || null,
@@ -4739,16 +4765,29 @@ async function saveLeadEdit(id) {
   // 更新本地資料
   var lead = leads.find(function(l){ return l.id === id; });
   if (lead) Object.assign(lead, payload);
+
+  // ⭐ 儲存現有貸款變更
+  try {
+    await saveEditLoans(id);
+  } catch(loanErr) {
+    hideLoading();
+    alert('⚠️ 客戶資料已儲存，但貸款編輯儲存失敗：\n' + (loanErr.message || loanErr));
+    showLeadDetail(id);
+    return;
+  }
+
   // 上傳暫存的補充文件（MyData/雙證件等）
   var docResult = await saveLeadEditDocs(id);
   hideLoading();
   if (docResult.failed > 0) {
     alert('資料已儲存，但有 ' + docResult.failed + ' 個檔案上傳失敗');
-  } else if (docResult.uploaded > 0) {
-    // 簡單提示
+  } else {
+    // 顯示成功提示
     var toast = document.createElement('div');
     toast.style.cssText = 'position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--grn);color:#FFF;padding:10px 18px;border-radius:8px;z-index:99999;font-size:14px;font-weight:600;box-shadow:0 4px 12px rgba(0,0,0,.4)';
-    toast.textContent = '✅ 已儲存（含 ' + docResult.uploaded + ' 個檔案）';
+    toast.textContent = docResult.uploaded > 0
+      ? '✅ 已儲存（含 ' + docResult.uploaded + ' 個檔案）'
+      : '✅ 已儲存所有變更';
     document.body.appendChild(toast);
     setTimeout(function(){ toast.remove(); }, 2500);
   }
@@ -5729,8 +5768,184 @@ async function saveClosedIncome(leadId) {
   alert('✓ 已儲存結案收入');
 }
 
+// ══════════════════════════════
+// 客戶現有貸款編輯（編輯模式用）
+// ══════════════════════════════
+// 全域記憶體：{ leadId: [{tempId, id, loan_type, institution_name, balance, monthly_payment, penalty_fee, _new}] }
+var editLoansData = {};
+var LOAN_TYPE_LABELS = {
+  credit:'🏦 銀行信貸', car_new:'🚗 汽車貸', bike:'🛵 機車貸',
+  phone:'📱 手機貸', pawn:'🏪 民間借款',
+  property_1st:'🏠 不動產一胎', property_2nd:'🏠 不動產二胎', property_3rd:'🏠 不動產三胎',
+  car_used:'🚗 中古車貸款'
+};
+
+// 載入該客戶的所有貸款
+async function loadEditLoans(leadId) {
+  try {
+    var res = await sb.from('lead_loans').select('*').eq('lead_id', leadId).order('created_at');
+    editLoansData[leadId] = (res.data || []).map(function(l){ return Object.assign({}, l, {_new:false}); });
+    renderEditLoans(leadId);
+  } catch(e) {
+    console.error('載入貸款失敗:', e);
+    var el = document.getElementById('ef-loans-' + leadId);
+    if (el) el.innerHTML = '<div style="text-align:center;color:var(--red);padding:10px;font-size:13px">⚠️ 載入失敗：' + (e.message||e) + '</div>';
+  }
+}
+
+// 渲染貸款清單
+function renderEditLoans(leadId) {
+  var el = document.getElementById('ef-loans-' + leadId);
+  if (!el) return;
+  var loans = editLoansData[leadId] || [];
+  // 過濾掉不動產貸款（那個有專門的編輯區）
+  loans = loans.filter(function(l){
+    return ['property_1st','property_2nd','property_3rd'].indexOf(l.loan_type) < 0;
+  });
+
+  if (loans.length === 0) {
+    el.innerHTML = '<div style="text-align:center;color:var(--t3);padding:14px;font-size:13px">尚無資料 · 點下方按鈕新增</div>';
+    return;
+  }
+
+  var h = '';
+  loans.forEach(function(loan, i) {
+    var label = LOAN_TYPE_LABELS[loan.loan_type] || loan.loan_type || '貸款';
+    var key = loan._new ? 'new_' + i : loan.id;
+    h += '<div style="background:var(--card);border:0.5px solid var(--bdr);border-radius:8px;padding:10px 12px;margin-bottom:8px" data-loan-key="'+key+'">';
+    h += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">';
+    h += '<span style="font-size:14px;font-weight:600">'+label+(loan._new?' <span style="font-size:11px;color:#FFA500">(新)</span>':'')+'</span>';
+    h += '<button type="button" onclick="removeEditLoan(\''+leadId+'\','+i+')" style="font-size:12px;padding:2px 8px;border-radius:4px;border:0.5px solid rgba(192,64,48,.3);background:transparent;color:var(--red);cursor:pointer;font-family:var(--sans)">刪除</button>';
+    h += '</div>';
+    h += '<div class="frow"><div class="flbl">機構名稱</div><input class="fi loan-edit-input" data-field="institution_name" data-key="'+key+'" type="text" value="'+(loan.institution_name||'').replace(/"/g,'&quot;')+'" placeholder="例：玉山銀行 / 中租迪和"></div>';
+    h += '<div class="frow2" style="margin-top:6px">';
+    h += '<div class="frow"><div class="flbl">餘額（元）</div><input class="fi loan-edit-input" data-field="balance" data-key="'+key+'" type="number" value="'+(loan.balance||'')+'" placeholder="500000" inputmode="numeric"></div>';
+    h += '<div class="frow"><div class="flbl">月繳（元）</div><input class="fi loan-edit-input" data-field="monthly_payment" data-key="'+key+'" type="number" value="'+(loan.monthly_payment||'')+'" placeholder="18500" inputmode="numeric"></div>';
+    h += '</div>';
+    h += '<div class="frow" style="margin-top:6px"><div class="flbl">違約金（元，未填顯示「無」）</div><input class="fi loan-edit-input" data-field="penalty_fee" data-key="'+key+'" type="number" value="'+(loan.penalty_fee||'')+'" placeholder="30000" inputmode="numeric"></div>';
+    h += '</div>';
+  });
+  el.innerHTML = h;
+
+  // 綁定 input change 事件，即時更新記憶體
+  el.querySelectorAll('.loan-edit-input').forEach(function(inp) {
+    inp.oninput = function() {
+      var k = this.dataset.key;
+      var f = this.dataset.field;
+      var v = this.value;
+      var allLoans = editLoansData[leadId] || [];
+      // 找到該筆
+      for (var i = 0; i < allLoans.length; i++) {
+        var l = allLoans[i];
+        var lk = l._new ? 'new_' + (loans.indexOf(l)) : l.id;
+        if (String(lk) === String(k)) {
+          if (f === 'institution_name') l[f] = v;
+          else l[f] = parseFloat(v) || 0;
+          break;
+        }
+      }
+    };
+  });
+}
+
+// 新增貸款
+function addEditLoan(leadId, loanType) {
+  var itype = loanType === 'pawn' ? 'civil' : (loanType === 'credit' ? 'bank' : 'finance');
+  if (!editLoansData[leadId]) editLoansData[leadId] = [];
+  editLoansData[leadId].push({
+    _new: true,
+    loan_type: loanType,
+    institution_type: itype,
+    institution_name: '',
+    balance: 0,
+    monthly_payment: 0,
+    penalty_fee: 0
+  });
+  renderEditLoans(leadId);
+}
+
+// 刪除貸款
+function removeEditLoan(leadId, idx) {
+  if (!confirm('確定要刪除此筆貸款？')) return;
+  var loans = editLoansData[leadId] || [];
+  // 過濾後的索引要對回原 index
+  var filtered = loans.filter(function(l){
+    return ['property_1st','property_2nd','property_3rd'].indexOf(l.loan_type) < 0;
+  });
+  var target = filtered[idx];
+  if (!target) return;
+  // 在原陣列找到這筆
+  var realIdx = loans.indexOf(target);
+  if (realIdx >= 0) {
+    if (!target._new) {
+      // 標記為待刪
+      target._delete = true;
+    } else {
+      // 完全移除
+      loans.splice(realIdx, 1);
+    }
+  }
+  renderEditLoans(leadId);
+}
+
+// 儲存所有貸款變更（saveLeadEdit 會呼叫）
+async function saveEditLoans(leadId) {
+  var loans = editLoansData[leadId] || [];
+  var toInsert = [];
+  var toUpdate = [];
+  var toDelete = [];
+  loans.forEach(function(l) {
+    // 過濾掉不動產（有專門的處理）
+    if (['property_1st','property_2nd','property_3rd'].indexOf(l.loan_type) >= 0) return;
+
+    if (l._delete && l.id) {
+      toDelete.push(l.id);
+    } else if (l._new) {
+      // 新增（金額 0 就不存）
+      if ((l.balance||0) > 0 || (l.institution_name||'').trim()) {
+        toInsert.push({
+          lead_id: leadId,
+          loan_type: l.loan_type,
+          institution_type: l.institution_type,
+          institution_name: l.institution_name || null,
+          balance: l.balance || 0,
+          monthly_payment: l.monthly_payment || 0,
+          penalty_fee: l.penalty_fee || 0
+        });
+      }
+    } else if (l.id) {
+      // 更新
+      toUpdate.push({
+        id: l.id,
+        institution_name: l.institution_name || null,
+        balance: l.balance || 0,
+        monthly_payment: l.monthly_payment || 0,
+        penalty_fee: l.penalty_fee || 0
+      });
+    }
+  });
+
+  // 執行刪除
+  if (toDelete.length > 0) {
+    var delRes = await sb.from('lead_loans').delete().in('id', toDelete);
+    if (delRes.error) throw delRes.error;
+  }
+  // 執行更新
+  for (var i = 0; i < toUpdate.length; i++) {
+    var u = toUpdate[i];
+    var uid = u.id;
+    delete u.id;
+    var upRes = await sb.from('lead_loans').update(u).eq('id', uid);
+    if (upRes.error) throw upRes.error;
+  }
+  // 執行插入
+  if (toInsert.length > 0) {
+    var insRes = await sb.from('lead_loans').insert(toInsert);
+    if (insRes.error) throw insRes.error;
+  }
+}
+
 async function saveNote(id) {
-  var note = document.getElementById('note-' + id) ? document.getElementById('note-' + id).value : '';
   try {
     var res = await sb.from('leads').update({ advisor_note: note }).eq('id', id).select();
     if (res.error) throw res.error;
@@ -6697,6 +6912,47 @@ function saveRemind() {
 function showAddExtra() {
   var el = document.getElementById('add-extra-form');
   if (el) { el.style.display = 'block'; var d = document.getElementById('ext-date'); if(d) d.value = new Date().toISOString().split('T')[0]; }
+}
+// 顯示新增固定支出表單
+function showAddExpense() {
+  var el = document.getElementById('add-expense-form');
+  if (el) el.style.display = el.style.display === 'none' ? 'block' : 'none';
+}
+// 儲存固定支出
+function saveExpense() {
+  var icon = document.getElementById('exp-icon') ? document.getElementById('exp-icon').value || '💳' : '💳';
+  var name = document.getElementById('exp-name') ? document.getElementById('exp-name').value.trim() : '';
+  var amount = parseInt(document.getElementById('exp-amount') ? document.getElementById('exp-amount').value : 0) || 0;
+  var due_day = parseInt(document.getElementById('exp-day') ? document.getElementById('exp-day').value : 0) || 0;
+  var isDebt = document.getElementById('exp-is-debt') ? document.getElementById('exp-is-debt').checked : false;
+  if (!name) { alert('請填寫項目名稱'); return; }
+  if (!amount) { alert('請填寫金額'); return; }
+  if (!due_day || due_day < 1 || due_day > 31) { alert('請填寫有效繳款日期（1-31）'); return; }
+  fixedExpenses.push({
+    id: Date.now(),
+    icon: icon,
+    name: name,
+    amount: amount,
+    due_day: due_day,
+    remind_days: 5,
+    is_debt: isDebt
+  });
+  saveFinanceData();
+  // 隱藏表單 + 清空欄位
+  var form = document.getElementById('add-expense-form');
+  if (form) form.style.display = 'none';
+  ['exp-name','exp-amount','exp-day'].forEach(function(id){
+    var el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+  var dbt = document.getElementById('exp-is-debt');
+  if (dbt) dbt.checked = false;
+  renderFinance();
+}
+// 顯示新增員工薪資表單
+function showAddSalary() {
+  var el = document.getElementById('add-salary-form');
+  if (el) el.style.display = el.style.display === 'none' ? 'block' : 'none';
 }
 function saveExtra() {
   var icon = document.getElementById('ext-icon') ? document.getElementById('ext-icon').value||'💸' : '💸';
@@ -8843,14 +9099,39 @@ async function addCustomStatus(leadId) {
     var res = await sb.from('leads').update({ custom_statuses: current }).eq('id', leadId).select();
     if (res.error) throw res.error;
     if (!res.data || res.data.length === 0) {
-      throw new Error('更新失敗（可能沒有編輯權限）');
+      throw new Error('更新失敗（可能沒有編輯權限或欄位不存在）');
     }
     lead.custom_statuses = current;
     // 重畫詳情頁
     showLeadDetail(leadId);
   } catch(err) {
-    alert('⚠️ 新增失敗：' + (err.message || err));
+    alert('⚠️ 新增失敗：' + (err.message || err) + '\n\n💡 如果錯誤訊息提到 custom_statuses 欄位，請執行最新的 leads_status_v2.sql');
   }
+}
+
+// 全域 click 委託（處理動態產生的自訂狀態按鈕）
+if (!window._customStatusDelegated) {
+  window._customStatusDelegated = true;
+  document.addEventListener('click', function(e) {
+    var t = e.target;
+    if (!t) return;
+    // 自訂狀態按鈕
+    if (t.classList && t.classList.contains('custom-status-btn')) {
+      var lid = t.getAttribute('data-lead-id');
+      var name = t.getAttribute('data-status-name');
+      if (lid && name) {
+        // 解碼 HTML entities
+        var decoded = name.replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"');
+        selectStatus(lid, 'custom:' + decoded);
+      }
+    } else if (t.classList && t.classList.contains('custom-status-del')) {
+      var lid2 = t.getAttribute('data-lead-id');
+      var idx = parseInt(t.getAttribute('data-status-idx'));
+      if (lid2 && !isNaN(idx)) {
+        removeCustomStatus(lid2, idx);
+      }
+    }
+  });
 }
 
 async function removeCustomStatus(leadId, ci) {
@@ -15000,10 +15281,11 @@ function renderClientStep(step) {
 
 // 儲存目前所有 input/select 的值
 function saveClientFormData() {
-  var fields = ['c-name','c-idno','c-age','c-company','c-position','c-biztel','c-alert','c-addr','c-huji','c-amount','c-purpose',
+  var fields = ['c-name','c-phone','c-idno','c-age','c-company','c-position','c-biztel','c-alert','c-addr','c-huji','c-amount','c-purpose',
     'c-salary','c-transfer','c-cc','c-cc-limit','c-cc-count','c-car-lic','c-bike-lic',
     'c-labor-type','c-labor-this-years','c-labor-years',
     'c-property','c-collateral','c-bank-rej','c-fin-rej',
+    'c-bank-rej-cnt','c-fin-rej-cnt','c-late-pay','c-debt-ratio','c-bank-new','c-has-car-loan','c-housing',
     'c-prop1-inst','c-prop1-amt','c-prop1-pay','c-prop1-penalty',
     'c-prop2-inst','c-prop2-amt','c-prop2-pay','c-prop2-penalty',
     'c-prop3-inst','c-prop3-amt','c-prop3-pay','c-prop3-penalty'];
@@ -15018,10 +15300,11 @@ function saveClientFormData() {
 
 // 還原指定步驟的欄位值
 function restoreClientFormData(step) {
-  var fields2 = ['c-name','c-idno','c-age','c-company','c-position','c-biztel','c-alert','c-addr','c-huji','c-amount','c-purpose'];
+  var fields2 = ['c-name','c-phone','c-idno','c-age','c-company','c-position','c-biztel','c-alert','c-addr','c-huji','c-amount','c-purpose'];
   var fields3 = ['c-salary','c-transfer','c-cc','c-cc-limit','c-cc-count','c-car-lic','c-bike-lic',
     'c-labor-type','c-labor-this-years','c-labor-years',
     'c-property','c-collateral','c-bank-rej','c-fin-rej',
+    'c-bank-rej-cnt','c-fin-rej-cnt','c-late-pay','c-debt-ratio','c-bank-new','c-has-car-loan','c-housing',
     'c-prop1-inst','c-prop1-amt','c-prop1-pay','c-prop1-penalty',
     'c-prop2-inst','c-prop2-amt','c-prop2-pay','c-prop2-penalty',
     'c-prop3-inst','c-prop3-amt','c-prop3-pay','c-prop3-penalty'];
@@ -15283,6 +15566,7 @@ function clientStep2() {
   card.innerHTML =
     '<div style="font-size:16px;font-weight:600;margin-bottom:10px">基本資料</div>' +
     '<div class="frow"><div class="flbl">中文姓名 <span class="req">*</span></div><input class="fi" id="c-name" placeholder="真實姓名"></div>' +
+    '<div class="frow" style="margin-top:8px"><div class="flbl">手機號碼 <span class="req">*</span></div><input class="fi" id="c-phone" type="tel" placeholder="0912-345-678" inputmode="numeric"></div>' +
     '<div class="frow" style="margin-top:8px"><div class="flbl">身分證字號</div><input class="fi" id="c-idno" placeholder="A123456789" maxlength="10" style="letter-spacing:2px;font-family:monospace"></div>' +
     '<div class="frow2" style="margin-top:8px">' +
       '<div class="frow"><div class="flbl">年齡 <span class="req">*</span></div><input class="fi" id="c-age" type="number" placeholder="38" inputmode="numeric"></div>' +
@@ -15352,14 +15636,27 @@ function clientStep3() {
     if (inp) { inp.addEventListener('input', updateClientMaxLoan); inp.addEventListener('change', updateClientMaxLoan); }
   });
 
-  // ── 未過件記錄 ──
+  // ── 信用紀錄（影響 AI 評分）──
   var rejCard = document.createElement('div'); rejCard.className = 'card';
   rejCard.innerHTML =
-    '<div style="font-size:16px;font-weight:600;margin-bottom:10px">📋 近期未過件記錄</div>' +
+    '<div style="font-size:16px;font-weight:600;margin-bottom:10px">📋 信用紀錄（影響 AI 評分）</div>' +
     '<div class="frow2">' +
+      '<div class="frow"><div class="flbl">銀行婉拒次數（3 個月內）</div><select class="fi" id="c-bank-rej-cnt"><option value="0">無</option><option value="1">1次</option><option value="2">2次</option><option value="3">3次</option><option value="4">4次以上（封鎖）</option></select></div>' +
+      '<div class="frow"><div class="flbl">融資婉拒次數（3 個月內）</div><select class="fi" id="c-fin-rej-cnt"><option value="0">無</option><option value="1">1次</option><option value="2">2次</option><option value="3">3次</option><option value="4">4次以上（封鎖）</option></select></div>' +
+    '</div>' +
+    '<div class="frow2" style="margin-top:8px">' +
       '<div class="frow"><div class="flbl">銀行端未過件距今</div><select class="fi" id="c-bank-rej"><option value="none">無</option><option value="&lt;1m">未滿1個月</option><option value="1-3m">1–3個月</option><option value="3-6m">3–6個月</option></select></div>' +
       '<div class="frow"><div class="flbl">融資端未過件距今</div><select class="fi" id="c-fin-rej"><option value="none">無</option><option value="&lt;1m">未滿1個月</option><option value="1-3m">1–3個月</option><option value="3-6m">3–6個月</option></select></div>' +
-    '</div>';
+    '</div>' +
+    '<div class="frow2" style="margin-top:8px">' +
+      '<div class="frow"><div class="flbl">最長遲繳天數</div><select class="fi" id="c-late-pay"><option value="0">無遲繳</option><option value="3">7天以內</option><option value="10">7~14天</option><option value="20">14~30天</option><option value="35">1個月以上</option></select></div>' +
+      '<div class="frow"><div class="flbl">負債比 (%)</div><input class="fi" id="c-debt-ratio" type="number" min="0" max="100" placeholder="0" inputmode="numeric"></div>' +
+    '</div>' +
+    '<div class="frow2" style="margin-top:8px">' +
+      '<div class="frow"><div class="flbl">信貸6個月內申辦</div><select class="fi" id="c-bank-new"><option value="false">否</option><option value="true">是（6個月內剛申辦）</option></select></div>' +
+      '<div class="frow"><div class="flbl">目前有汽車貸款</div><select class="fi" id="c-has-car-loan"><option value="false">無</option><option value="true">有</option></select></div>' +
+    '</div>' +
+    '<div class="frow" style="margin-top:8px"><div class="flbl">居住狀況</div><select class="fi" id="c-housing"><option value="none">未填</option><option value="self_own">本人名下（自有）</option><option value="self_live">自住（非本人名下）</option><option value="family">親屬房子</option><option value="rent">租屋</option><option value="other">其他</option></select></div>';
   el.appendChild(rejCard);
 
   // ── 不動產 ──
@@ -15873,6 +16170,7 @@ async function submitClientForm() {
   var payload = {
     member_id: clientMember.id,
     name: g('c-name') || '（未命名）',
+    phone: g('c-phone') || null,
     age: parseInt(g('c-age')) || null,
     work_type: [gf('c-company'), gf('c-position')].filter(Boolean).join(' · ') || null,
     alert_status: g('c-alert') || 'none',
@@ -15890,6 +16188,13 @@ async function submitClientForm() {
     has_collateral: g('c-collateral') === 'true',
     bank_recent_reject: g('c-bank-rej') || 'none',
     finance_recent_reject: g('c-fin-rej') || 'none',
+    bank_reject_count: parseInt(g('c-bank-rej-cnt')) || 0,
+    fin_reject_count: parseInt(g('c-fin-rej-cnt')) || 0,
+    late_pay_days: parseInt(g('c-late-pay')) || 0,
+    debt_ratio: parseInt(g('c-debt-ratio')) || 0,
+    bank_new_credit: g('c-bank-new') === 'true',
+    has_car_loan: g('c-has-car-loan') === 'true',
+    housing_status: g('c-housing') || 'none',
     status: 'new',
     source: 'client_form',
     consent_mydata_income: clientConsents.income,
