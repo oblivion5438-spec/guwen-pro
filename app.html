@@ -2690,7 +2690,9 @@ async function renderDash() {
       .gte('schedule_date', todayStr)
       .lte('schedule_date', endStr)
       .order('schedule_date', {ascending: true});
-    var allEvents = evRes.data || [];
+    var allEvents = (evRes.data || []).filter(function(s){
+      return typeof isUnservicableSchedule !== 'function' || !isUnservicableSchedule(s);
+    });
 
     // 補一道 JS 排序：同日先按時間（沒時間的擺前面）
     allEvents.sort(function(a, b){
@@ -11128,7 +11130,10 @@ async function renderCalendar() {
       .order('schedule_date').order('schedule_time'),
     sb.from('loan_reminders').select('*, leads(name)').eq('member_id', currentUser.id)
   ]);
-  schedules = schRes.data || [];
+  // 過濾掉「無法承作」「失聯」類的行程（不該出現在行事曆）
+  schedules = (schRes.data || []).filter(function(s){
+    return !isUnservicableSchedule(s);
+  });
   loanReminders = remRes.data || [];
 
   // 計算貸款提醒到期日
@@ -11227,26 +11232,25 @@ function buildMonthView(el, loanAlerts, todayStr) {
   var h = '';
 
   // 月份導航
-  h += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;gap:10px">';
-  h += '<button type="button" onclick="calViewDate.setMonth(calViewDate.getMonth()-1);renderCalendar()" style="padding:6px 12px;background:transparent;border:0.5px solid var(--bdr2);border-radius:7px;color:var(--t1);cursor:pointer;font-family:var(--sans);font-size:15px">‹</button>';
-  h += '<div style="font-size:18px;font-weight:700;text-align:center;flex:1">' + year + ' 年 ' + (month+1) + ' 月';
-  h += ' <button type="button" onclick="calViewDate=new Date();renderCalendar()" style="margin-left:8px;padding:3px 10px;background:transparent;border:0.5px solid var(--bdr2);border-radius:12px;color:var(--t2);cursor:pointer;font-family:var(--sans);font-size:11px;vertical-align:middle">今天</button>';
+  h += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;gap:10px">';
+  h += '<button type="button" onclick="calViewDate.setMonth(calViewDate.getMonth()-1);renderCalendar()" style="padding:7px 14px;background:transparent;border:0.5px solid var(--bdr2);border-radius:7px;color:var(--t1);cursor:pointer;font-family:var(--sans);font-size:17px">‹</button>';
+  h += '<div style="font-size:20px;font-weight:700;text-align:center;flex:1">' + year + ' 年 ' + (month+1) + ' 月';
+  h += ' <button type="button" onclick="calViewDate=new Date();renderCalendar()" style="margin-left:8px;padding:4px 12px;background:transparent;border:0.5px solid var(--bdr2);border-radius:12px;color:var(--t2);cursor:pointer;font-family:var(--sans);font-size:13px;vertical-align:middle">今天</button>';
   h += '</div>';
-  h += '<button type="button" onclick="calViewDate.setMonth(calViewDate.getMonth()+1);renderCalendar()" style="padding:6px 12px;background:transparent;border:0.5px solid var(--bdr2);border-radius:7px;color:var(--t1);cursor:pointer;font-family:var(--sans);font-size:15px">›</button>';
+  h += '<button type="button" onclick="calViewDate.setMonth(calViewDate.getMonth()+1);renderCalendar()" style="padding:7px 14px;background:transparent;border:0.5px solid var(--bdr2);border-radius:7px;color:var(--t1);cursor:pointer;font-family:var(--sans);font-size:17px">›</button>';
   h += '</div>';
 
   // 星期標頭（週日開頭）
-  h += '<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:3px;margin-bottom:4px">';
+  h += '<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:3px;margin-bottom:6px">';
   ['日','一','二','三','四','五','六'].forEach(function(d, i){
     var clr = (i===0 || i===6) ? 'var(--red)' : 'var(--t2)';
-    h += '<div style="text-align:center;font-size:13px;font-weight:600;color:'+clr+';padding:6px 0;letter-spacing:1px">'+d+'</div>';
+    h += '<div style="text-align:center;font-size:15px;font-weight:600;color:'+clr+';padding:8px 0;letter-spacing:1px">'+d+'</div>';
   });
   h += '</div>';
 
   // 日期格子網格 — 用 vh 讓所有格子剛好填滿一頁
-  // 預留：頂部導航(60) + 月份(40) + 星期標頭(34) + tab列(50) + padding(50) + 底部URL列(40) ≈ 270px
-  // 剩餘高度給 totalRows 排：calc((100vh - 270px) / N)，最小 70px
-  var rowHeightCalc = 'max(70px, calc((100vh - 290px) / ' + totalRows + '))';
+  // 預留：頂部導航(60) + 月份(46) + 星期標頭(40) + tab列(50) + padding(50) + 底部URL列(40) ≈ 286px
+  var rowHeightCalc = 'max(80px, calc((100vh - 300px) / ' + totalRows + '))';
 
   h += '<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:3px">';
 
@@ -11286,13 +11290,13 @@ function buildMonthView(el, loanAlerts, todayStr) {
     }
 
     // 整格都可點，點了開 Modal 顯示當天詳情 + 可編輯
-    h += '<div onclick="openDayModal(\''+dateStr+'\')" style="height:'+rowHeightCalc+';padding:4px 5px;border-radius:7px;cursor:pointer;background:'+cellBg+';border:'+cellBorder+';display:flex;flex-direction:column;overflow:hidden;position:relative">';
+    h += '<div onclick="openDayModal(\''+dateStr+'\')" style="height:'+rowHeightCalc+';padding:5px 6px;border-radius:7px;cursor:pointer;background:'+cellBg+';border:'+cellBorder+';display:flex;flex-direction:column;overflow:hidden;position:relative">';
 
     // 日期數字
-    h += '<div style="font-size:15px;font-weight:'+(isToday?'700':'500')+';color:'+dateColor+';line-height:1;margin-bottom:3px;flex-shrink:0">'+d+'</div>';
+    h += '<div style="font-size:17px;font-weight:'+(isToday?'700':'600')+';color:'+dateColor+';line-height:1;margin-bottom:4px;flex-shrink:0">'+d+'</div>';
 
     // 事件指示
-    var eventArea = '<div style="flex:1;overflow:hidden;display:flex;flex-direction:column;gap:2px">';
+    var eventArea = '<div style="flex:1;overflow:hidden;display:flex;flex-direction:column;gap:3px">';
     var shown = 0;
     var maxShow = 2;
     dayScheds.slice(0, maxShow).forEach(function(s){
@@ -11302,13 +11306,13 @@ function buildMonthView(el, loanAlerts, todayStr) {
       var maxLen = 8;
       var displayTitle = title.length > maxLen ? title.slice(0, maxLen)+'…' : title;
       var doneStyle = s.is_done ? 'text-decoration:line-through;opacity:.6' : '';
-      eventArea += '<div style="font-size:11px;line-height:1.3;padding:2px 5px;border-radius:3px;background:var(--al);color:var(--acc);font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;'+doneStyle+'">'+escapeHtml(t+displayTitle)+'</div>';
+      eventArea += '<div style="font-size:13px;line-height:1.3;padding:3px 6px;border-radius:4px;background:var(--al);color:var(--acc);font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;'+doneStyle+'">'+escapeHtml(t+displayTitle)+'</div>';
     });
     if (dayScheds.length > maxShow) {
-      eventArea += '<div style="font-size:10px;color:var(--t3);padding:0 4px;line-height:1.3">+'+(dayScheds.length-maxShow)+' 筆</div>';
+      eventArea += '<div style="font-size:12px;color:var(--t3);padding:0 5px;line-height:1.3;font-weight:500">+'+(dayScheds.length-maxShow)+' 筆</div>';
     }
     if (dayLoans.length > 0 && shown < maxShow) {
-      eventArea += '<div style="font-size:11px;line-height:1.3;padding:2px 5px;border-radius:3px;background:var(--yl);color:var(--yel);font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">💰 提醒</div>';
+      eventArea += '<div style="font-size:13px;line-height:1.3;padding:3px 6px;border-radius:4px;background:var(--yl);color:var(--yel);font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">💰 提醒</div>';
     }
     eventArea += '</div>';
     h += eventArea;
@@ -11411,6 +11415,17 @@ function escapeHtml(str) {
   return String(str).replace(/[&<>"']/g, function(c){
     return { '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c];
   });
+}
+
+// 判斷某筆行程是否該被排除於行事曆（無法承作 / 失聯 等已結束狀態）
+function isUnservicableSchedule(s) {
+  if (!s) return false;
+  var title = (s.title || '').toString();
+  var desc  = (s.description || '').toString();
+  var hay = title + ' ' + desc;
+  // 包含「無法承作」「失聯」「rejected」「lost」字樣 → 排除
+  if (/無法承作|失聯|rejected|lost/i.test(hay)) return true;
+  return false;
 }
 
 function buildWeekView(el, loanAlerts, weekStart, weekEnd, todayStr) {
@@ -12021,7 +12036,9 @@ async function checkNotificationsTick() {
       .eq('member_id', currentUser.id)
       .eq('is_done', false)
       .in('schedule_date', [todayStr, tomorrowStr]);
-    var list = schRes.data || [];
+    var list = (schRes.data || []).filter(function(s){
+      return typeof isUnservicableSchedule !== 'function' || !isUnservicableSchedule(s);
+    });
 
     var notified = getNotifiedSet();
 
