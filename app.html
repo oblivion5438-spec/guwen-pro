@@ -2849,6 +2849,9 @@ async function renderDash() {
 // ══════════════════════════════
 // 名單
 // ══════════════════════════════
+// 客戶名單頁的目前進度篩選（全域 state）
+var leadsStatusFilter = '';
+
 async function renderLeads() {
   var el = document.getElementById('member-content');
   try {
@@ -2857,21 +2860,112 @@ async function renderLeads() {
       if (r.error) throw new Error(r.error.message);
       leads = r.data || [];
     }
+
+    // 統計每個進度的數量
+    var statusCounts = {
+      new: 0, invited: 0, prep: 0, submitting: 0, pending_guarantor: 0,
+      approved: 0, closed: 0, rejected: 0, lost: 0
+    };
+    var customCounts = {}; // { '客戶名稱': 數量 }
+    leads.forEach(function(l){
+      var st = l.status || 'new';
+      if (st in statusCounts) statusCounts[st]++;
+      else if (st && st.indexOf('custom:') === 0) {
+        var name = st.slice(7);
+        customCounts[name] = (customCounts[name] || 0) + 1;
+      } else {
+        statusCounts.new++;
+      }
+    });
+
     var html = '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px">';
-    html += '<div style="font-size:16px;font-weight:600">客戶名單 <span class="badge b-gray">' + leads.length + '筆</span></div>';
+    html += '<div style="font-size:16px;font-weight:600">客戶名單 <span class="badge b-gray">' + leads.length + ' 筆</span></div>';
     html += '<div style="display:flex;gap:6px">';
     html += '<button onclick="exportLeadsCSV()" style="padding:6px 12px;border-radius:7px;border:0.5px solid var(--bdr2);background:transparent;color:var(--t1);cursor:pointer;font-family:var(--sans);font-size:13px">📊 匯出 CSV</button>';
     html += '<button class="btn-sm" onclick="navTo(\'add-lead\',null)">+ 新增客戶</button>';
     html += '</div></div>';
+
     if (leads.length === 0) {
       html += '<div class="card" style="text-align:center;padding:30px;color:var(--t2)"><div style="font-size:30px;margin-bottom:10px">👥</div>還沒有客戶名單</div>';
+      el.innerHTML = html;
+      return;
+    }
+
+    // ── 進度統計卡（一排小卡）──
+    html += '<div class="card" style="margin-bottom:12px;padding:12px">';
+    html += '<div style="font-size:13px;font-weight:600;color:var(--t2);margin-bottom:10px">📊 案件進度統計</div>';
+    html += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:8px">';
+    var statsRow = [
+      {key:'new',               label:'新名單',   color:'#999999', icon:'🆕'},
+      {key:'invited',           label:'邀約',     color:'#2D7AB8', icon:'📞'},
+      {key:'prep',              label:'資料整備', color:'#7B61FF', icon:'📋'},
+      {key:'submitting',        label:'送件中',   color:'#B88020', icon:'📤'},
+      {key:'pending_guarantor', label:'待補保人', color:'#B88020', icon:'👥'},
+      {key:'approved',          label:'核准',     color:'#2D8A4E', icon:'✅'},
+      {key:'closed',            label:'結案',     color:'#2D8A4E', icon:'🎉'},
+      {key:'rejected',          label:'無法承作', color:'#C04030', icon:'❌'},
+      {key:'lost',              label:'失聯',     color:'#666666', icon:'👻'}
+    ];
+    statsRow.forEach(function(s){
+      var count = statusCounts[s.key] || 0;
+      var isActive = leadsStatusFilter === s.key;
+      html += '<div onclick="setLeadsFilter(\''+s.key+'\')" style="cursor:pointer;background:'+(isActive?s.color+'20':'var(--inp)')+';border:'+(isActive?'1.5px solid '+s.color:'0.5px solid var(--bdr2)')+';border-radius:9px;padding:8px 6px;text-align:center;transition:transform .1s">';
+      html += '<div style="font-size:16px;line-height:1">'+s.icon+'</div>';
+      html += '<div style="font-size:20px;font-weight:700;color:'+s.color+';margin:3px 0;line-height:1">'+count+'</div>';
+      html += '<div style="font-size:11px;color:var(--t2);line-height:1.2">'+s.label+'</div>';
+      html += '</div>';
+    });
+    html += '</div>';
+    // 自訂狀態列
+    var customKeys = Object.keys(customCounts);
+    if (customKeys.length > 0) {
+      html += '<div style="margin-top:10px;padding-top:10px;border-top:0.5px solid var(--bdr)">';
+      html += '<div style="font-size:11px;color:var(--t3);margin-bottom:6px">自訂狀態</div>';
+      html += '<div style="display:flex;flex-wrap:wrap;gap:6px">';
+      customKeys.forEach(function(name){
+        var fullKey = 'custom:'+name;
+        var isActive = leadsStatusFilter === fullKey;
+        html += '<div onclick="setLeadsFilter(\''+fullKey.replace(/\\/g,'\\\\').replace(/'/g,"\\'")+'\')" style="cursor:pointer;background:'+(isActive?'var(--al)':'var(--inp)')+';border:'+(isActive?'1.5px solid var(--acc)':'0.5px solid var(--bdr2)')+';border-radius:7px;padding:5px 12px;font-size:12px;color:var(--t1)">'+escapeHtml(name)+' <span style="color:var(--acc);font-weight:700;margin-left:4px">'+customCounts[name]+'</span></div>';
+      });
+      html += '</div></div>';
+    }
+    html += '</div>';
+
+    // ── 篩選提示條 + 清除 ──
+    if (leadsStatusFilter) {
+      var filterLabel = leadsStatusFilter.indexOf('custom:') === 0
+        ? leadsStatusFilter.slice(7)
+        : (statsRow.find(function(s){ return s.key === leadsStatusFilter; })||{label:leadsStatusFilter}).label;
+      var filtered = leads.filter(function(l){ return (l.status||'new') === leadsStatusFilter; });
+      html += '<div style="display:flex;align-items:center;gap:8px;padding:8px 12px;background:var(--al);border:0.5px solid rgba(200,81,26,.3);border-radius:8px;margin-bottom:10px">';
+      html += '<span style="font-size:13px;color:var(--acc);font-weight:600">篩選中：' + escapeHtml(filterLabel) + '</span>';
+      html += '<span style="font-size:12px;color:var(--t2)">顯示 ' + filtered.length + ' / ' + leads.length + ' 筆</span>';
+      html += '<button onclick="setLeadsFilter(\'\')" style="margin-left:auto;padding:4px 10px;background:transparent;border:0.5px solid var(--bdr2);border-radius:14px;color:var(--t1);cursor:pointer;font-family:var(--sans);font-size:12px">✕ 清除</button>';
+      html += '</div>';
+
+      if (filtered.length === 0) {
+        html += '<div class="card" style="text-align:center;padding:24px;color:var(--t2)">此進度尚無客戶</div>';
+      } else {
+        filtered.forEach(function(l) { html += buildLeadItem(l, true); });
+      }
     } else {
+      // 無篩選 → 顯示全部
       leads.forEach(function(l) { html += buildLeadItem(l, true); });
     }
+
     el.innerHTML = html;
   } catch(err) {
     el.innerHTML = '<div style="text-align:center;padding:40px;color:var(--t2)"><div style="font-size:36px;margin-bottom:10px">⚠️</div><div style="font-size:15px;color:var(--t1);margin-bottom:8px">載入失敗</div><div style="font-size:12px;color:var(--t3);margin-bottom:14px">'+err.message+'</div><button onclick="leads=[];renderLeads()" style="padding:9px 20px;background:var(--acc);color:#FFF;border:none;border-radius:8px;cursor:pointer;font-family:var(--sans)">🔄 重試</button></div>';
   }
+}
+
+// 切換篩選（保留 scroll 位置體驗）
+function setLeadsFilter(status) {
+  leadsStatusFilter = (leadsStatusFilter === status) ? '' : status;  // 點同樣的就清除
+  renderLeads();
+  // 滾到名單頂部
+  var el = document.getElementById('member-content');
+  if (el) el.scrollIntoView({behavior:'smooth', block:'start'});
 }
 
 function exportLeadsCSV() {
@@ -13125,15 +13219,16 @@ function buildModuleLeadList(el, moduleKey, options) {
   // 搜尋欄
   h += '<input id="ml-search-'+moduleKey+'" placeholder="搜尋客戶姓名..." oninput="renderModuleLeadItems(\''+moduleKey+'\')" style="width:100%;padding:9px 12px;background:var(--inp);border:0.5px solid var(--bdr2);border-radius:9px;color:var(--inpt);font-size:14px;font-family:var(--sans);margin-bottom:10px;box-sizing:border-box">';
 
-  // 狀態篩選（完整版）
+  // 狀態篩選（完整版 — 與「客戶名單」頁一致）
   var allStatuses = [
     {val:'', label:'全部'},
     {val:'new', label:'新名單'},
     {val:'invited', label:'邀約'},
+    {val:'prep', label:'資料整備'},
     {val:'submitting', label:'送件中'},
+    {val:'pending_guarantor', label:'待補保人'},
     {val:'approved', label:'核准'},
     {val:'closed', label:'結案'},
-    {val:'pending_guarantor', label:'待補保人'},
     {val:'rejected', label:'無法承作'},
     {val:'lost', label:'失聯'},
   ];
