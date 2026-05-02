@@ -1174,9 +1174,13 @@ function gv(id) { var el = document.getElementById(id); return el ? el.value : '
 function gi(id) { var el = document.getElementById(id); return el ? (parseInt(el.value) || 0) : 0; }
 
 function statusText(s) {
+  if (!s) return '新名單';
+  // 自訂狀態：custom:名稱
+  if (s.indexOf('custom:') === 0) return s.substring(7);
   var map = {
     'new':'新名單',
     'invited':'邀約',
+    'prep':'資料整備',
     'submitting':'送件中',
     'approved':'核准',
     'closed':'結案',
@@ -1187,9 +1191,12 @@ function statusText(s) {
   return map[s] || '新名單';
 }
 function statusBadge(s) {
+  if (!s) return 'b-gray';
+  if (s.indexOf('custom:') === 0) return 'b-acc';
   var map = {
     'new':'b-gray',
     'invited':'b-acc',
+    'prep':'b-blu',
     'submitting':'b-blu',
     'approved':'b-yel',
     'closed':'b-grn',
@@ -1831,12 +1838,19 @@ async function loadMember() {
   if (!window._notifTimer) {
     window._notifTimer = setInterval(function(){ loadNotifCount(); }, 60000);
   }
-  // ⏰ 行程提醒：登入後 5 秒檢查一次，之後每 5 分鐘檢查
+  // ⏰ 行程提醒：登入後 30 秒才開始檢查（避免一進來就跳），之後每 5 分鐘
   if (!window._scheduleReminderInited) {
     window._scheduleReminderInited = true;
-    setTimeout(function(){ checkScheduleReminders(); }, 5000);
+    setTimeout(function(){
+      // 檢查是否被靜音
+      if (localStorage.getItem('sched_mute') === 'true') return;
+      checkScheduleReminders();
+    }, 30000);
     if (!window._scheduleReminderTimer) {
-      window._scheduleReminderTimer = setInterval(checkScheduleReminders, 5 * 60 * 1000);
+      window._scheduleReminderTimer = setInterval(function(){
+        if (localStorage.getItem('sched_mute') === 'true') return;
+        checkScheduleReminders();
+      }, 5 * 60 * 1000);
     }
   }
   // 請求瀏覽器推播權限
@@ -1943,6 +1957,9 @@ function showBrowserNotif(title, body) {
 // 檢查未來行程提醒（每 5 分鐘執行一次）
 async function checkScheduleReminders() {
   if (!currentUser) return;
+  // 全域 lock：避免並行檢查
+  if (window._reminderRunning) return;
+  window._reminderRunning = true;
 
   var now = new Date();
   var todayStr = now.toISOString().split('T')[0];
@@ -1961,57 +1978,77 @@ async function checkScheduleReminders() {
     var schedules = res.data || [];
     if (schedules.length === 0) return;
 
-    // 已通知記錄（localStorage 避免重複，分今天和明天）
-    var notifiedKeyToday = 'sched_notified_' + todayStr;
-    var notifiedKeyTomorrow = 'sched_notified_tomorrow_' + tomorrowStr;
-    var notifiedToday = JSON.parse(localStorage.getItem(notifiedKeyToday) || '[]');
-    var notifiedTomorrow = JSON.parse(localStorage.getItem(notifiedKeyTomorrow) || '[]');
+    // 用「all-time」key 記錄已通知過的 schedule id（永久不再重複通知）
+    var notifiedKey = 'sched_notified_ids_v2';
+    var notifiedAll = {};
+    try { notifiedAll = JSON.parse(localStorage.getItem(notifiedKey) || '{}'); } catch(e) {}
+
+    var anyNew = false;
 
     schedules.forEach(function(sch) {
-      // 案件進度的行程（lead_id 有值且 type 為 meeting/document）→ 走「前一天通知」邏輯
+      var schId = String(sch.id);
+      // 取得已通知記錄（每個行程可能有 'tomorrow' 或 'today' 兩個 flag）
+      var rec = notifiedAll[schId] || {};
+
       var isLeadSchedule = sch.lead_id && (sch.type === 'meeting' || sch.type === 'document');
 
       // 1. 前一天通知（明天的行程）
       if (sch.schedule_date === tomorrowStr) {
-        if (notifiedTomorrow.indexOf(sch.id) >= 0) return;
-        // 只在工作時間（9-21 點）通知一次
+        if (rec.tomorrow) return;  // 已經通知過明天提醒
         var hour = now.getHours();
         if (hour < 9 || hour > 21) return;
         showScheduleNotification(sch, '明天', isLeadSchedule);
-        notifiedTomorrow.push(sch.id);
+        rec.tomorrow = Date.now();
+        notifiedAll[schId] = rec;
+        anyNew = true;
         return;
       }
 
-      // 2. 當天即將到時間的通知（只有設了時間且非案件進度才觸發）
+      // 2. 當天即將到時間（非案件進度）
       if (sch.schedule_date === todayStr && sch.schedule_time && !isLeadSchedule) {
-        if (notifiedToday.indexOf(sch.id) >= 0) return;
+        if (rec.today) return;
         var schDateTime = new Date(sch.schedule_date + 'T' + sch.schedule_time);
         var diffMin = (schDateTime.getTime() - nowMs) / 60000;
         var remindMin = sch.remind_minutes || 30;
         if (diffMin >= 0 && diffMin <= remindMin) {
           showScheduleNotification(sch, Math.ceil(diffMin) + ' 分鐘後', isLeadSchedule);
-          notifiedToday.push(sch.id);
+          rec.today = Date.now();
+          notifiedAll[schId] = rec;
+          anyNew = true;
         }
         return;
       }
 
-      // 3. 案件進度的行程：當天有時間設定 → 提前 1 小時通知
+      // 3. 案件進度的行程：當天提前 1 小時通知
       if (sch.schedule_date === todayStr && sch.schedule_time && isLeadSchedule) {
-        if (notifiedToday.indexOf(sch.id) >= 0) return;
+        if (rec.today) return;
         var schDt = new Date(sch.schedule_date + 'T' + sch.schedule_time);
         var diff = (schDt.getTime() - nowMs) / 60000;
         if (diff >= 0 && diff <= 60) {
           showScheduleNotification(sch, Math.ceil(diff) + ' 分鐘後', true);
-          notifiedToday.push(sch.id);
+          rec.today = Date.now();
+          notifiedAll[schId] = rec;
+          anyNew = true;
         }
         return;
       }
     });
 
-    if (notifiedToday.length > 0) localStorage.setItem(notifiedKeyToday, JSON.stringify(notifiedToday));
-    if (notifiedTomorrow.length > 0) localStorage.setItem(notifiedKeyTomorrow, JSON.stringify(notifiedTomorrow));
+    // 立即寫回 localStorage（避免下次檢查還沒來得及記錄）
+    if (anyNew) {
+      // 順便清理超過 7 天的舊記錄，避免無限累積
+      var sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
+      Object.keys(notifiedAll).forEach(function(k) {
+        var rec = notifiedAll[k];
+        var latest = Math.max(rec.today || 0, rec.tomorrow || 0);
+        if (latest && latest < sevenDaysAgo) delete notifiedAll[k];
+      });
+      localStorage.setItem(notifiedKey, JSON.stringify(notifiedAll));
+    }
   } catch(e) {
     console.warn('行程提醒檢查失敗:', e);
+  } finally {
+    window._reminderRunning = false;
   }
 }
 
@@ -2031,15 +2068,32 @@ function showScheduleNotification(sch, timeLabel, isLeadSchedule) {
 
   // 2. 畫面 toast 提示
   var toast = document.createElement('div');
-  toast.style.cssText = 'position:fixed;top:20px;right:20px;background:var(--card);border:0.5px solid var(--acc);border-left:4px solid var(--acc);border-radius:10px;padding:14px 18px;z-index:99999;font-size:14px;max-width:340px;box-shadow:0 8px 24px rgba(0,0,0,.4);font-family:var(--sans);cursor:pointer';
+  toast.style.cssText = 'position:fixed;top:20px;right:20px;background:var(--card);border:0.5px solid var(--acc);border-left:4px solid var(--acc);border-radius:10px;padding:14px 18px;z-index:99999;font-size:14px;max-width:340px;box-shadow:0 8px 24px rgba(0,0,0,.4);font-family:var(--sans)';
   var icon = isLeadSchedule ? '📋' : '🔔';
   toast.innerHTML =
-    '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><span style="font-size:18px">' + icon + '</span><span style="font-weight:600">' + (isLeadSchedule?'案件提醒':'行程提醒') + '（' + timeLabel + '）</span></div>' +
+    '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><span style="font-size:18px">' + icon + '</span><span style="font-weight:600;flex:1">' + (isLeadSchedule?'案件提醒':'行程提醒') + '（' + timeLabel + '）</span><button class="toast-close-x" style="background:transparent;border:none;color:var(--t2);font-size:16px;cursor:pointer;padding:0 4px">✕</button></div>' +
     '<div style="font-size:14px;font-weight:500;color:var(--t1);margin-bottom:4px">' + sch.title + '</div>' +
     (sch.schedule_time ? '<div style="font-size:12px;color:var(--t2)">⏰ ' + sch.schedule_time.slice(0,5) + '</div>' : '') +
     (sch.description ? '<div style="font-size:12px;color:var(--t2);margin-top:4px">' + sch.description + '</div>' : '') +
-    '<div style="font-size:11px;color:var(--t3);margin-top:6px">點擊關閉</div>';
-  toast.onclick = function() { toast.remove(); };
+    '<div style="display:flex;gap:6px;margin-top:8px">' +
+      '<button class="toast-mute" style="flex:1;padding:5px 10px;background:transparent;border:0.5px solid var(--bdr2);border-radius:6px;color:var(--t2);font-size:12px;cursor:pointer;font-family:var(--sans)">🔕 靜音 1 小時</button>' +
+    '</div>';
+
+  // 綁事件（避免點擊內部按鈕也觸發外部 onclick）
+  toast.querySelector('.toast-close-x').onclick = function(e) { e.stopPropagation(); toast.remove(); };
+  toast.querySelector('.toast-mute').onclick = function(e) {
+    e.stopPropagation();
+    localStorage.setItem('sched_mute', 'true');
+    setTimeout(function(){ localStorage.removeItem('sched_mute'); }, 60 * 60 * 1000);
+    toast.remove();
+    // 顯示確認
+    var confirmToast = document.createElement('div');
+    confirmToast.style.cssText = 'position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--t2);color:#FFF;padding:8px 16px;border-radius:6px;z-index:99999;font-size:13px';
+    confirmToast.textContent = '🔕 已靜音 1 小時';
+    document.body.appendChild(confirmToast);
+    setTimeout(function(){ confirmToast.remove(); }, 2500);
+  };
+
   document.body.appendChild(toast);
   setTimeout(function(){ if (toast.parentNode) toast.remove(); }, 30000);
 }
@@ -3779,10 +3833,11 @@ function showLeadDetail(id) {
   html += '</div></div>';
   html += '</div>';  // 關閉 AI 評估 card
 
-  // 案件進度 — 固定8個按鈕 + 自訂，立即反應
+  // 案件進度 — 9 個固定 + 自訂，立即反應
   var statusList = [
     {v:'new',               l:'新名單',   c:'var(--t2)'},
     {v:'invited',           l:'邀約',     c:'var(--blu)'},
+    {v:'prep',              l:'資料整備', c:'#7B61FF'},
     {v:'submitting',        l:'送件中',   c:'var(--yel)'},
     {v:'approved',          l:'核准',     c:'var(--grn)'},
     {v:'closed',            l:'結案',     c:'var(--grn)'},
@@ -3790,14 +3845,14 @@ function showLeadDetail(id) {
     {v:'rejected',          l:'無法承作', c:'var(--red)'},
     {v:'lost',              l:'失聯',     c:'var(--t3)'},
   ];
-  // 讀取自訂狀態
-  var customStatuses = (dealData[id] && dealData[id].customStatuses) || [];
+  // 讀取自訂狀態（從資料庫的 custom_statuses 欄位）
+  var customStatuses = lead.custom_statuses || [];
 
   html += '<div class="card" id="status-card-' + id + '">';
   html += '<div class="ct">案件進度</div>';
   html += '<div id="status-btns-' + id + '" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px">';
 
-  // 固定8個
+  // 固定狀態
   statusList.forEach(function(s) {
     var active = lead.status === s.v;
     html += '<button id="sbtn-' + id + '-' + s.v + '" onclick="selectStatus(\'' + id + '\',\'' + s.v + '\')" ';
@@ -3806,14 +3861,18 @@ function showLeadDetail(id) {
     html += s.l + '</button>';
   });
 
-  // 自訂狀態
+  // 自訂狀態（值是 custom:名稱）
   customStatuses.forEach(function(cs, ci) {
-    var active = lead.status === 'custom_' + ci;
-    html += '<button id="sbtn-' + id + '-custom_' + ci + '" onclick="selectStatus(\'' + id + '\',\'custom_' + ci + '\')" ';
+    var statusVal = 'custom:' + cs;
+    var active = lead.status === statusVal;
+    var safeName = String(cs).replace(/'/g,"\\'");
+    html += '<span style="display:inline-flex;align-items:center;gap:2px">';
+    html += '<button id="sbtn-' + id + '-custom-' + ci + '" onclick="selectStatus(\'' + id + '\',\'' + statusVal.replace(/'/g,"\\'") + '\')" ';
     html += 'style="padding:7px 13px;border-radius:20px;font-size:13px;font-family:var(--sans);cursor:pointer;transition:none;';
     html += active ? 'border:1.5px solid var(--acc);background:var(--acc);color:#FFF;font-weight:600">' : 'border:0.5px solid var(--bdr2);background:transparent;color:var(--t2);font-weight:400">';
     html += cs + '</button>';
-    html += '<button onclick="removeCustomStatus(\'' + id + '\',' + ci + ')" style="margin-left:-4px;padding:4px 6px;border-radius:20px;font-size:11px;border:0.5px solid rgba(192,64,48,.3);background:transparent;color:var(--red);cursor:pointer;font-family:var(--sans)">✕</button>';
+    html += '<button onclick="removeCustomStatus(\'' + id + '\',' + ci + ')" style="padding:4px 6px;border-radius:20px;font-size:11px;border:0.5px solid rgba(192,64,48,.3);background:transparent;color:var(--red);cursor:pointer;font-family:var(--sans)">✕</button>';
+    html += '</span>';
   });
 
   html += '</div>';
@@ -5672,10 +5731,25 @@ async function saveClosedIncome(leadId) {
 
 async function saveNote(id) {
   var note = document.getElementById('note-' + id) ? document.getElementById('note-' + id).value : '';
-  await sb.from('leads').update({ advisor_note: note }).eq('id', id);
-  var lead = leads.find(function(l) { return l.id === id; });
-  if (lead) lead.advisor_note = note;
-  alert('備註已儲存');
+  try {
+    var res = await sb.from('leads').update({ advisor_note: note }).eq('id', id).select();
+    if (res.error) throw res.error;
+    if (!res.data || res.data.length === 0) {
+      // 沒有 row 被更新（可能是 RLS 擋住，或 ID 不對）
+      throw new Error('沒有資料被更新（可能是您沒有編輯此客戶的權限）');
+    }
+    var lead = leads.find(function(l) { return l.id === id; });
+    if (lead) lead.advisor_note = note;
+    // 成功提示
+    var toast = document.createElement('div');
+    toast.style.cssText = 'position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--grn);color:#FFF;padding:10px 18px;border-radius:8px;z-index:99999;font-size:14px;font-weight:600;box-shadow:0 4px 12px rgba(0,0,0,.4)';
+    toast.textContent = '✅ 備註已儲存';
+    document.body.appendChild(toast);
+    setTimeout(function(){ toast.remove(); }, 2500);
+  } catch(err) {
+    console.error('儲存備註失敗:', err);
+    alert('⚠️ 儲存備註失敗：' + (err.message || err));
+  }
 }
 
 // ══════════════════════════════
@@ -8747,37 +8821,65 @@ function updatePlatformAdminBadge() {
   }
 }
 
-function addCustomStatus(leadId) {
+async function addCustomStatus(leadId) {
   var name = prompt('請輸入自訂狀態名稱：');
   if (!name || !name.trim()) return;
   name = name.trim();
-  if (!dealData[leadId]) dealData[leadId] = {};
-  if (!dealData[leadId].customStatuses) dealData[leadId].customStatuses = [];
-  dealData[leadId].customStatuses.push(name);
-  var container = document.getElementById('status-btns-' + leadId);
-  if (container) {
-    var ci = dealData[leadId].customStatuses.length - 1;
-    var wrap = document.createElement('span');
-    wrap.style.cssText = 'display:inline-flex;align-items:center;gap:2px';
-    var btn = document.createElement('button');
-    btn.id = 'sbtn-' + leadId + '-custom_' + ci;
-    btn.textContent = name;
-    btn.style.cssText = 'padding:7px 13px;border-radius:20px;font-size:13px;font-family:var(--sans);cursor:pointer;border:0.5px solid var(--bdr2);background:transparent;color:var(--t2);font-weight:400';
-    btn.onclick = (function(lid, c){ return function(){ selectStatus(lid, 'custom_'+c); }; })(leadId, ci);
-    var del = document.createElement('button');
-    del.textContent = '✕';
-    del.style.cssText = 'padding:4px 6px;border-radius:20px;font-size:11px;border:0.5px solid rgba(192,64,48,.3);background:transparent;color:var(--red);cursor:pointer;font-family:var(--sans)';
-    del.onclick = (function(lid, c){ return function(){ removeCustomStatus(lid, c); }; })(leadId, ci);
-    wrap.appendChild(btn);
-    wrap.appendChild(del);
-    container.appendChild(wrap);
+  if (name.length > 20) { alert('名稱不要超過 20 字'); return; }
+
+  var lead = leads.find(function(l){ return l.id === leadId; });
+  if (!lead) return;
+
+  // 取得現有自訂狀態
+  var current = (lead.custom_statuses || []).slice();
+  // 重複檢查
+  if (current.indexOf(name) >= 0) {
+    alert('此自訂狀態已存在');
+    return;
+  }
+  current.push(name);
+
+  try {
+    var res = await sb.from('leads').update({ custom_statuses: current }).eq('id', leadId).select();
+    if (res.error) throw res.error;
+    if (!res.data || res.data.length === 0) {
+      throw new Error('更新失敗（可能沒有編輯權限）');
+    }
+    lead.custom_statuses = current;
+    // 重畫詳情頁
+    showLeadDetail(leadId);
+  } catch(err) {
+    alert('⚠️ 新增失敗：' + (err.message || err));
   }
 }
 
-function removeCustomStatus(leadId, ci) {
-  if (!dealData[leadId] || !dealData[leadId].customStatuses) return;
-  dealData[leadId].customStatuses.splice(ci, 1);
-  showLeadDetail(leadId);
+async function removeCustomStatus(leadId, ci) {
+  var lead = leads.find(function(l){ return l.id === leadId; });
+  if (!lead || !lead.custom_statuses) return;
+  if (!confirm('刪除此自訂狀態？')) return;
+
+  var current = lead.custom_statuses.slice();
+  var removedName = current[ci];
+  current.splice(ci, 1);
+
+  // 如果該客戶目前狀態正是被刪的這個，就重設為 'new'
+  var newStatus = lead.status;
+  if (lead.status === 'custom:' + removedName) {
+    newStatus = 'new';
+  }
+
+  try {
+    var res = await sb.from('leads').update({
+      custom_statuses: current,
+      status: newStatus
+    }).eq('id', leadId).select();
+    if (res.error) throw res.error;
+    lead.custom_statuses = current;
+    lead.status = newStatus;
+    showLeadDetail(leadId);
+  } catch(err) {
+    alert('⚠️ 刪除失敗：' + (err.message || err));
+  }
 }
 
 function toggleStatusMenu(id) {
@@ -8833,8 +8935,8 @@ function selectStatus(id, status) {
   var incomeDiv = document.getElementById('closed-income-' + id);
   if (incomeDiv) incomeDiv.style.display = status === 'closed' ? 'block' : 'none';
 
-  // ⭐ 邀約 / 送件中 → 跳出時間選擇 Modal
-  if (status === 'invited' || status === 'submitting') {
+  // ⭐ 邀約 / 資料整備 / 送件中 / 自訂狀態 → 跳出時間選擇 Modal
+  if (status === 'invited' || status === 'prep' || status === 'submitting' || (status && status.indexOf('custom:') === 0)) {
     showStatusTimeModal(id, status);
   } else {
     // 其他狀態：直接儲存（不需要時間）
@@ -8848,10 +8950,13 @@ function showStatusTimeModal(leadId, status) {
   if (!lead) return;
 
   var statusLabel = statusText(status);
-  var icon = status === 'invited' ? '📞' : '📤';
-  var defaultTitle = status === 'invited'
-    ? (lead.name || '客戶') + ' · 邀約'
-    : (lead.name || '客戶') + ' · 送件';
+  var iconMap = {
+    'invited': '📞',
+    'prep': '📋',
+    'submitting': '📤'
+  };
+  var icon = iconMap[status] || '🎯';
+  var defaultTitle = (lead.name || '客戶') + ' · ' + statusLabel;
 
   // 移除舊 modal
   var old = document.getElementById('status-time-modal');
@@ -8913,24 +9018,8 @@ function cancelStatusTime(leadId) {
 
 // 只更新 UI 不寫入（取消時用）
 function selectStatusUIOnly(id, status) {
-  var statusColors = {new:'var(--t2)',invited:'var(--blu)',submitting:'var(--yel)',approved:'var(--grn)',closed:'var(--grn)',pending_guarantor:'var(--yel)',rejected:'var(--red)',lost:'var(--t3)'};
-  var statusList = ['new','invited','submitting','approved','closed','pending_guarantor','rejected','lost'];
-  statusList.forEach(function(s) {
-    var btn = document.getElementById('sbtn-' + id + '-' + s);
-    if (!btn) return;
-    if (s === status) {
-      var c = statusColors[s] || 'var(--acc)';
-      btn.style.border = '1.5px solid ' + c;
-      btn.style.background = c;
-      btn.style.color = '#FFF';
-      btn.style.fontWeight = '600';
-    } else {
-      btn.style.border = '0.5px solid var(--bdr2)';
-      btn.style.background = 'transparent';
-      btn.style.color = 'var(--t2)';
-      btn.style.fontWeight = '400';
-    }
-  });
+  // 重畫整個案件進度區會比較簡單可靠
+  showLeadDetail(id);
 }
 
 // 確認時間 → 儲存狀態 + 加入行事曆
@@ -8956,7 +9045,7 @@ async function confirmStatusTime(leadId, status, defaultTitle) {
       title: defaultTitle,
       schedule_date: date,
       schedule_time: time,
-      type: status === 'invited' ? 'meeting' : 'document',
+      type: status === 'invited' ? 'meeting' : (status === 'prep' ? 'document' : (status === 'submitting' ? 'document' : 'other')),
       description: note || ('案件進度：' + statusText(status)),
       remind_minutes: remindMin,
       is_done: false
@@ -10825,20 +10914,60 @@ function showDayDetail(dateStr) {
 }
 
 function buildAddScheduleForm() {
-  var leadOptions = '<option value="">— 無 —</option>' + leads.map(function(l){
-    return '<option value="'+l.id+'">'+l.name+'</option>';
+  var leadOptions = '<option value="">— 不綁定 —</option>' + leads.map(function(l){
+    return '<option value="'+l.id+'">'+l.name + (l.phone?' ('+l.phone+')':'') +'</option>';
   }).join('');
   var h = '<div class="ct">➕ 新增行程</div>';
-  h += '<div class="frow"><div class="flbl">行程標題</div><input class="fi" id="sch-title" placeholder="與客戶會面"></div>';
+
+  // ⭐ 客戶選擇放最上面，選了會自動帶入其他欄位
+  h += '<div class="frow"><div class="flbl">📋 綁定客戶（選擇後自動帶入資料）</div><select class="fi" id="sch-lead" onchange="onLeadSelected(this.value)">' + leadOptions + '</select></div>';
+
+  // 客戶資訊預覽區（選了客戶才顯示）
+  h += '<div id="sch-lead-info" style="display:none;background:var(--inp);border:0.5px solid var(--bdr2);border-radius:8px;padding:10px 12px;margin-top:8px;font-size:13px;color:var(--t2);line-height:1.7"></div>';
+
+  h += '<div class="frow" style="margin-top:8px"><div class="flbl">行程標題</div><input class="fi" id="sch-title" placeholder="與客戶會面"></div>';
   h += '<div class="frow2" style="margin-top:8px"><div class="frow"><div class="flbl">日期</div><input class="fi" id="sch-date" type="date"></div>';
   h += '<div class="frow"><div class="flbl">時間</div><input class="fi" id="sch-time" type="time"></div></div>';
-  h += '<div class="frow2" style="margin-top:8px"><div class="frow"><div class="flbl">類型</div><select class="fi" id="sch-type"><option value="follow_up">跟進</option><option value="loan_apply">送件</option><option value="reminder">提醒</option><option value="other">其他</option></select></div>';
-  h += '<div class="frow"><div class="flbl">綁定客戶</div><select class="fi" id="sch-lead">' + leadOptions + '</select></div></div>';
+  h += '<div class="frow" style="margin-top:8px"><div class="flbl">類型</div><select class="fi" id="sch-type"><option value="follow_up">跟進</option><option value="meeting">會面</option><option value="loan_apply">送件</option><option value="document">資料整備</option><option value="reminder">提醒</option><option value="other">其他</option></select></div>';
   h += '<div class="frow" style="margin-top:8px"><div class="flbl">備註</div><input class="fi" id="sch-desc" placeholder="備註說明"></div>';
   h += '<div class="frow" style="margin-top:8px"><div class="flbl">🔔 提前提醒</div><select class="fi" id="sch-remind"><option value="0">不提醒</option><option value="15">15 分鐘前</option><option value="30" selected>30 分鐘前</option><option value="60">1 小時前</option><option value="120">2 小時前</option><option value="1440">1 天前</option></select></div>';
   h += '<div style="display:flex;gap:6px;margin-top:10px"><button class="btn-sm" onclick="document.getElementById(\'add-schedule-form\').style.display=\'none\'">取消</button>';
   h += '<button class="btn-p" onclick="saveSchedule()" style="flex:1">儲存行程</button></div>';
   return h;
+}
+
+// 選客戶後自動帶入資訊
+function onLeadSelected(leadId) {
+  var infoEl = document.getElementById('sch-lead-info');
+  var titleEl = document.getElementById('sch-title');
+
+  if (!leadId) {
+    if (infoEl) infoEl.style.display = 'none';
+    return;
+  }
+
+  var lead = leads.find(function(l){ return l.id === leadId; });
+  if (!lead) return;
+
+  // 自動填標題（如果還沒填）
+  if (titleEl && !titleEl.value.trim()) {
+    titleEl.value = lead.name + ' · 跟進';
+  }
+
+  // 顯示客戶資訊
+  if (infoEl) {
+    var amt = lead.required_amount ? '$' + lead.required_amount.toLocaleString() : '未填';
+    var info = '<div style="font-weight:600;color:var(--t1);margin-bottom:4px">📋 客戶資訊</div>';
+    info += '<div>👤 ' + (lead.name||'—');
+    if (lead.phone) info += ' · 📱 <a href="tel:' + lead.phone + '" style="color:var(--acc);text-decoration:none">' + lead.phone + '</a>';
+    info += '</div>';
+    if (lead.work_type) info += '<div>💼 ' + lead.work_type + '</div>';
+    info += '<div>💰 需求 ' + amt + ' · 用途 ' + (lead.fund_purpose||'未填') + '</div>';
+    info += '<div>📊 案件進度：<span style="color:var(--acc)">' + statusText(lead.status) + '</span></div>';
+    if (lead.advisor_note) info += '<div style="margin-top:4px;color:var(--t3)">📝 備註：' + lead.advisor_note + '</div>';
+    infoEl.innerHTML = info;
+    infoEl.style.display = 'block';
+  }
 }
 
 function buildLoanReminderSection(el, loanAlerts) {
