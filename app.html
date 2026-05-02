@@ -2422,9 +2422,16 @@ function showMoreMenu() {
 // ══════════════════════════════
 async function renderDash() {
   var el = document.getElementById('member-content');
-  el.innerHTML = '<div style="text-align:center;padding:30px;color:var(--t2)">載入中…</div>';
-  var r = await sb.from('leads').select('*').eq('member_id', currentUser.id).order('created_at', { ascending: false });
-  leads = r.data || [];
+  // 快取：如果已有 leads，立即顯示，背景更新
+  if (leads.length === 0) {
+    el.innerHTML = '<div style="text-align:center;padding:30px;color:var(--t2)">載入中…</div>';
+    var r = await sb.from('leads').select('*').eq('member_id', currentUser.id).order('created_at', { ascending: false });
+    leads = r.data || [];
+  } else {
+    // 背景更新（不阻塞畫面）
+    sb.from('leads').select('*').eq('member_id', currentUser.id).order('created_at', { ascending: false })
+      .then(function(r){ if (r.data) leads = r.data; });
+  }
 
   // ⚡ 載入客戶來源（轉介）改為背景進行，不阻塞首屏
   sb.from('referrals')
@@ -5946,6 +5953,8 @@ async function saveEditLoans(leadId) {
 }
 
 async function saveNote(id) {
+  var noteEl = document.getElementById('note-' + id);
+  var note = noteEl ? noteEl.value : '';
   try {
     var res = await sb.from('leads').update({ advisor_note: note }).eq('id', id).select();
     if (res.error) throw res.error;
