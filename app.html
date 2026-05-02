@@ -1231,7 +1231,7 @@ function calcScores(lead) {
   // ── 銀行信貸 ──
   var bank = 0;
   var bankBlocked = false;
-  // 勞保年資：可能是舊值（none/6m+/1y+/2y+）或新值（純數字 0.5、2.5、3 等）
+  // 勞保年資：可能是舊值（none/6m+/1y+/2y+）或新值（純數字，現為月份）
   var laborRaw = lead.labor_insurance_years;
   var laborIns;
   if (laborRaw == null || laborRaw === '' || laborRaw === 'none' || Number(laborRaw) === 0) {
@@ -1240,11 +1240,13 @@ function calcScores(lead) {
     // 舊版字串值維持原樣
     laborIns = laborRaw;
   } else {
-    // 新版：純數字（年）
-    var yrs = parseFloat(laborRaw) || 0;
-    if (yrs >= 2) laborIns = '2y+';
-    else if (yrs >= 1) laborIns = '1y+';
-    else if (yrs >= 0.5) laborIns = '6m+';
+    // 新版：純數字 — 智慧判斷月或年（向後相容）
+    var num = parseFloat(laborRaw) || 0;
+    // 數字 >=12 當作月，<12 當作年（過渡期）
+    var months = num >= 12 ? num : num * 12;
+    if (months >= 24) laborIns = '2y+';
+    else if (months >= 12) laborIns = '1y+';
+    else if (months >= 6) laborIns = '6m+';
     else laborIns = 'none';
   }
   var hasHealthIns = lead.has_health_insurance;
@@ -1487,7 +1489,7 @@ function calcScores(lead) {
 function buildScoreReasons(lead, scores) {
   var R = scoreRules;
   var salary = lead.monthly_salary || 0;
-  // 勞保年資：相容新舊格式
+  // 勞保年資：相容新舊格式（現為月份）
   var laborRaw = lead.labor_insurance_years;
   var laborIns;
   if (laborRaw == null || laborRaw === '' || laborRaw === 'none' || Number(laborRaw) === 0) {
@@ -1495,10 +1497,11 @@ function buildScoreReasons(lead, scores) {
   } else if (typeof laborRaw === 'string' && /^\d+m\+$|^\d+y\+$/.test(laborRaw)) {
     laborIns = laborRaw;
   } else {
-    var yrs = parseFloat(laborRaw) || 0;
-    if (yrs >= 2) laborIns = '2y+';
-    else if (yrs >= 1) laborIns = '1y+';
-    else if (yrs >= 0.5) laborIns = '6m+';
+    var num = parseFloat(laborRaw) || 0;
+    var months = num >= 12 ? num : num * 12;  // 智慧判斷月或年
+    if (months >= 24) laborIns = '2y+';
+    else if (months >= 12) laborIns = '1y+';
+    else if (months >= 6) laborIns = '6m+';
     else laborIns = 'none';
   }
   var laborType = lead.labor_type || '';
@@ -1828,6 +1831,11 @@ async function loadMember() {
   if (!window._notifTimer) {
     window._notifTimer = setInterval(function(){ loadNotifCount(); }, 60000);
   }
+  // ⏰ 行程提醒：登入後 5 秒檢查一次，之後每 5 分鐘檢查
+  setTimeout(function(){ checkScheduleReminders(); }, 5000);
+  if (!window._scheduleReminderTimer) {
+    window._scheduleReminderTimer = setInterval(checkScheduleReminders, 5 * 60 * 1000);
+  }
   // 請求瀏覽器推播權限
   requestPushPermission();
 }
@@ -1929,6 +1937,83 @@ function showBrowserNotif(title, body) {
 }
 
 // 當鋪到期提醒檢查（登入後自動執行）
+// 檢查未來 30 分鐘內的行程提醒（每 5 分鐘執行一次）
+async function checkScheduleReminders() {
+  if (!currentUser) return;
+
+  var now = new Date();
+  var todayStr = now.toISOString().split('T')[0];
+  var nowMs = now.getTime();
+
+  try {
+    var res = await sb.from('schedules')
+      .select('*')
+      .eq('member_id', currentUser.id)
+      .eq('schedule_date', todayStr)
+      .not('schedule_time', 'is', null)
+      .or('is_done.is.null,is_done.eq.false');
+
+    var schedules = res.data || [];
+    if (schedules.length === 0) return;
+
+    // 已通知記錄（localStorage 避免重複）
+    var notifiedKey = 'sched_notified_' + todayStr;
+    var notified = JSON.parse(localStorage.getItem(notifiedKey) || '[]');
+
+    schedules.forEach(function(sch) {
+      if (notified.indexOf(sch.id) >= 0) return;
+
+      // 計算行程開始時間
+      var schDateTime = new Date(sch.schedule_date + 'T' + sch.schedule_time);
+      var schMs = schDateTime.getTime();
+      var diffMin = (schMs - nowMs) / 60000;
+
+      var remindMin = sch.remind_minutes || 30;
+
+      // 行程在 [now, now + remindMin] 內，且還沒通知過
+      if (diffMin >= 0 && diffMin <= remindMin) {
+        showScheduleNotification(sch, Math.ceil(diffMin));
+        notified.push(sch.id);
+      }
+    });
+
+    if (notified.length > 0) {
+      localStorage.setItem(notifiedKey, JSON.stringify(notified));
+    }
+  } catch(e) {
+    console.warn('行程提醒檢查失敗:', e);
+  }
+}
+
+// 顯示行程提醒
+function showScheduleNotification(sch, minLeft) {
+  // 1. 桌面通知
+  if ('Notification' in window && Notification.permission === 'granted') {
+    try {
+      new Notification('🔔 行程提醒（' + minLeft + ' 分鐘後）', {
+        body: sch.title + (sch.description ? '\n' + sch.description : ''),
+        icon: '/icon-192.png',
+        tag: 'sched-' + sch.id,
+        requireInteraction: false
+      });
+    } catch(e) {}
+  }
+
+  // 2. 畫面 toast 提示
+  var toast = document.createElement('div');
+  toast.style.cssText = 'position:fixed;top:20px;right:20px;background:var(--card);border:0.5px solid var(--acc);border-left:4px solid var(--acc);border-radius:10px;padding:14px 18px;z-index:99999;font-size:14px;max-width:340px;box-shadow:0 8px 24px rgba(0,0,0,.4);font-family:var(--sans);cursor:pointer';
+  toast.innerHTML =
+    '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><span style="font-size:18px">🔔</span><span style="font-weight:600">行程提醒（' + minLeft + ' 分鐘後）</span></div>' +
+    '<div style="font-size:14px;font-weight:500;color:var(--t1);margin-bottom:4px">' + sch.title + '</div>' +
+    (sch.schedule_time ? '<div style="font-size:12px;color:var(--t2)">⏰ ' + sch.schedule_time.slice(0,5) + '</div>' : '') +
+    (sch.description ? '<div style="font-size:12px;color:var(--t2);margin-top:4px">' + sch.description + '</div>' : '') +
+    '<div style="font-size:11px;color:var(--t3);margin-top:6px">點擊關閉</div>';
+  toast.onclick = function() { toast.remove(); };
+  document.body.appendChild(toast);
+  // 30 秒後自動消失
+  setTimeout(function(){ if (toast.parentNode) toast.remove(); }, 30000);
+}
+
 async function checkPawnDueReminders() {
   if (!currentUser) return;
   var today = new Date();
@@ -2646,7 +2731,7 @@ function renderAddLead() {
   html += '<div class="frow2"><div class="frow"><div class="flbl">月薪（元）</div><input class="fi" id="n-salary" type="number" placeholder="40000" inputmode="numeric"></div>';
   html += '<div class="frow"><div class="flbl">有無薪轉</div><select class="fi" id="n-transfer"><option value="true">有</option><option value="false">無</option></select></div></div>';
   // 勞保：年資 + 投保單位
-  html += '<div class="frow2"><div class="frow"><div class="flbl">勞保年資（年）</div><input class="fi" id="n-labor" type="number" min="0" step="0.5" placeholder="例：2.5"></div>';
+  html += '<div class="frow2"><div class="frow"><div class="flbl">勞保年資（月）</div><input class="fi" id="n-labor" type="number" min="0" step="1" placeholder="例：30 (= 2.5 年)" inputmode="numeric"></div>';
   html += '<div class="frow"><div class="flbl">投保單位性質</div><select class="fi" id="n-labor-type"><option value="">未填</option><option value="company">一般公司（勞保）</option><option value="govt">政府機關（公保）</option><option value="farmer">農漁（農保）</option><option value="union">職業工會（自付）</option><option value="national">國民年金（國保）</option><option value="self">自營業主</option></select></div></div>';
   html += '<div class="frow2"><div class="frow"><div class="flbl">信用卡持卡</div><select class="fi" id="n-cc"><option value="none">無卡</option><option value="3m+">3個月以上</option><option value="6m+">6個月以上</option><option value="1y+">1年以上</option><option value="2y+">2年以上</option><option value="3y+">3年以上</option><option value="5y+">5年以上</option></select></div>';
   html += '<div class="frow"><div class="flbl">汽車駕照</div><select class="fi" id="n-car-lic"><option value="true">有</option><option value="false">無</option></select></div></div>';
@@ -3324,7 +3409,15 @@ function calcAgeFromBirthday(birthdayId, displayId) {
 
 function togglePropFields(val) {
   var el = document.getElementById("prop-section");
-  if (el) el.style.display = val === "true" ? "block" : "none";
+  if (el) {
+    el.style.display = val === "true" ? "block" : "none";
+    // 展開時自動滾動到不動產區（讓使用者立刻看到）
+    if (val === "true") {
+      setTimeout(function() {
+        el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 100);
+    }
+  }
 }
 
 function updatePropRatio() {
@@ -3750,7 +3843,21 @@ function showLeadDetail(id) {
   var laborLabels = {none:'未投保','6m+':'6個月以上','1y+':'1年以上','2y+':'2年以上'};
   var laborTypeLabels = {company:'一般公司（勞保）',govt:'政府機關（公保）',farmer:'農漁（農保）',union:'職業工會（自付）',national:'國民年金（國保）',self:'自營業主'};
   if (lead.labor_insurance_years && lead.labor_insurance_years !== 'none') {
-    var laborStr = laborLabels[lead.labor_insurance_years] || lead.labor_insurance_years;
+    var raw = lead.labor_insurance_years;
+    var laborStr;
+    if (laborLabels[raw]) {
+      laborStr = laborLabels[raw];
+    } else {
+      // 純數字：智慧判斷月或年並顯示
+      var num = parseFloat(raw) || 0;
+      if (num >= 12) {
+        laborStr = num + ' 個月';  // 月
+      } else if (num > 0) {
+        laborStr = num + ' 年（=' + Math.round(num*12) + '個月）';  // 舊資料：年
+      } else {
+        laborStr = '未填';
+      }
+    }
     if (lead.labor_type) laborStr += '・' + (laborTypeLabels[lead.labor_type] || lead.labor_type);
     html += '<div class="ri"><span class="rl">勞保年資</span><span class="rv">' + laborStr + '</span></div>';
   } else {
@@ -3846,7 +3953,7 @@ function showLeadDetail(id) {
   html += '<div class="sl">收入財務</div>';
   html += '<div class="frow2"><div class="frow"><div class="flbl">月薪（元）</div><input class="fi" id="ef-salary-' + id + '" type="number" value="' + (lead.monthly_salary||'') + '"></div>';
   html += '<div class="frow"><div class="flbl">薪轉</div><select class="fi" id="ef-transfer-' + id + '"><option value="true"' + (lead.has_salary_transfer?' selected':'') + '>有</option><option value="false"' + (!lead.has_salary_transfer?' selected':'') + '>無</option></select></div></div>';
-  html += '<div class="frow2" style="margin-top:6px"><div class="frow"><div class="flbl">勞保年資（年）</div><input class="fi" id="ef-labor-' + id + '" type="number" min="0" step="0.5" value="' + (lead.labor_insurance_years && /^\d/.test(String(lead.labor_insurance_years)) ? lead.labor_insurance_years : '') + '" placeholder="例：2.5"></div>';
+  html += '<div class="frow2" style="margin-top:6px"><div class="frow"><div class="flbl">勞保年資（月）</div><input class="fi" id="ef-labor-' + id + '" type="number" min="0" step="1" value="' + (lead.labor_insurance_years && /^\d/.test(String(lead.labor_insurance_years)) ? lead.labor_insurance_years : '') + '" placeholder="例：30 (= 2.5 年)" inputmode="numeric"></div>';
   html += '<div class="frow"><div class="flbl">投保單位性質</div><select class="fi" id="ef-labor-type-' + id + '">';
   [['','未填'],['company','一般公司（勞保）'],['govt','政府機關（公保）'],['farmer','農漁（農保）'],['union','職業工會（自付）'],['national','國民年金（國保）'],['self','自營業主']].forEach(function(o){
     html += '<option value="'+o[0]+'"'+((lead.labor_type||'')===o[0]?' selected':'')+'>'+o[1]+'</option>';
@@ -3886,7 +3993,7 @@ function showLeadDetail(id) {
 
   // 不動產（編輯模式）
   html += '<div class="sl">不動產</div>';
-  html += '<div class="frow2"><div class="frow"><div class="flbl">名下不動產</div><select class="fi" id="ef-property-' + id + '" onchange="document.getElementById(\'ef-prop-fields-'+id+'\').style.display=this.value===\'true\'?\'block\':\'none\'">';
+  html += '<div class="frow2"><div class="frow"><div class="flbl">名下不動產</div><select class="fi" id="ef-property-' + id + '" onchange="(function(s,id){var el=document.getElementById(\'ef-prop-fields-\'+id);if(el){el.style.display=s.value===\'true\'?\'block\':\'none\';if(s.value===\'true\')setTimeout(function(){el.scrollIntoView({behavior:\'smooth\',block:\'start\'})},100)}})(this,\''+id+'\')">';
   html += '<option value="false"'+((!lead.has_property)?' selected':'')+'> 無 </option>';
   html += '<option value="true"'+((lead.has_property)?' selected':'')+'>有</option>';
   html += '</select></div>';
@@ -4560,7 +4667,7 @@ async function saveLeadEdit(id) {
   showLeadDetail(id);
 }
 
-async function updateStatus(id, status) {
+async function updateStatus(id, status, skipSchedule) {
   // UI 立即反應
   var lead = leads.find(function(l) { return l.id === id; });
   if (lead) lead.status = status;
@@ -4583,7 +4690,8 @@ async function updateStatus(id, status) {
   }
 
   // 行事曆（不影響主要儲存）
-  if (currentUser && lead) {
+  // 如果 skipSchedule=true，跳過自動加入（呼叫者已手動加）
+  if (!skipSchedule && currentUser && lead) {
     try {
       var today = new Date().toISOString().split('T')[0];
       var schedTitle = (lead.name||'客戶') + ' · ' + statusText(status);
@@ -8709,8 +8817,147 @@ function selectStatus(id, status) {
   // 結案收入顯示
   var incomeDiv = document.getElementById('closed-income-' + id);
   if (incomeDiv) incomeDiv.style.display = status === 'closed' ? 'block' : 'none';
-  // 背景儲存
-  updateStatus(id, status);
+
+  // ⭐ 邀約 / 送件中 → 跳出時間選擇 Modal
+  if (status === 'invited' || status === 'submitting') {
+    showStatusTimeModal(id, status);
+  } else {
+    // 其他狀態：直接儲存（不需要時間）
+    updateStatus(id, status);
+  }
+}
+
+// 邀約/送件中時，跳出選時間 Modal
+function showStatusTimeModal(leadId, status) {
+  var lead = leads.find(function(l){ return l.id === leadId; });
+  if (!lead) return;
+
+  var statusLabel = statusText(status);
+  var icon = status === 'invited' ? '📞' : '📤';
+  var defaultTitle = status === 'invited'
+    ? (lead.name || '客戶') + ' · 邀約'
+    : (lead.name || '客戶') + ' · 送件';
+
+  // 移除舊 modal
+  var old = document.getElementById('status-time-modal');
+  if (old) old.remove();
+
+  var overlay = document.createElement('div');
+  overlay.id = 'status-time-modal';
+  overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.7);z-index:99999;display:flex;align-items:center;justify-content:center;padding:20px;font-family:var(--sans)';
+
+  var modal = document.createElement('div');
+  modal.style.cssText = 'background:var(--card);border:0.5px solid var(--bdr);border-radius:14px;width:100%;max-width:420px;display:flex;flex-direction:column;box-shadow:0 16px 48px rgba(0,0,0,.6)';
+
+  // 標題
+  var head = document.createElement('div');
+  head.style.cssText = 'padding:16px 20px;border-bottom:0.5px solid var(--bdr)';
+  head.innerHTML = '<div style="font-size:16px;font-weight:600">' + icon + ' ' + statusLabel + '時間</div><div style="font-size:13px;color:var(--t2);margin-top:2px">' + (lead.name||'—') + '</div>';
+  modal.appendChild(head);
+
+  // 內容
+  var body = document.createElement('div');
+  body.style.cssText = 'padding:18px 20px';
+
+  // 預設今天
+  var today = new Date();
+  var todayStr = today.toISOString().split('T')[0];
+  // 預設下一個整點
+  var nowH = today.getHours() + 1;
+  if (nowH > 23) nowH = 9;
+  var defaultTime = String(nowH).padStart(2,'0') + ':00';
+
+  body.innerHTML =
+    '<div class="frow"><div class="flbl">📅 日期 <span style="color:var(--red)">*</span></div><input type="date" class="fi" id="stm-date" value="' + todayStr + '" min="' + todayStr + '"></div>' +
+    '<div class="frow" style="margin-top:8px"><div class="flbl">⏰ 時間 <span style="color:var(--red)">*</span></div><input type="time" class="fi" id="stm-time" value="' + defaultTime + '"></div>' +
+    '<div class="frow" style="margin-top:8px"><div class="flbl">📝 備註（選填）</div><input type="text" class="fi" id="stm-note" placeholder="例：在客戶公司樓下見面"></div>' +
+    '<div class="frow" style="margin-top:8px"><div class="flbl">🔔 提前提醒</div><select class="fi" id="stm-remind"><option value="0">不提醒</option><option value="15">15 分鐘前</option><option value="30" selected>30 分鐘前</option><option value="60">1 小時前</option><option value="120">2 小時前</option><option value="1440">1 天前</option></select></div>' +
+    '<div style="font-size:12px;color:var(--t3);margin-top:10px;padding:8px;background:var(--inp);border-radius:6px;line-height:1.6">💡 確認後將：<br>• 案件進度更新為「' + statusLabel + '」<br>• 自動加入行事曆並提醒</div>';
+  modal.appendChild(body);
+
+  // 底部按鈕
+  var foot = document.createElement('div');
+  foot.style.cssText = 'padding:14px 20px;border-top:0.5px solid var(--bdr);display:flex;gap:8px';
+  foot.innerHTML =
+    '<button onclick="cancelStatusTime(\'' + leadId + '\')" class="btn-sm" style="flex:1">取消</button>' +
+    '<button onclick="confirmStatusTime(\'' + leadId + '\',\'' + status + '\',\'' + defaultTitle.replace(/'/g,"\\'") + '\')" class="btn-p" style="flex:2">✓ 確認 ' + statusLabel + '</button>';
+  modal.appendChild(foot);
+
+  overlay.appendChild(modal);
+  document.body.appendChild(overlay);
+}
+
+// 取消時間選擇 → 還原狀態
+function cancelStatusTime(leadId) {
+  var modal = document.getElementById('status-time-modal');
+  if (modal) modal.remove();
+  // 還原 UI 為原始狀態
+  var lead = leads.find(function(l){ return l.id === leadId; });
+  if (lead) selectStatusUIOnly(leadId, lead.status || 'new');
+}
+
+// 只更新 UI 不寫入（取消時用）
+function selectStatusUIOnly(id, status) {
+  var statusColors = {new:'var(--t2)',invited:'var(--blu)',submitting:'var(--yel)',approved:'var(--grn)',closed:'var(--grn)',pending_guarantor:'var(--yel)',rejected:'var(--red)',lost:'var(--t3)'};
+  var statusList = ['new','invited','submitting','approved','closed','pending_guarantor','rejected','lost'];
+  statusList.forEach(function(s) {
+    var btn = document.getElementById('sbtn-' + id + '-' + s);
+    if (!btn) return;
+    if (s === status) {
+      var c = statusColors[s] || 'var(--acc)';
+      btn.style.border = '1.5px solid ' + c;
+      btn.style.background = c;
+      btn.style.color = '#FFF';
+      btn.style.fontWeight = '600';
+    } else {
+      btn.style.border = '0.5px solid var(--bdr2)';
+      btn.style.background = 'transparent';
+      btn.style.color = 'var(--t2)';
+      btn.style.fontWeight = '400';
+    }
+  });
+}
+
+// 確認時間 → 儲存狀態 + 加入行事曆
+async function confirmStatusTime(leadId, status, defaultTitle) {
+  var date = document.getElementById('stm-date').value;
+  var time = document.getElementById('stm-time').value;
+  var note = document.getElementById('stm-note').value.trim();
+  var remindMin = parseInt(document.getElementById('stm-remind').value) || 0;
+  if (!date || !time) { alert('請填日期和時間'); return; }
+
+  var modal = document.getElementById('status-time-modal');
+  if (modal) modal.remove();
+
+  // 1. 更新案件進度
+  await updateStatus(leadId, status, true);  // true = 跳過自動加行事曆（後面手動加）
+
+  // 2. 寫入 schedules 表（行事曆會看到 + 自動提醒）
+  try {
+    var lead = leads.find(function(l){ return l.id === leadId; });
+    var schedData = {
+      member_id: currentUser.id,
+      lead_id: leadId,
+      title: defaultTitle,
+      schedule_date: date,
+      schedule_time: time,
+      type: status === 'invited' ? 'meeting' : 'document',
+      description: note || ('案件進度：' + statusText(status)),
+      remind_minutes: remindMin,
+      is_done: false
+    };
+    var res = await sb.from('schedules').insert(schedData);
+    if (res.error) throw res.error;
+
+    // 成功提示
+    var toast = document.createElement('div');
+    toast.style.cssText = 'position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--grn);color:#FFF;padding:12px 20px;border-radius:8px;z-index:99999;font-size:14px;font-weight:600;box-shadow:0 4px 12px rgba(0,0,0,.4);max-width:90%;text-align:center';
+    toast.innerHTML = '✅ 已更新並加入行事曆<br><span style="font-size:12px;font-weight:400">' + date + ' ' + time + (remindMin>0?' · 提前 '+remindMin+' 分鐘提醒':'') + '</span>';
+    document.body.appendChild(toast);
+    setTimeout(function(){ toast.remove(); }, 3500);
+  } catch(err) {
+    alert('加入行事曆失敗：' + (err.message || err) + '\n（案件進度仍已儲存）');
+  }
 }
 
 
@@ -10573,6 +10820,7 @@ function buildAddScheduleForm() {
   h += '<div class="frow2" style="margin-top:8px"><div class="frow"><div class="flbl">類型</div><select class="fi" id="sch-type"><option value="follow_up">跟進</option><option value="loan_apply">送件</option><option value="reminder">提醒</option><option value="other">其他</option></select></div>';
   h += '<div class="frow"><div class="flbl">綁定客戶</div><select class="fi" id="sch-lead">' + leadOptions + '</select></div></div>';
   h += '<div class="frow" style="margin-top:8px"><div class="flbl">備註</div><input class="fi" id="sch-desc" placeholder="備註說明"></div>';
+  h += '<div class="frow" style="margin-top:8px"><div class="flbl">🔔 提前提醒</div><select class="fi" id="sch-remind"><option value="0">不提醒</option><option value="15">15 分鐘前</option><option value="30" selected>30 分鐘前</option><option value="60">1 小時前</option><option value="120">2 小時前</option><option value="1440">1 天前</option></select></div>';
   h += '<div style="display:flex;gap:6px;margin-top:10px"><button class="btn-sm" onclick="document.getElementById(\'add-schedule-form\').style.display=\'none\'">取消</button>';
   h += '<button class="btn-p" onclick="saveSchedule()" style="flex:1">儲存行程</button></div>';
   return h;
@@ -10637,9 +10885,10 @@ async function saveSchedule() {
   var type    = document.getElementById('sch-type')  ? document.getElementById('sch-type').value  : 'follow_up';
   var leadId  = document.getElementById('sch-lead')  ? document.getElementById('sch-lead').value  : null;
   var desc    = document.getElementById('sch-desc')  ? document.getElementById('sch-desc').value.trim() : '';
+  var remind  = document.getElementById('sch-remind') ? parseInt(document.getElementById('sch-remind').value) : 30;
   if (!title) { alert('請填寫行程標題'); return; }
   if (!date)  { alert('請選擇日期'); return; }
-  var data = { member_id: currentUser.id, title: title, schedule_date: date, type: type, description: desc||null };
+  var data = { member_id: currentUser.id, title: title, schedule_date: date, type: type, description: desc||null, remind_minutes: remind };
   if (time) data.schedule_time = time;
   if (leadId) data.lead_id = leadId;
 
