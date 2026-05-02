@@ -1832,9 +1832,12 @@ async function loadMember() {
     window._notifTimer = setInterval(function(){ loadNotifCount(); }, 60000);
   }
   // ⏰ 行程提醒：登入後 5 秒檢查一次，之後每 5 分鐘檢查
-  setTimeout(function(){ checkScheduleReminders(); }, 5000);
-  if (!window._scheduleReminderTimer) {
-    window._scheduleReminderTimer = setInterval(checkScheduleReminders, 5 * 60 * 1000);
+  if (!window._scheduleReminderInited) {
+    window._scheduleReminderInited = true;
+    setTimeout(function(){ checkScheduleReminders(); }, 5000);
+    if (!window._scheduleReminderTimer) {
+      window._scheduleReminderTimer = setInterval(checkScheduleReminders, 5 * 60 * 1000);
+    }
   }
   // 請求瀏覽器推播權限
   requestPushPermission();
@@ -1937,60 +1940,87 @@ function showBrowserNotif(title, body) {
 }
 
 // 當鋪到期提醒檢查（登入後自動執行）
-// 檢查未來 30 分鐘內的行程提醒（每 5 分鐘執行一次）
+// 檢查未來行程提醒（每 5 分鐘執行一次）
 async function checkScheduleReminders() {
   if (!currentUser) return;
 
   var now = new Date();
   var todayStr = now.toISOString().split('T')[0];
+  var tomorrowStr = new Date(now.getTime() + 24*60*60*1000).toISOString().split('T')[0];
   var nowMs = now.getTime();
 
   try {
+    // 取得「今天」與「明天」的行程，跳過 auto_status 類型（案件進度自動產生的）
     var res = await sb.from('schedules')
       .select('*')
       .eq('member_id', currentUser.id)
-      .eq('schedule_date', todayStr)
-      .not('schedule_time', 'is', null)
+      .in('schedule_date', [todayStr, tomorrowStr])
+      .neq('type', 'auto_status')   // ⚠️ 排除案件進度自動行程
       .or('is_done.is.null,is_done.eq.false');
 
     var schedules = res.data || [];
     if (schedules.length === 0) return;
 
-    // 已通知記錄（localStorage 避免重複）
-    var notifiedKey = 'sched_notified_' + todayStr;
-    var notified = JSON.parse(localStorage.getItem(notifiedKey) || '[]');
+    // 已通知記錄（localStorage 避免重複，分今天和明天）
+    var notifiedKeyToday = 'sched_notified_' + todayStr;
+    var notifiedKeyTomorrow = 'sched_notified_tomorrow_' + tomorrowStr;
+    var notifiedToday = JSON.parse(localStorage.getItem(notifiedKeyToday) || '[]');
+    var notifiedTomorrow = JSON.parse(localStorage.getItem(notifiedKeyTomorrow) || '[]');
 
     schedules.forEach(function(sch) {
-      if (notified.indexOf(sch.id) >= 0) return;
+      // 案件進度的行程（lead_id 有值且 type 為 meeting/document）→ 走「前一天通知」邏輯
+      var isLeadSchedule = sch.lead_id && (sch.type === 'meeting' || sch.type === 'document');
 
-      // 計算行程開始時間
-      var schDateTime = new Date(sch.schedule_date + 'T' + sch.schedule_time);
-      var schMs = schDateTime.getTime();
-      var diffMin = (schMs - nowMs) / 60000;
+      // 1. 前一天通知（明天的行程）
+      if (sch.schedule_date === tomorrowStr) {
+        if (notifiedTomorrow.indexOf(sch.id) >= 0) return;
+        // 只在工作時間（9-21 點）通知一次
+        var hour = now.getHours();
+        if (hour < 9 || hour > 21) return;
+        showScheduleNotification(sch, '明天', isLeadSchedule);
+        notifiedTomorrow.push(sch.id);
+        return;
+      }
 
-      var remindMin = sch.remind_minutes || 30;
+      // 2. 當天即將到時間的通知（只有設了時間且非案件進度才觸發）
+      if (sch.schedule_date === todayStr && sch.schedule_time && !isLeadSchedule) {
+        if (notifiedToday.indexOf(sch.id) >= 0) return;
+        var schDateTime = new Date(sch.schedule_date + 'T' + sch.schedule_time);
+        var diffMin = (schDateTime.getTime() - nowMs) / 60000;
+        var remindMin = sch.remind_minutes || 30;
+        if (diffMin >= 0 && diffMin <= remindMin) {
+          showScheduleNotification(sch, Math.ceil(diffMin) + ' 分鐘後', isLeadSchedule);
+          notifiedToday.push(sch.id);
+        }
+        return;
+      }
 
-      // 行程在 [now, now + remindMin] 內，且還沒通知過
-      if (diffMin >= 0 && diffMin <= remindMin) {
-        showScheduleNotification(sch, Math.ceil(diffMin));
-        notified.push(sch.id);
+      // 3. 案件進度的行程：當天有時間設定 → 提前 1 小時通知
+      if (sch.schedule_date === todayStr && sch.schedule_time && isLeadSchedule) {
+        if (notifiedToday.indexOf(sch.id) >= 0) return;
+        var schDt = new Date(sch.schedule_date + 'T' + sch.schedule_time);
+        var diff = (schDt.getTime() - nowMs) / 60000;
+        if (diff >= 0 && diff <= 60) {
+          showScheduleNotification(sch, Math.ceil(diff) + ' 分鐘後', true);
+          notifiedToday.push(sch.id);
+        }
+        return;
       }
     });
 
-    if (notified.length > 0) {
-      localStorage.setItem(notifiedKey, JSON.stringify(notified));
-    }
+    if (notifiedToday.length > 0) localStorage.setItem(notifiedKeyToday, JSON.stringify(notifiedToday));
+    if (notifiedTomorrow.length > 0) localStorage.setItem(notifiedKeyTomorrow, JSON.stringify(notifiedTomorrow));
   } catch(e) {
     console.warn('行程提醒檢查失敗:', e);
   }
 }
 
 // 顯示行程提醒
-function showScheduleNotification(sch, minLeft) {
+function showScheduleNotification(sch, timeLabel, isLeadSchedule) {
   // 1. 桌面通知
   if ('Notification' in window && Notification.permission === 'granted') {
     try {
-      new Notification('🔔 行程提醒（' + minLeft + ' 分鐘後）', {
+      new Notification('🔔 行程提醒（' + timeLabel + '）', {
         body: sch.title + (sch.description ? '\n' + sch.description : ''),
         icon: '/icon-192.png',
         tag: 'sched-' + sch.id,
@@ -2002,15 +2032,15 @@ function showScheduleNotification(sch, minLeft) {
   // 2. 畫面 toast 提示
   var toast = document.createElement('div');
   toast.style.cssText = 'position:fixed;top:20px;right:20px;background:var(--card);border:0.5px solid var(--acc);border-left:4px solid var(--acc);border-radius:10px;padding:14px 18px;z-index:99999;font-size:14px;max-width:340px;box-shadow:0 8px 24px rgba(0,0,0,.4);font-family:var(--sans);cursor:pointer';
+  var icon = isLeadSchedule ? '📋' : '🔔';
   toast.innerHTML =
-    '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><span style="font-size:18px">🔔</span><span style="font-weight:600">行程提醒（' + minLeft + ' 分鐘後）</span></div>' +
+    '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><span style="font-size:18px">' + icon + '</span><span style="font-weight:600">' + (isLeadSchedule?'案件提醒':'行程提醒') + '（' + timeLabel + '）</span></div>' +
     '<div style="font-size:14px;font-weight:500;color:var(--t1);margin-bottom:4px">' + sch.title + '</div>' +
     (sch.schedule_time ? '<div style="font-size:12px;color:var(--t2)">⏰ ' + sch.schedule_time.slice(0,5) + '</div>' : '') +
     (sch.description ? '<div style="font-size:12px;color:var(--t2);margin-top:4px">' + sch.description + '</div>' : '') +
     '<div style="font-size:11px;color:var(--t3);margin-top:6px">點擊關閉</div>';
   toast.onclick = function() { toast.remove(); };
   document.body.appendChild(toast);
-  // 30 秒後自動消失
   setTimeout(function(){ if (toast.parentNode) toast.remove(); }, 30000);
 }
 
@@ -2563,7 +2593,7 @@ async function renderDash() {
       .limit(10);
     var events = evRes.data || [];
     if (events.length === 0) {
-      weekEl.innerHTML = '<div style="text-align:center;padding:14px;color:var(--t2);font-size:13px">本週尚無行程<br><button onclick="navTo(\'calendar\',null);setTimeout(showAddSchedule,200)" style="margin-top:8px;padding:6px 16px;border-radius:7px;border:0.5px solid var(--bdr2);background:transparent;color:var(--acc);cursor:pointer;font-family:var(--sans);font-size:13px">+ 新增行程</button></div>';
+      weekEl.innerHTML = '<div style="text-align:center;padding:14px;color:var(--t2);font-size:13px">本週尚無行程<br><button onclick="navTo(\'calendar\',null);setTimeout(function(){var f=document.getElementById(\'add-schedule-form\');if(f){f.style.display=\'block\';var d=document.getElementById(\'sch-date\');if(d&&!d.value)d.value=new Date().toISOString().split(\'T\')[0];f.scrollIntoView({behavior:\'smooth\'})}},800)" style="margin-top:8px;padding:6px 16px;border-radius:7px;border:0.5px solid var(--bdr2);background:transparent;color:var(--acc);cursor:pointer;font-family:var(--sans);font-size:13px">+ 新增行程</button></div>';
       return;
     }
     var dayNames = ['日','一','二','三','四','五','六'];
@@ -3477,18 +3507,18 @@ function addLoanRow(listId, type) {
   r0.innerHTML = '<div class="flbl">貸款單位名稱</div><input class="fi" id="' + id + '_inst" placeholder="' + cfg.ph + '">';
   div.appendChild(r0);
 
-  // 金額（萬）+ 月繳（萬）
+  // 金額（元）+ 月繳（元）
   var r1 = document.createElement('div'); r1.className = 'frow2';
-  var amtLabel = cfg.isPawn ? '借款金額（萬）' : '貸款金額（萬）';
+  var amtLabel = cfg.isPawn ? '借款金額（元）' : '貸款金額（元）';
   r1.innerHTML =
-    '<div class="frow"><div class="flbl">' + amtLabel + '</div><input class="fi" id="' + id + '_amt" type="number" placeholder="0" inputmode="numeric" step="0.1"></div>' +
-    '<div class="frow"><div class="flbl">月繳（萬）</div><input class="fi" id="' + id + '_pay" type="number" placeholder="0" inputmode="numeric" step="0.01"></div>';
+    '<div class="frow"><div class="flbl">' + amtLabel + '</div><input class="fi" id="' + id + '_amt" type="number" placeholder="例：500000" inputmode="numeric" step="1"></div>' +
+    '<div class="frow"><div class="flbl">月繳（元）</div><input class="fi" id="' + id + '_pay" type="number" placeholder="例：18500" inputmode="numeric" step="1"></div>';
   div.appendChild(r1);
 
-  // 已繳期數 + 違約金（萬）
+  // 已繳期數 + 違約金（元）
   var r2 = document.createElement('div'); r2.className = 'frow2'; r2.style.marginTop = '6px';
   var r2h = '<div class="frow"><div class="flbl">已繳期數（期）</div><input class="fi" id="' + id + '_paid" type="number" placeholder="0" inputmode="numeric"></div>';
-  if (cfg.hasPenalty) r2h += '<div class="frow"><div class="flbl">違約金（萬）</div><input class="fi" id="' + id + '_penalty" type="number" placeholder="0" inputmode="numeric" step="0.1"></div>';
+  if (cfg.hasPenalty) r2h += '<div class="frow"><div class="flbl">違約金（元）</div><input class="fi" id="' + id + '_penalty" type="number" placeholder="例：30000" inputmode="numeric" step="1"></div>';
   r2.innerHTML = r2h;
   div.appendChild(r2);
 
@@ -4688,23 +4718,8 @@ async function updateStatus(id, status, skipSchedule) {
     alert('⚠️ 儲存案件進度失敗：' + (err.message || err) + '\n\n請重新整理頁面再試。');
     return;
   }
-
-  // 行事曆（不影響主要儲存）
-  // 如果 skipSchedule=true，跳過自動加入（呼叫者已手動加）
-  if (!skipSchedule && currentUser && lead) {
-    try {
-      var today = new Date().toISOString().split('T')[0];
-      var schedTitle = (lead.name||'客戶') + ' · ' + statusText(status);
-      await sb.from('schedules').delete()
-        .eq('member_id', currentUser.id).eq('lead_id', id)
-        .eq('schedule_date', today).eq('type', 'auto_status');
-      await sb.from('schedules').insert({
-        member_id: currentUser.id, lead_id: id, title: schedTitle,
-        schedule_date: today, type: 'auto_status',
-        description: '案件進度：' + statusText(status), is_done: false
-      });
-    } catch(e) { console.warn('更新行事曆失敗:', e); }
-  }
+  // 案件進度變更不再自動加進行事曆（避免通知一直跳）
+  // 「邀約/送件中」會由 confirmStatusTime 處理，建立帶時間的行事曆項目（會在前一天通知）
 }
 
 function addPartnerLead(leadId) {
@@ -10868,9 +10883,21 @@ function buildLoanReminderSection(el, loanAlerts) {
 function showAddSchedule() {
   var f = document.getElementById('add-schedule-form');
   if (f) {
-    f.style.display = f.style.display==='none'?'block':'none';
+    var willShow = f.style.display === 'none';
+    f.style.display = willShow ? 'block' : 'none';
     var d = document.getElementById('sch-date');
     if (d && !d.value) d.value = new Date().toISOString().split('T')[0];
+    // 展開時自動滾動過去
+    if (willShow) {
+      setTimeout(function(){ f.scrollIntoView({behavior:'smooth', block:'start'}); }, 50);
+      // 自動聚焦標題欄位
+      setTimeout(function(){
+        var t = document.getElementById('sch-title');
+        if (t) t.focus();
+      }, 400);
+    }
+  } else {
+    alert('請先進入「📅 行事曆」頁面再新增行程');
   }
 }
 function showAddLoanReminder() {
