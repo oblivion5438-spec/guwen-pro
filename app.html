@@ -11221,42 +11221,57 @@ function buildAddScheduleForm() {
   h += '<div class="frow" style="margin-top:8px"><div class="flbl">類型</div><select class="fi" id="sch-type"><option value="follow_up">跟進</option><option value="meeting">會面</option><option value="loan_apply">送件</option><option value="document">資料整備</option><option value="reminder">提醒</option><option value="other">其他</option></select></div>';
   h += '<div class="frow" style="margin-top:8px"><div class="flbl">備註</div><input class="fi" id="sch-desc" placeholder="備註說明"></div>';
   h += '<div class="frow" style="margin-top:8px"><div class="flbl">🔔 提前提醒</div><select class="fi" id="sch-remind"><option value="0">不提醒</option><option value="15">15 分鐘前</option><option value="30" selected>30 分鐘前</option><option value="60">1 小時前</option><option value="120">2 小時前</option><option value="1440">1 天前</option></select></div>';
-  h += '<div style="display:flex;gap:6px;margin-top:10px"><button class="btn-sm" onclick="document.getElementById(\'add-schedule-form\').style.display=\'none\'">取消</button>';
-  h += '<button class="btn-p" onclick="saveSchedule()" style="flex:1">儲存行程</button></div>';
+  h += '<div style="display:flex;gap:6px;margin-top:10px"><button type="button" class="btn-sm" onclick="document.getElementById(\'add-schedule-form\').style.display=\'none\'">取消</button>';
+  h += '<button type="button" class="btn-p" onclick="saveSchedule()" style="flex:1">儲存行程</button></div>';
   return h;
 }
 
 // 選客戶後自動帶入資訊
 function onLeadSelected(leadId) {
-  var infoEl = document.getElementById('sch-lead-info');
-  var titleEl = document.getElementById('sch-title');
+  try {
+    var infoEl  = document.getElementById('sch-lead-info');
+    var titleEl = document.getElementById('sch-title');
 
-  if (!leadId) {
-    if (infoEl) infoEl.style.display = 'none';
-    return;
-  }
+    if (!leadId) {
+      if (infoEl) infoEl.style.display = 'none';
+      return;
+    }
 
-  var lead = leads.find(function(l){ return l.id === leadId; });
-  if (!lead) return;
+    if (!Array.isArray(leads)) {
+      console.warn('[onLeadSelected] leads 不是陣列', leads);
+      return;
+    }
 
-  // 自動填標題（如果還沒填）
-  if (titleEl && !titleEl.value.trim()) {
-    titleEl.value = lead.name + ' · 跟進';
-  }
+    var lead = leads.find(function(l){ return l && l.id === leadId; });
+    if (!lead) {
+      console.warn('[onLeadSelected] 找不到客戶', leadId);
+      return;
+    }
 
-  // 顯示客戶資訊
-  if (infoEl) {
-    var amt = lead.required_amount ? '$' + lead.required_amount.toLocaleString() : '未填';
-    var info = '<div style="font-weight:600;color:var(--t1);margin-bottom:4px">📋 客戶資訊</div>';
-    info += '<div>👤 ' + (lead.name||'—');
-    if (lead.phone) info += ' · 📱 <a href="tel:' + lead.phone + '" style="color:var(--acc);text-decoration:none">' + lead.phone + '</a>';
-    info += '</div>';
-    if (lead.work_type) info += '<div>💼 ' + lead.work_type + '</div>';
-    info += '<div>💰 需求 ' + amt + ' · 用途 ' + (lead.fund_purpose||'未填') + '</div>';
-    info += '<div>📊 案件進度：<span style="color:var(--acc)">' + statusText(lead.status) + '</span></div>';
-    if (lead.advisor_note) info += '<div style="margin-top:4px;color:var(--t3)">📝 備註：' + lead.advisor_note + '</div>';
-    infoEl.innerHTML = info;
-    infoEl.style.display = 'block';
+    // 自動填標題（如果還沒填）
+    if (titleEl && !(titleEl.value||'').trim()) {
+      titleEl.value = (lead.name||'客戶') + ' · 跟進';
+    }
+
+    // 顯示客戶資訊
+    if (infoEl) {
+      var amt = (lead.required_amount != null && !isNaN(lead.required_amount))
+        ? '$' + Number(lead.required_amount).toLocaleString()
+        : '未填';
+      var info = '<div style="font-weight:600;color:var(--t1);margin-bottom:4px">📋 客戶資訊</div>';
+      info += '<div>👤 ' + (lead.name||'—');
+      if (lead.phone) info += ' · 📱 <a href="tel:' + lead.phone + '" style="color:var(--acc);text-decoration:none">' + lead.phone + '</a>';
+      info += '</div>';
+      if (lead.work_type) info += '<div>💼 ' + lead.work_type + '</div>';
+      info += '<div>💰 需求 ' + amt + ' · 用途 ' + (lead.fund_purpose||'未填') + '</div>';
+      var statusLabel = (typeof statusText === 'function') ? statusText(lead.status) : (lead.status||'—');
+      info += '<div>📊 案件進度：<span style="color:var(--acc)">' + statusLabel + '</span></div>';
+      if (lead.advisor_note) info += '<div style="margin-top:4px;color:var(--t3)">📝 備註：' + lead.advisor_note + '</div>';
+      infoEl.innerHTML = info;
+      infoEl.style.display = 'block';
+    }
+  } catch (err) {
+    console.error('[onLeadSelected] 錯誤', err);
   }
 }
 
@@ -11325,28 +11340,90 @@ function showAddLoanReminder() {
 }
 
 async function saveSchedule() {
-  var title   = document.getElementById('sch-title') ? document.getElementById('sch-title').value.trim() : '';
-  var date    = document.getElementById('sch-date')  ? document.getElementById('sch-date').value  : '';
-  var time    = document.getElementById('sch-time')  ? document.getElementById('sch-time').value  : null;
-  var type    = document.getElementById('sch-type')  ? document.getElementById('sch-type').value  : 'follow_up';
-  var leadId  = document.getElementById('sch-lead')  ? document.getElementById('sch-lead').value  : null;
-  var desc    = document.getElementById('sch-desc')  ? document.getElementById('sch-desc').value.trim() : '';
-  var remind  = document.getElementById('sch-remind') ? parseInt(document.getElementById('sch-remind').value) : 30;
-  if (!title) { alert('請填寫行程標題'); return; }
-  if (!date)  { alert('請選擇日期'); return; }
-  var data = { member_id: currentUser.id, title: title, schedule_date: date, type: type, description: desc||null, remind_minutes: remind };
-  if (time) data.schedule_time = time;
-  if (leadId) data.lead_id = leadId;
-
+  console.log('[saveSchedule] 函數被呼叫');
   try {
-    var res = await sb.from('schedules').insert(data);
-    if (res.error) throw res.error;
+    // 檢查登入狀態
+    if (!currentUser || !currentUser.id) {
+      alert('尚未登入，請重新登入後再試');
+      console.error('[saveSchedule] currentUser 未設定', currentUser);
+      return;
+    }
+    if (!sb) {
+      alert('資料庫連線未建立');
+      console.error('[saveSchedule] sb (Supabase) 未定義');
+      return;
+    }
 
+    var titleEl  = document.getElementById('sch-title');
+    var dateEl   = document.getElementById('sch-date');
+    var timeEl   = document.getElementById('sch-time');
+    var typeEl   = document.getElementById('sch-type');
+    var leadEl   = document.getElementById('sch-lead');
+    var descEl   = document.getElementById('sch-desc');
+    var remindEl = document.getElementById('sch-remind');
+
+    var title   = titleEl  ? (titleEl.value||'').trim()  : '';
+    var date    = dateEl   ? (dateEl.value||'')          : '';
+    var time    = timeEl   ? (timeEl.value||'')          : '';
+    var type    = typeEl   ? (typeEl.value||'follow_up') : 'follow_up';
+    var leadId  = leadEl   ? (leadEl.value||'')          : '';
+    var desc    = descEl   ? (descEl.value||'').trim()   : '';
+    var remind  = remindEl ? parseInt(remindEl.value, 10) : 30;
+    if (isNaN(remind)) remind = 30;
+
+    console.log('[saveSchedule] 表單值', { title:title, date:date, time:time, type:type, leadId:leadId, remind:remind });
+
+    if (!title) { alert('請填寫行程標題'); if (titleEl) titleEl.focus(); return; }
+    if (!date)  { alert('請選擇日期');     if (dateEl)  dateEl.focus();  return; }
+
+    var data = {
+      member_id: currentUser.id,
+      title: title,
+      schedule_date: date,
+      type: type,
+      description: desc || null,
+      remind_minutes: remind,
+      is_done: false
+    };
+    if (time)   data.schedule_time = time;
+    if (leadId) data.lead_id = leadId;
+
+    console.log('[saveSchedule] 準備 insert', data);
+
+    var res;
+    try {
+      res = await sb.from('schedules').insert(data);
+    } catch (netErr) {
+      console.error('[saveSchedule] 網路/非同步錯誤', netErr);
+      alert('儲存失敗（網路錯誤）：' + (netErr && netErr.message ? netErr.message : netErr));
+      return;
+    }
+
+    console.log('[saveSchedule] insert 結果', res);
+
+    if (res && res.error) {
+      console.error('[saveSchedule] Supabase 回傳錯誤', res.error);
+      var msg = res.error.message || '未知錯誤';
+      // 常見錯誤訊息給更友善提示
+      if (/remind_minutes/i.test(msg))     msg = '資料庫缺少 remind_minutes 欄位，請執行 database_upgrade_all.sql';
+      else if (/check constraint/i.test(msg) || /violates/i.test(msg)) msg = '欄位驗證失敗（CHECK 限制）：' + msg;
+      else if (/row-level security/i.test(msg) || /RLS/i.test(msg))    msg = '權限不足（RLS）：' + msg;
+      alert('儲存失敗：' + msg);
+      return;
+    }
+
+    // ✅ 儲存成功
     // 清空表單欄位
     ['sch-title','sch-time','sch-desc'].forEach(function(id){
       var el = document.getElementById(id);
       if (el) el.value = '';
     });
+    // 重置 lead 選擇 + 隱藏資訊區
+    var leadElReset = document.getElementById('sch-lead');
+    if (leadElReset) leadElReset.value = '';
+    var infoEl = document.getElementById('sch-lead-info');
+    if (infoEl) infoEl.style.display = 'none';
+
     // 隱藏新增表單
     var form = document.getElementById('add-schedule-form');
     if (form) form.style.display = 'none';
@@ -11358,9 +11435,11 @@ async function saveSchedule() {
     document.body.appendChild(toast);
     setTimeout(function(){ toast.remove(); }, 2500);
 
+    console.log('[saveSchedule] 完成，重新渲染日曆');
     renderCalendar();
-  } catch(err) {
-    alert('儲存失敗：' + (err.message || err));
+  } catch (err) {
+    console.error('[saveSchedule] 未預期錯誤', err);
+    alert('儲存失敗（未預期錯誤）：' + (err && err.message ? err.message : err));
   }
 }
 
