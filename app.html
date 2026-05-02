@@ -11594,6 +11594,19 @@ function isUnservicableSchedule(s) {
 }
 
 // ══════════════════════════════
+// 儀表板「本週行程」同步重整
+// 行程新增/刪除/修改後呼叫，避免儀表板顯示舊資料
+// ══════════════════════════════
+function refreshDashboardWeek() {
+  // 清掉快取資料
+  window._dashWeekData = null;
+  // 如果使用者目前在儀表板（dash-week-events 元素還在 DOM 內），就重新整渲染
+  if (currentNav === 'dash' && typeof renderDash === 'function') {
+    try { renderDash(); } catch (e) { console.warn('[refreshDashboardWeek]', e); }
+  }
+}
+
+// ══════════════════════════════
 // 行程顏色系統
 // ══════════════════════════════
 // 顏色決策優先序：
@@ -11947,6 +11960,7 @@ async function saveScheduleEdit(id) {
     // 關閉日期 modal（如果開著）
     var dayModal = document.getElementById('day-modal-overlay');
     if (dayModal) dayModal.remove();
+    refreshDashboardWeek();
     renderCalendar();
   } catch (err) {
     console.error('[saveScheduleEdit] 錯誤', err);
@@ -12210,6 +12224,7 @@ async function saveSchedule() {
     document.body.appendChild(toast);
     setTimeout(function(){ toast.remove(); }, 2500);
 
+    refreshDashboardWeek();
     renderCalendar();
   } catch (err) {
     console.error('[saveSchedule] 未預期錯誤', err);
@@ -12222,6 +12237,7 @@ async function doneSchedule(id) {
     var res = await sb.from('schedules').update({ is_done: true }).eq('id', id);
     if (res && res.error) { alert('標記完成失敗：' + res.error.message); return; }
     var dm = document.getElementById('day-modal-overlay'); if (dm) dm.remove();
+    refreshDashboardWeek();
     renderCalendar();
   } catch (err) {
     console.error('[doneSchedule]', err);
@@ -12234,6 +12250,7 @@ async function deleteSchedule(id) {
     var res = await sb.from('schedules').delete().eq('id', id);
     if (res && res.error) { alert('刪除失敗：' + res.error.message); return; }
     var dm = document.getElementById('day-modal-overlay'); if (dm) dm.remove();
+    refreshDashboardWeek();
     renderCalendar();
   } catch (err) {
     console.error('[deleteSchedule]', err);
