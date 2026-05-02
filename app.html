@@ -2742,6 +2742,9 @@ async function renderDash() {
       pawn_due:'var(--red)', other:'var(--t2)'
     };
 
+    // 把 7 天事件存到全域，給 expandDashDay 用
+    window._dashWeekData = { eventsByDate: eventsByDate, days: days };
+
     var html2 = '<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:6px">';
     days.forEach(function(day){
       var dEvents = eventsByDate[day.dateStr] || [];
@@ -2753,7 +2756,8 @@ async function renderDash() {
       var cellBorder = day.isToday ? '1px solid var(--acc)' : '0.5px solid var(--bdr2)';
       var cellBg = day.isToday ? 'var(--al)' : 'var(--inp)';
 
-      html2 += '<div style="background:'+cellBg+';border:'+cellBorder+';border-radius:9px;padding:8px 6px;display:flex;flex-direction:column;min-height:140px">';
+      // 整格可點 → 開放大 modal
+      html2 += '<div onclick="expandDashDay(\''+day.dateStr+'\')" style="background:'+cellBg+';border:'+cellBorder+';border-radius:9px;padding:8px 6px;display:flex;flex-direction:column;min-height:140px;cursor:pointer;transition:transform .15s, border-color .15s" onmouseover="this.style.borderColor=\'var(--acc)\';this.style.transform=\'translateY(-1px)\'" onmouseout="this.style.borderColor=\''+(day.isToday?'var(--acc)':'var(--bdr2)')+'\';this.style.transform=\'\'">';
 
       // 日期標頭
       html2 += '<div style="text-align:center;padding-bottom:6px;border-bottom:0.5px solid var(--bdr);margin-bottom:6px">';
@@ -2767,10 +2771,10 @@ async function renderDash() {
       } else {
         html2 += '<div style="display:flex;flex-direction:column;gap:4px;flex:1">';
         dEvents.slice(0, 4).forEach(function(ev){
-          var col = typeColors[ev.type] || 'var(--t2)';
+          var col = resolveScheduleColor(ev, typeColors);
           var title = (ev.leads && ev.leads.name ? ev.leads.name + ' · ' : '') + (ev.title || '行程');
           var doneStyle = ev.is_done ? 'text-decoration:line-through;opacity:.55' : '';
-          html2 += '<div onclick="navTo(\'calendar\',null)" style="cursor:pointer;border-left:2.5px solid '+col+';background:rgba(255,255,255,.03);padding:4px 6px;border-radius:0 5px 5px 0;'+doneStyle+'">';
+          html2 += '<div style="border-left:2.5px solid '+col+';background:rgba(255,255,255,.03);padding:4px 6px;border-radius:0 5px 5px 0;'+doneStyle+'">';
           if (ev.schedule_time) {
             html2 += '<div style="font-size:11px;font-weight:600;color:var(--t1);line-height:1.2">'+ev.schedule_time.slice(0,5)+'</div>';
           }
@@ -2778,7 +2782,7 @@ async function renderDash() {
           html2 += '</div>';
         });
         if (dEvents.length > 4) {
-          html2 += '<div style="font-size:10px;color:var(--t3);text-align:center;margin-top:2px">+'+(dEvents.length-4)+' 筆</div>';
+          html2 += '<div style="font-size:11px;color:var(--acc);text-align:center;margin-top:2px;font-weight:600">+'+(dEvents.length-4)+' 筆 · 點看全部</div>';
         }
         html2 += '</div>';
       }
@@ -11123,11 +11127,38 @@ async function renderCalendar() {
   var monthStart = new Date(calViewDate.getFullYear(), calViewDate.getMonth(), 1);
   var monthEnd   = new Date(calViewDate.getFullYear(), calViewDate.getMonth()+1, 31);
 
+  // 確認使用者是否在團隊內（決定是否能切團隊模式）
+  var inTeam = false;
+  try {
+    if (!Array.isArray(teamMembers) || teamMembers.length === 0) {
+      // 嘗試載一次（如果還沒載過）
+      var myTm = await sb.from('team_members').select('team_id').eq('member_id', currentUser.id).eq('status','active').maybeSingle();
+      if (myTm && myTm.data && myTm.data.team_id) {
+        var allTm = await sb.from('team_members').select('*, members(id,name,email)').eq('team_id', myTm.data.team_id).eq('status','active');
+        teamMembers = allTm.data || [];
+      }
+    }
+    inTeam = Array.isArray(teamMembers) && teamMembers.length > 1;
+  } catch (e) { console.warn('[calendar] 載入團隊失敗', e); }
+  window._calendarInTeam = inTeam;
+  // _teamMode 預設關閉（可由切換按鈕開啟）
+  if (typeof window._teamMode === 'undefined') window._teamMode = false;
+  if (!inTeam) window._teamMode = false; // 沒團隊就強制關閉
+
+  // 決定查詢哪些人的行程
+  var schQuery = sb.from('schedules').select('*, leads(name)')
+    .gte('schedule_date', toLocalDateStr(monthStart))
+    .lte('schedule_date', toLocalDateStr(monthEnd))
+    .order('schedule_date').order('schedule_time');
+  if (window._teamMode && inTeam) {
+    var memberIds = teamMembers.map(function(m){ return m.member_id; });
+    schQuery = schQuery.in('member_id', memberIds);
+  } else {
+    schQuery = schQuery.eq('member_id', currentUser.id);
+  }
+
   var [schRes, remRes] = await Promise.all([
-    sb.from('schedules').select('*, leads(name)').eq('member_id', currentUser.id)
-      .gte('schedule_date', toLocalDateStr(monthStart))
-      .lte('schedule_date', toLocalDateStr(monthEnd))
-      .order('schedule_date').order('schedule_time'),
+    schQuery,
     sb.from('loan_reminders').select('*, leads(name)').eq('member_id', currentUser.id)
   ]);
   // 過濾掉「無法承作」「失聯」類的行程（不該出現在行事曆）
@@ -11190,15 +11221,38 @@ function buildCalendarUI(el, loanAlerts) {
 
   // Tab 切換
   var tabDiv = document.createElement('div');
-  tabDiv.style.cssText = 'display:flex;gap:6px;margin-bottom:12px;align-items:center';
+  tabDiv.style.cssText = 'display:flex;gap:6px;margin-bottom:12px;align-items:center;flex-wrap:wrap';
   tabDiv.innerHTML =
     ['month','week'].map(function(t){
       var label = t==='month'?'📅 月曆':'📋 本週待辦';
       var on = calTab===t;
       return '<button onclick="calTab=\''+t+'\';buildCalendarUI(document.getElementById(\'member-content\'),'+JSON.stringify(loanAlerts)+')" style="padding:6px 14px;border-radius:20px;font-size:14px;cursor:pointer;border:0.5px solid '+(on?'var(--acc)':'var(--bdr2)')+';background:'+(on?'var(--al)':'transparent')+';color:'+(on?'var(--acc)':'var(--t1)')+';font-family:var(--sans)">'+label+'</button>';
     }).join('') +
+    // 團隊切換（僅在團隊內顯示）
+    (window._calendarInTeam
+      ? '<button onclick="window._teamMode=!window._teamMode;renderCalendar()" style="padding:6px 14px;border-radius:20px;font-size:14px;cursor:pointer;border:0.5px solid '+(window._teamMode?'var(--blu)':'var(--bdr2)')+';background:'+(window._teamMode?'rgba(45,122,184,.15)':'transparent')+';color:'+(window._teamMode?'var(--blu)':'var(--t1)')+';font-family:var(--sans)">'+(window._teamMode?'👥 團隊模式':'👤 個人模式')+'</button>'
+      : '') +
     '<button onclick="showAddSchedule()" style="margin-left:auto;padding:6px 14px;border-radius:20px;font-size:14px;cursor:pointer;border:0.5px solid var(--acc);background:var(--acc);color:#FFF;font-family:var(--sans)">+ 新增行程</button>';
   el.appendChild(tabDiv);
+
+  // 團隊圖例（團隊模式下顯示每個團員的顏色）
+  if (window._teamMode && Array.isArray(teamMembers) && teamMembers.length > 0) {
+    var legendDiv = document.createElement('div');
+    legendDiv.style.cssText = 'display:flex;flex-wrap:wrap;gap:8px;padding:10px 12px;background:var(--inp);border:0.5px solid var(--bdr2);border-radius:8px;margin-bottom:12px';
+    var legendH = '<div style="font-size:12px;color:var(--t2);font-weight:600;margin-right:4px;align-self:center">團員顏色：</div>';
+    teamMembers.forEach(function(tm){
+      if (!tm.members) return;
+      var col = (tm.member_id === currentUser.id) ? '#C8511A' : getMemberColor(tm.member_id);
+      var name = tm.members.name || tm.members.email || '—';
+      var isMe = (tm.member_id === currentUser.id);
+      legendH += '<div style="display:flex;align-items:center;gap:5px;font-size:12px;color:var(--t1)">';
+      legendH += '<span style="width:14px;height:14px;border-radius:3px;background:'+col+';display:inline-block"></span>';
+      legendH += '<span'+(isMe?' style="font-weight:700;color:var(--acc)"':'')+'>'+escapeHtml(name)+(isMe?' (我)':'')+'</span>';
+      legendH += '</div>';
+    });
+    legendDiv.innerHTML = legendH;
+    el.appendChild(legendDiv);
+  }
 
   if (calTab === 'month') {
     buildMonthView(el, loanAlerts, todayStr);
@@ -11299,6 +11353,12 @@ function buildMonthView(el, loanAlerts, todayStr) {
     var eventArea = '<div style="flex:1;overflow:hidden;display:flex;flex-direction:column;gap:3px">';
     var shown = 0;
     var maxShow = 2;
+    var monthTypeColors = {
+      meeting:'#C8511A', follow_up:'#C8511A',
+      document:'#B88020', loan_apply:'#2D8A4E',
+      reminder:'#B88020', auto_status:'#2D7AB8',
+      pawn_due:'#C04030', other:'#999999'
+    };
     dayScheds.slice(0, maxShow).forEach(function(s){
       shown++;
       var t = s.schedule_time ? s.schedule_time.slice(0,5) + ' ' : '';
@@ -11306,7 +11366,18 @@ function buildMonthView(el, loanAlerts, todayStr) {
       var maxLen = 8;
       var displayTitle = title.length > maxLen ? title.slice(0, maxLen)+'…' : title;
       var doneStyle = s.is_done ? 'text-decoration:line-through;opacity:.6' : '';
-      eventArea += '<div style="font-size:13px;line-height:1.3;padding:3px 6px;border-radius:4px;background:var(--al);color:var(--acc);font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;'+doneStyle+'">'+escapeHtml(t+displayTitle)+'</div>';
+      // 自訂顏色：強染色背景；預設仍用 var(--al) 半透明
+      var evColor = resolveScheduleColor(s, monthTypeColors);
+      var hasCustom = (s.color && s.color !== 'auto') || (window._teamMode && s.member_id !== currentUser.id);
+      var bgStyle, fgStyle;
+      if (hasCustom) {
+        bgStyle = 'background:'+evColor+'25;border-left:3px solid '+evColor;
+        fgStyle = 'color:'+evColor;
+      } else {
+        bgStyle = 'background:var(--al)';
+        fgStyle = 'color:var(--acc)';
+      }
+      eventArea += '<div style="font-size:13px;line-height:1.3;padding:3px 6px;border-radius:4px;'+bgStyle+';'+fgStyle+';font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;'+doneStyle+'">'+escapeHtml(t+displayTitle)+'</div>';
     });
     if (dayScheds.length > maxShow) {
       eventArea += '<div style="font-size:12px;color:var(--t3);padding:0 5px;line-height:1.3;font-weight:500">+'+(dayScheds.length-maxShow)+' 筆</div>';
@@ -11428,6 +11499,186 @@ function isUnservicableSchedule(s) {
   return false;
 }
 
+// ══════════════════════════════
+// 行程顏色系統
+// ══════════════════════════════
+// 顏色決策優先序：
+// 1. 團隊模式 + 行程屬於某團員 → 用該團員顏色（hash 自動產生，方便區分）
+// 2. 行程有 s.color → 用使用者自訂顏色
+// 3. 預設 → 用類型顏色
+// 12 色調色盤（飽和度足夠在深底色上看清）
+var TEAM_PALETTE = [
+  '#C8511A', '#2D7AB8', '#2D8A4E', '#B88020', '#A648C0',
+  '#1FA9B8', '#D14B6F', '#7E8B23', '#4A6BD9', '#C04030',
+  '#08899A', '#9B6019'
+];
+// 從 member_id 字串穩定 hash 出顏色 index
+function hashColorIndex(str, modulo) {
+  if (!str) return 0;
+  var s = String(str), h = 0;
+  for (var i = 0; i < s.length; i++) {
+    h = ((h << 5) - h) + s.charCodeAt(i);
+    h |= 0;
+  }
+  return Math.abs(h) % modulo;
+}
+function getMemberColor(memberId) {
+  if (!memberId) return TEAM_PALETTE[0];
+  return TEAM_PALETTE[hashColorIndex(memberId, TEAM_PALETTE.length)];
+}
+// 個人模式色票（給「行程顏色設定」picker 用）
+var PERSONAL_PALETTE = [
+  { val:'auto',    label:'依類型',  color:null },
+  { val:'#C8511A', label:'橘',      color:'#C8511A' },
+  { val:'#2D8A4E', label:'綠',      color:'#2D8A4E' },
+  { val:'#2D7AB8', label:'藍',      color:'#2D7AB8' },
+  { val:'#B88020', label:'黃',      color:'#B88020' },
+  { val:'#C04030', label:'紅',      color:'#C04030' },
+  { val:'#A648C0', label:'紫',      color:'#A648C0' },
+  { val:'#1FA9B8', label:'青',      color:'#1FA9B8' },
+  { val:'#7E8B23', label:'橄欖',    color:'#7E8B23' },
+  { val:'#9B6019', label:'棕',      color:'#9B6019' }
+];
+
+// 取得某筆行程的顯示顏色
+function resolveScheduleColor(s, typeColorsMap) {
+  if (!s) return 'var(--t2)';
+  // 1. 團隊模式：行程屬於別的團員 → 用團員顏色
+  if (window._teamMode && s.member_id && currentUser && s.member_id !== currentUser.id) {
+    return getMemberColor(s.member_id);
+  }
+  // 2. 行程有自訂顏色（且不是 'auto'）
+  if (s.color && s.color !== 'auto' && /^#[0-9A-Fa-f]{6}$/.test(s.color)) {
+    return s.color;
+  }
+  // 3. 類型顏色
+  if (typeColorsMap && typeColorsMap[s.type]) return typeColorsMap[s.type];
+  // 4. 預設
+  return 'var(--acc)';
+}
+
+// 取得某筆行程的所有者名稱（團隊模式）
+function getScheduleOwnerName(s) {
+  if (!window._teamMode) return null;
+  if (!s || !s.member_id) return null;
+  if (currentUser && s.member_id === currentUser.id) return '我';
+  if (Array.isArray(teamMembers)) {
+    var tm = teamMembers.find(function(m){ return m.member_id === s.member_id; });
+    if (tm && tm.members && tm.members.name) return tm.members.name;
+  }
+  return null;
+}
+
+// ══════════════════════════════
+// 點選顏色色票
+function pickScheduleColor(el, hiddenInputId) {
+  if (!el) return;
+  var picker = el.parentNode;
+  if (!picker) return;
+  // 全部還原
+  picker.querySelectorAll('[data-color]').forEach(function(d){
+    d.style.border = '0.5px solid var(--bdr2)';
+    delete d.dataset.active;
+  });
+  // 標記當前
+  el.style.border = '2px solid var(--acc)';
+  el.dataset.active = '1';
+  // 寫入 hidden input
+  var hidden = document.getElementById(hiddenInputId);
+  if (hidden) hidden.value = el.dataset.color || 'auto';
+}
+
+// 點擊儀表板某天 → 放大顯示全部行程
+// ══════════════════════════════
+function expandDashDay(dateStr) {
+  var data = window._dashWeekData;
+  if (!data) return;
+  var dEvents = (data.eventsByDate && data.eventsByDate[dateStr]) || [];
+  var dayInfo = data.days && data.days.find(function(d){ return d.dateStr === dateStr; });
+  if (!dayInfo) return;
+
+  var old = document.getElementById('dash-day-modal');
+  if (old) old.remove();
+
+  var dayNames = ['日','一','二','三','四','五','六'];
+  var dayOfWeek = dayInfo.date.getDay();
+  var dateLabel = dayInfo.isToday ? '今天 · ' : '';
+  dateLabel += (dayInfo.date.getMonth()+1) + '/' + dayInfo.date.getDate() + '（週' + dayNames[dayOfWeek] + '）';
+
+  var typeColors = {
+    meeting:'var(--acc)', follow_up:'var(--acc)',
+    document:'#B88020', loan_apply:'var(--grn)',
+    reminder:'var(--yel)', auto_status:'var(--blu)',
+    pawn_due:'var(--red)', other:'var(--t2)'
+  };
+
+  var overlay = document.createElement('div');
+  overlay.id = 'dash-day-modal';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:99999;display:flex;align-items:center;justify-content:center;padding:16px;font-family:var(--sans)';
+  overlay.onclick = function(e){ if (e.target === overlay) overlay.remove(); };
+
+  var modal = document.createElement('div');
+  modal.style.cssText = 'background:var(--card);border:0.5px solid var(--bdr);border-radius:14px;width:100%;max-width:520px;max-height:88vh;display:flex;flex-direction:column;box-shadow:0 16px 48px rgba(0,0,0,.6);overflow:hidden';
+
+  // 標題
+  var head = document.createElement('div');
+  head.style.cssText = 'display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:0.5px solid var(--bdr)';
+  head.innerHTML = '<div style="font-size:17px;font-weight:700">📅 ' + dateLabel + '</div>';
+  var closeBtn = document.createElement('button');
+  closeBtn.type = 'button';
+  closeBtn.textContent = '✕';
+  closeBtn.style.cssText = 'background:transparent;border:none;color:var(--t2);font-size:22px;cursor:pointer;padding:0;width:30px;height:30px;line-height:1';
+  closeBtn.onclick = function(){ overlay.remove(); };
+  head.appendChild(closeBtn);
+  modal.appendChild(head);
+
+  // 內容
+  var body = document.createElement('div');
+  body.style.cssText = 'padding:14px 18px;overflow-y:auto;flex:1';
+
+  if (dEvents.length === 0) {
+    body.innerHTML = '<div style="text-align:center;padding:30px;color:var(--t2);font-size:14px"><div style="font-size:36px;margin-bottom:10px">📭</div>本日尚無行程</div>';
+  } else {
+    var bodyH = '';
+    dEvents.forEach(function(ev){
+      var col = resolveScheduleColor(ev, typeColors);
+      var title = (ev.leads && ev.leads.name ? ev.leads.name + ' · ' : '') + (ev.title || '行程');
+      var doneStyle = ev.is_done ? 'text-decoration:line-through;opacity:.55' : '';
+      var ownerName = getScheduleOwnerName(ev);
+      bodyH += '<div style="border-left:3px solid '+col+';background:var(--inp);padding:10px 12px;margin-bottom:8px;border-radius:0 8px 8px 0;'+doneStyle+'">';
+      bodyH += '<div style="display:flex;align-items:center;gap:8px;margin-bottom:3px">';
+      if (ev.schedule_time) {
+        bodyH += '<span style="font-size:13px;font-weight:700;color:var(--t1)">'+ev.schedule_time.slice(0,5)+'</span>';
+      }
+      bodyH += '<span style="font-size:14px;font-weight:600;color:var(--t1);flex:1">'+escapeHtml(title)+'</span>';
+      if (ownerName) {
+        bodyH += '<span style="font-size:11px;padding:2px 8px;border-radius:10px;background:'+col+';color:#FFF;font-weight:600">'+escapeHtml(ownerName)+'</span>';
+      }
+      if (ev.is_done) {
+        bodyH += '<span style="font-size:13px;color:var(--grn)">✓</span>';
+      }
+      bodyH += '</div>';
+      if (ev.description) {
+        bodyH += '<div style="font-size:12px;color:var(--t2);line-height:1.5">'+escapeHtml(ev.description)+'</div>';
+      }
+      bodyH += '</div>';
+    });
+    body.innerHTML = bodyH;
+  }
+  modal.appendChild(body);
+
+  // 底部
+  var foot = document.createElement('div');
+  foot.style.cssText = 'padding:12px 18px;border-top:0.5px solid var(--bdr);display:flex;gap:8px';
+  foot.innerHTML =
+    '<button type="button" onclick="document.getElementById(\'dash-day-modal\').remove()" style="padding:9px 14px;background:transparent;border:0.5px solid var(--bdr2);border-radius:7px;color:var(--t1);cursor:pointer;font-family:var(--sans);font-size:13px">關閉</button>' +
+    '<button type="button" onclick="document.getElementById(\'dash-day-modal\').remove();navTo(\'calendar\',null)" style="flex:1;padding:9px;background:var(--acc);color:#FFF;border:none;border-radius:7px;cursor:pointer;font-family:var(--sans);font-size:13px;font-weight:600">前往行事曆 →</button>';
+  modal.appendChild(foot);
+
+  overlay.appendChild(modal);
+  document.body.appendChild(overlay);
+}
+
 function buildWeekView(el, loanAlerts, weekStart, weekEnd, todayStr) {
   var card = document.createElement('div'); card.className = 'card';
   var h = '<div class="ct">📋 本週待辦（' + (weekStart.getMonth()+1) + '/' + weekStart.getDate() + ' – ' + (weekEnd.getMonth()+1) + '/' + weekEnd.getDate() + '）</div>';
@@ -11470,8 +11721,18 @@ function buildWeekView(el, loanAlerts, weekStart, weekEnd, todayStr) {
 
 function buildScheduleItem(s) {
   var isAuto = s.type === 'auto_status';
-  var typeColor = isAuto?'var(--blu)':s.type==='follow_up'?'var(--acc)':s.type==='loan_apply'?'var(--grn)':s.type==='reminder'?'var(--yel)':'var(--t2)';
-  var typeLabel = isAuto?'進度更新':s.type==='follow_up'?'跟進':s.type==='loan_apply'?'送件':s.type==='reminder'?'提醒':'其他';
+  var typeLabel = isAuto?'進度更新':s.type==='follow_up'?'跟進':s.type==='meeting'?'會面':s.type==='loan_apply'?'送件':s.type==='document'?'資料整備':s.type==='reminder'?'提醒':'其他';
+
+  // 顏色：用 resolveScheduleColor（會考慮自訂顏色 / 團隊模式）
+  var itemTypeColors = {
+    meeting:'#C8511A', follow_up:'#C8511A',
+    document:'#B88020', loan_apply:'#2D8A4E',
+    reminder:'#B88020', auto_status:'#2D7AB8',
+    pawn_due:'#C04030', other:'#999999'
+  };
+  var typeColor = resolveScheduleColor(s, itemTypeColors);
+  var ownerName = getScheduleOwnerName(s);
+
   var editId = 'sch-edit-' + s.id;
   var leadOptions = '<option value="">— 無 —</option>' + leads.map(function(l){
     return '<option value="'+l.id+'"'+(s.lead_id===l.id?' selected':'')+'>'+l.name+'</option>';
@@ -11482,20 +11743,39 @@ function buildScheduleItem(s) {
   // 主列（可點擊展開）
   h += '<div onclick="toggleSchEdit(\''+editId+'\')" style="display:flex;align-items:flex-start;gap:8px;padding:9px 10px;cursor:pointer">';
   h += '<div style="flex:1">';
-  h += '<div style="display:flex;align-items:center;gap:6px;margin-bottom:3px">';
-  h += '<span style="font-size:14px;font-weight:500;'+(s.is_done?'text-decoration:line-through;color:var(--t3)':'color:var(--t1)')+'">'+s.title+'</span>';
-  h += '<span style="font-size:11px;padding:1px 5px;border-radius:4px;background:'+(isAuto?'var(--bl)':'var(--al)')+';color:'+typeColor+'">'+typeLabel+'</span>';
+  h += '<div style="display:flex;align-items:center;gap:6px;margin-bottom:3px;flex-wrap:wrap">';
+  h += '<span style="font-size:14px;font-weight:500;'+(s.is_done?'text-decoration:line-through;color:var(--t3)':'color:var(--t1)')+'">'+escapeHtml(s.title||'')+'</span>';
+  h += '<span style="font-size:11px;padding:1px 6px;border-radius:4px;background:'+typeColor+'25;color:'+typeColor+';font-weight:600">'+typeLabel+'</span>';
+  if (ownerName) {
+    h += '<span style="font-size:11px;padding:2px 7px;border-radius:10px;background:'+typeColor+';color:#FFF;font-weight:600">'+escapeHtml(ownerName)+'</span>';
+  }
   if (s.is_done) h += '<span style="font-size:11px;color:var(--grn)">✓</span>';
   h += '</div>';
-  if (s.leads) h += '<div style="font-size:12px;color:var(--t2)">👤 ' + s.leads.name + '</div>';
+  if (s.leads) h += '<div style="font-size:12px;color:var(--t2)">👤 ' + escapeHtml(s.leads.name||'') + '</div>';
   if (s.schedule_time) h += '<div style="font-size:12px;color:var(--t3)">🕐 ' + s.schedule_time.slice(0,5) + '</div>';
-  if (s.description) h += '<div style="font-size:12px;color:var(--t2);margin-top:2px">'+s.description+'</div>';
+  if (s.description) h += '<div style="font-size:12px;color:var(--t2);margin-top:2px">'+escapeHtml(s.description)+'</div>';
   h += '</div>';
   h += '<span style="font-size:12px;color:var(--t3);align-self:center">✏️</span>';
   h += '</div>';
 
   // 展開編輯區
   h += '<div id="'+editId+'" onclick="event.stopPropagation()" style="display:none;padding:10px 12px;border-top:0.5px solid var(--bdr);background:var(--card)">';
+
+  // 判斷是否別人的行程（團隊模式下）
+  var isOthersInTeam = window._teamMode && s.member_id && currentUser && s.member_id !== currentUser.id;
+
+  if (isOthersInTeam) {
+    // 別人的行程 → 唯讀
+    h += '<div style="font-size:12px;color:var(--t2);margin-bottom:8px;padding:6px 8px;background:var(--inp);border-radius:6px">👀 唯讀檢視（'+escapeHtml(ownerName||'其他成員')+' 的行程）</div>';
+    h += '<div class="ri"><span class="rl">標題</span><span class="rv">'+escapeHtml(s.title||'')+'</span></div>';
+    h += '<div class="ri"><span class="rl">日期</span><span class="rv">'+(s.schedule_date ? String(s.schedule_date).slice(0,10) : '—')+(s.schedule_time?' '+s.schedule_time.slice(0,5):'')+'</span></div>';
+    h += '<div class="ri"><span class="rl">類型</span><span class="rv">'+typeLabel+'</span></div>';
+    if (s.leads) h += '<div class="ri"><span class="rl">客戶</span><span class="rv">'+escapeHtml(s.leads.name||'')+'</span></div>';
+    if (s.description) h += '<div class="ri"><span class="rl">備註</span><span class="rv">'+escapeHtml(s.description)+'</span></div>';
+    h += '</div></div>';
+    return h;
+  }
+
   if (isAuto) {
     h += '<div style="font-size:12px;color:var(--blu);margin-bottom:8px;padding:6px 8px;background:var(--bl);border-radius:6px">ℹ️ 此為案件進度自動產生的行程，可編輯日期時間或刪除</div>';
   }
@@ -11510,6 +11790,19 @@ function buildScheduleItem(s) {
   h += '</select></div>';
   h += '<div class="frow"><div class="flbl">綁定客戶</div><select class="fi" id="se-lead-'+s.id+'">'+leadOptions+'</select></div></div>';
   h += '<div class="frow" style="margin-top:6px"><div class="flbl">備註</div><input class="fi" id="se-desc-'+s.id+'" value="'+(s.description||'').replace(/"/g,'&quot;')+'"></div>';
+
+  // 顏色標記
+  var curColor = s.color || 'auto';
+  h += '<div class="frow" style="margin-top:6px"><div class="flbl">🎨 顏色</div>';
+  h += '<div style="display:flex;flex-wrap:wrap;gap:6px">';
+  PERSONAL_PALETTE.forEach(function(p){
+    var isActive = (p.val === curColor);
+    var bgC = p.color || 'transparent';
+    var border = isActive ? '2px solid var(--acc)' : '0.5px solid var(--bdr2)';
+    h += '<div data-color="'+p.val+'" '+(isActive?'data-active="1" ':'')+'onclick="pickScheduleColor(this,\'se-color-'+s.id+'\')" style="width:30px;height:30px;border-radius:7px;cursor:pointer;background:'+bgC+';border:'+border+';display:flex;align-items:center;justify-content:center;font-size:10px;color:'+(p.color?'#FFF':'var(--t2)')+';font-weight:600" title="'+p.label+'">'+(p.color ? '' : '自')+'</div>';
+  });
+  h += '</div><input type="hidden" id="se-color-'+s.id+'" value="'+curColor+'"></div>';
+
   h += '<div style="display:flex;gap:6px;margin-top:8px">';
   if (!s.is_done) h += '<button type="button" onclick="doneSchedule(\''+s.id+'\')" style="padding:6px 10px;background:transparent;border:0.5px solid rgba(45,138,78,.3);color:var(--grn);border-radius:6px;cursor:pointer;font-family:var(--sans);font-size:13px">✓ 完成</button>';
   h += '<button type="button" onclick="deleteSchedule(\''+s.id+'\')" style="padding:6px 10px;background:transparent;border:0.5px solid rgba(192,64,48,.3);color:var(--red);border-radius:6px;cursor:pointer;font-family:var(--sans);font-size:13px">刪除</button>';
@@ -11538,10 +11831,12 @@ async function saveScheduleEdit(id) {
     var type   = document.getElementById('se-type-'+id)  ? document.getElementById('se-type-'+id).value  : 'follow_up';
     var leadId = document.getElementById('se-lead-'+id)  ? document.getElementById('se-lead-'+id).value  : null;
     var desc   = document.getElementById('se-desc-'+id)  ? document.getElementById('se-desc-'+id).value.trim() : '';
+    var color  = document.getElementById('se-color-'+id) ? document.getElementById('se-color-'+id).value : 'auto';
     if (!title || !date) { alert('請填寫標題和日期'); return; }
     var data = { title:title, schedule_date:date, type:type, description:desc||null };
     if (time) data.schedule_time = time; else data.schedule_time = null;
     data.lead_id = leadId || null;
+    data.color = (color && color !== 'auto') ? color : null;
     console.log('[saveScheduleEdit] 即將更新', { id:id, data:data });
     var res = await sb.from('schedules').update(data).eq('id', id);
     if (res && res.error) {
@@ -11596,6 +11891,18 @@ function buildAddScheduleForm() {
   h += '<div class="frow"><div class="flbl">時間</div><input class="fi" id="sch-time" type="time"></div></div>';
   h += '<div class="frow" style="margin-top:8px"><div class="flbl">類型</div><select class="fi" id="sch-type"><option value="follow_up">跟進</option><option value="meeting">會面</option><option value="loan_apply">送件</option><option value="document">資料整備</option><option value="reminder">提醒</option><option value="other">其他</option></select></div>';
   h += '<div class="frow" style="margin-top:8px"><div class="flbl">備註</div><input class="fi" id="sch-desc" placeholder="備註說明" autocomplete="off"></div>';
+
+  // 顏色標記
+  h += '<div class="frow" style="margin-top:8px"><div class="flbl">🎨 顏色標記</div>';
+  h += '<div id="sch-color-picker" style="display:flex;flex-wrap:wrap;gap:6px">';
+  PERSONAL_PALETTE.forEach(function(p, idx){
+    var sel = idx === 0 ? ' data-active="1"' : '';
+    var bgC = p.color || 'transparent';
+    var border = idx === 0 ? '2px solid var(--acc)' : '0.5px solid var(--bdr2)';
+    h += '<div data-color="'+p.val+'"'+sel+' onclick="pickScheduleColor(this,\'sch-color\')" style="width:34px;height:34px;border-radius:8px;cursor:pointer;background:'+bgC+';border:'+border+';display:flex;align-items:center;justify-content:center;font-size:11px;color:'+(p.color?'#FFF':'var(--t2)')+';font-weight:600" title="'+p.label+'">'+(p.color ? '' : '自')+'</div>';
+  });
+  h += '</div><input type="hidden" id="sch-color" value="auto"></div>';
+
   h += '<div class="frow" style="margin-top:8px"><div class="flbl">🔔 提前提醒</div><select class="fi" id="sch-remind"><option value="0">不提醒</option><option value="15">15 分鐘前</option><option value="30" selected>30 分鐘前</option><option value="60">1 小時前</option><option value="120">2 小時前</option><option value="1440">1 天前</option></select></div>';
   h += '<div style="display:flex;gap:6px;margin-top:10px"><button type="button" class="btn-sm" onclick="document.getElementById(\'add-schedule-form\').style.display=\'none\'">取消</button>';
   h += '<button type="button" class="btn-p" onclick="saveSchedule()" style="flex:1">儲存行程</button></div>';
@@ -11733,6 +12040,7 @@ async function saveSchedule() {
     var leadEl   = document.getElementById('sch-lead');
     var descEl   = document.getElementById('sch-desc');
     var remindEl = document.getElementById('sch-remind');
+    var colorEl  = document.getElementById('sch-color');
 
     var title   = titleEl  ? (titleEl.value||'').trim()  : '';
     var date    = dateEl   ? (dateEl.value||'')          : '';
@@ -11740,6 +12048,7 @@ async function saveSchedule() {
     var type    = typeEl   ? (typeEl.value||'follow_up') : 'follow_up';
     var leadId  = leadEl   ? (leadEl.value||'')          : '';
     var desc    = descEl   ? (descEl.value||'').trim()   : '';
+    var color   = colorEl  ? (colorEl.value||'auto')     : 'auto';
     var remind  = remindEl ? parseInt(remindEl.value, 10) : 30;
     if (isNaN(remind)) remind = 30;
 
@@ -11757,6 +12066,7 @@ async function saveSchedule() {
     };
     if (time)   data.schedule_time = time;
     if (leadId) data.lead_id = leadId;
+    if (color && color !== 'auto') data.color = color;
 
     console.log('[saveSchedule] 表單值 → 即將送出', {
       title: title,
