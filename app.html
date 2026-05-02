@@ -11127,42 +11127,44 @@ function buildCalendarUI(el, loanAlerts) {
 
 function buildMonthView(el, loanAlerts, todayStr) {
   var year = calViewDate.getFullYear(), month = calViewDate.getMonth();
-  var firstWeekday = new Date(year, month, 1).getDay(); // 0=日, 1=一 ... 6=六
-  // 我們用「日一二三四五六」的順序（週日開頭，比較直覺）
+  var firstWeekday = new Date(year, month, 1).getDay();
   var leadingBlanks = firstWeekday;
   var daysInMonth = new Date(year, month+1, 0).getDate();
+  var totalRows = Math.ceil((leadingBlanks + daysInMonth) / 7);
 
   var card = document.createElement('div');
   card.className = 'card';
+  card.style.cssText = 'padding:12px';
 
   var h = '';
 
   // 月份導航
-  h += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;gap:10px">';
-  h += '<button type="button" onclick="calViewDate.setMonth(calViewDate.getMonth()-1);renderCalendar()" style="padding:6px 14px;background:transparent;border:0.5px solid var(--bdr2);border-radius:7px;color:var(--t1);cursor:pointer;font-family:var(--sans);font-size:16px">‹ 上月</button>';
-  h += '<div style="font-size:17px;font-weight:700;text-align:center;flex:1">' + year + ' 年 ' + (month+1) + ' 月</div>';
-  h += '<button type="button" onclick="calViewDate.setMonth(calViewDate.getMonth()+1);renderCalendar()" style="padding:6px 14px;background:transparent;border:0.5px solid var(--bdr2);border-radius:7px;color:var(--t1);cursor:pointer;font-family:var(--sans);font-size:16px">下月 ›</button>';
+  h += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;gap:10px">';
+  h += '<button type="button" onclick="calViewDate.setMonth(calViewDate.getMonth()-1);renderCalendar()" style="padding:6px 12px;background:transparent;border:0.5px solid var(--bdr2);border-radius:7px;color:var(--t1);cursor:pointer;font-family:var(--sans);font-size:15px">‹</button>';
+  h += '<div style="font-size:18px;font-weight:700;text-align:center;flex:1">' + year + ' 年 ' + (month+1) + ' 月';
+  h += ' <button type="button" onclick="calViewDate=new Date();renderCalendar()" style="margin-left:8px;padding:3px 10px;background:transparent;border:0.5px solid var(--bdr2);border-radius:12px;color:var(--t2);cursor:pointer;font-family:var(--sans);font-size:11px;vertical-align:middle">今天</button>';
   h += '</div>';
-
-  // 今天按鈕
-  h += '<div style="text-align:center;margin-bottom:10px">';
-  h += '<button type="button" onclick="calViewDate=new Date();renderCalendar()" style="padding:5px 14px;background:transparent;border:0.5px solid var(--bdr2);border-radius:14px;color:var(--t2);cursor:pointer;font-family:var(--sans);font-size:12px">回到今天</button>';
+  h += '<button type="button" onclick="calViewDate.setMonth(calViewDate.getMonth()+1);renderCalendar()" style="padding:6px 12px;background:transparent;border:0.5px solid var(--bdr2);border-radius:7px;color:var(--t1);cursor:pointer;font-family:var(--sans);font-size:15px">›</button>';
   h += '</div>';
 
   // 星期標頭（週日開頭）
   h += '<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:3px;margin-bottom:4px">';
   ['日','一','二','三','四','五','六'].forEach(function(d, i){
     var clr = (i===0 || i===6) ? 'var(--red)' : 'var(--t2)';
-    h += '<div style="text-align:center;font-size:11px;font-weight:600;color:'+clr+';padding:6px 0;letter-spacing:1px">'+d+'</div>';
+    h += '<div style="text-align:center;font-size:13px;font-weight:600;color:'+clr+';padding:6px 0;letter-spacing:1px">'+d+'</div>';
   });
   h += '</div>';
 
-  // 日期格子網格
+  // 日期格子網格 — 用 vh 讓所有格子剛好填滿一頁
+  // 預留：頂部導航(60) + 月份(40) + 星期標頭(34) + tab列(50) + padding(50) + 底部URL列(40) ≈ 270px
+  // 剩餘高度給 totalRows 排：calc((100vh - 270px) / N)，最小 70px
+  var rowHeightCalc = 'max(70px, calc((100vh - 290px) / ' + totalRows + '))';
+
   h += '<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:3px">';
 
   // 月初空白格
   for (var b = 0; b < leadingBlanks; b++) {
-    h += '<div style="aspect-ratio:1/1.05;min-height:60px;border-radius:7px;background:transparent;border:0.5px dashed rgba(255,255,255,.04)"></div>';
+    h += '<div style="height:'+rowHeightCalc+';border-radius:7px;background:transparent;border:0.5px dashed rgba(255,255,255,.04)"></div>';
   }
 
   for (var d = 1; d <= daysInMonth; d++) {
@@ -11180,7 +11182,6 @@ function buildMonthView(el, loanAlerts, todayStr) {
     var isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
     var hasEvent = dayScheds.length > 0 || dayLoans.length > 0;
 
-    // 格子樣式
     var cellBg, cellBorder, dateColor;
     if (isToday) {
       cellBg = 'var(--al)';
@@ -11196,13 +11197,11 @@ function buildMonthView(el, loanAlerts, todayStr) {
       dateColor = isWeekend ? 'var(--red)' : 'var(--t2)';
     }
 
-    var cursor = hasEvent ? 'pointer' : 'default';
-    h += '<div ';
-    if (hasEvent) h += 'onclick="showDayDetail(\''+dateStr+'\')" ';
-    h += 'style="aspect-ratio:1/1.05;min-height:60px;padding:4px 5px;border-radius:7px;cursor:'+cursor+';background:'+cellBg+';border:'+cellBorder+';display:flex;flex-direction:column;overflow:hidden;position:relative">';
+    // 整格都可點，點了開 Modal 顯示當天詳情 + 可編輯
+    h += '<div onclick="openDayModal(\''+dateStr+'\')" style="height:'+rowHeightCalc+';padding:4px 5px;border-radius:7px;cursor:pointer;background:'+cellBg+';border:'+cellBorder+';display:flex;flex-direction:column;overflow:hidden;position:relative">';
 
-    // 日期數字（左上）
-    h += '<div style="font-size:13px;font-weight:'+(isToday?'700':'500')+';color:'+dateColor+';line-height:1;margin-bottom:3px;flex-shrink:0">'+d+'</div>';
+    // 日期數字
+    h += '<div style="font-size:15px;font-weight:'+(isToday?'700':'500')+';color:'+dateColor+';line-height:1;margin-bottom:3px;flex-shrink:0">'+d+'</div>';
 
     // 事件指示
     var eventArea = '<div style="flex:1;overflow:hidden;display:flex;flex-direction:column;gap:2px">';
@@ -11210,39 +11209,112 @@ function buildMonthView(el, loanAlerts, todayStr) {
     var maxShow = 2;
     dayScheds.slice(0, maxShow).forEach(function(s){
       shown++;
-      var t = s.schedule_time ? s.schedule_time.slice(0,5)+' ' : '';
+      var t = s.schedule_time ? s.schedule_time.slice(0,5) + ' ' : '';
       var title = (s.title||'').toString();
-      // 截短標題
-      var maxLen = 6;
+      var maxLen = 8;
       var displayTitle = title.length > maxLen ? title.slice(0, maxLen)+'…' : title;
-      eventArea += '<div style="font-size:9.5px;line-height:1.3;padding:1px 4px;border-radius:3px;background:var(--al);color:var(--acc);font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+escapeHtml(t+displayTitle)+'</div>';
+      var doneStyle = s.is_done ? 'text-decoration:line-through;opacity:.6' : '';
+      eventArea += '<div style="font-size:11px;line-height:1.3;padding:2px 5px;border-radius:3px;background:var(--al);color:var(--acc);font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;'+doneStyle+'">'+escapeHtml(t+displayTitle)+'</div>';
     });
     if (dayScheds.length > maxShow) {
-      eventArea += '<div style="font-size:9px;color:var(--t3);padding:0 4px;line-height:1">+'+(dayScheds.length-maxShow)+'</div>';
+      eventArea += '<div style="font-size:10px;color:var(--t3);padding:0 4px;line-height:1.3">+'+(dayScheds.length-maxShow)+' 筆</div>';
     }
     if (dayLoans.length > 0 && shown < maxShow) {
-      eventArea += '<div style="font-size:9.5px;line-height:1.3;padding:1px 4px;border-radius:3px;background:var(--yl);color:var(--yel);font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">💰 提醒</div>';
+      eventArea += '<div style="font-size:11px;line-height:1.3;padding:2px 5px;border-radius:3px;background:var(--yl);color:var(--yel);font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">💰 提醒</div>';
     }
     eventArea += '</div>';
     h += eventArea;
 
-    h += '</div>'; // 結束格子
+    h += '</div>';
   }
 
-  // 月底後空白格（補滿一週）
+  // 月底空白格
   var totalCells = leadingBlanks + daysInMonth;
   var trailingBlanks = (7 - (totalCells % 7)) % 7;
   for (var tb = 0; tb < trailingBlanks; tb++) {
-    h += '<div style="aspect-ratio:1/1.05;min-height:60px;border-radius:7px;background:transparent;border:0.5px dashed rgba(255,255,255,.04)"></div>';
+    h += '<div style="height:'+rowHeightCalc+';border-radius:7px;background:transparent;border:0.5px dashed rgba(255,255,255,.04)"></div>';
   }
 
-  h += '</div>'; // 結束網格
-
-  // 日期詳情區
-  h += '<div id="day-detail" style="margin-top:14px"></div>';
+  h += '</div>';
 
   card.innerHTML = h;
   el.appendChild(card);
+}
+
+// ══════════════════════════════
+// 點擊月曆某天 → 開 Modal 顯示當天行程 + 編輯
+// ══════════════════════════════
+function openDayModal(dateStr) {
+  // 移除舊 modal
+  var old = document.getElementById('day-modal-overlay');
+  if (old) old.remove();
+
+  var dayScheds = schedules.filter(function(s){
+    return s.schedule_date && String(s.schedule_date).slice(0,10) === dateStr;
+  });
+
+  var d = new Date(dateStr + 'T00:00:00');
+  var dayNames = ['日','一','二','三','四','五','六'];
+  var dateLabel = (d.getMonth()+1) + '/' + d.getDate() + '（週' + dayNames[d.getDay()] + '）';
+
+  var overlay = document.createElement('div');
+  overlay.id = 'day-modal-overlay';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:99999;display:flex;align-items:center;justify-content:center;padding:16px;font-family:var(--sans)';
+  overlay.onclick = function(e){ if (e.target === overlay) overlay.remove(); };
+
+  var modal = document.createElement('div');
+  modal.style.cssText = 'background:var(--card);border:0.5px solid var(--bdr);border-radius:14px;width:100%;max-width:540px;max-height:88vh;display:flex;flex-direction:column;box-shadow:0 16px 48px rgba(0,0,0,.6);overflow:hidden';
+
+  // 標題
+  var head = document.createElement('div');
+  head.style.cssText = 'display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:0.5px solid var(--bdr);flex-shrink:0';
+  head.innerHTML = '<div style="font-size:16px;font-weight:700">📅 ' + dateLabel + '</div>';
+  var closeBtn = document.createElement('button');
+  closeBtn.type = 'button';
+  closeBtn.textContent = '✕';
+  closeBtn.style.cssText = 'background:transparent;border:none;color:var(--t2);font-size:22px;cursor:pointer;padding:0;width:30px;height:30px;line-height:1';
+  closeBtn.onclick = function(){ overlay.remove(); };
+  head.appendChild(closeBtn);
+  modal.appendChild(head);
+
+  // 內容
+  var body = document.createElement('div');
+  body.style.cssText = 'padding:14px 18px;overflow-y:auto;flex:1';
+  if (dayScheds.length === 0) {
+    body.innerHTML = '<div style="text-align:center;padding:30px;color:var(--t2);font-size:14px"><div style="font-size:36px;margin-bottom:10px">📭</div>本日尚無行程</div>';
+  } else {
+    var bodyH = '';
+    dayScheds.forEach(function(s){ bodyH += buildScheduleItem(s); });
+    body.innerHTML = bodyH;
+  }
+  modal.appendChild(body);
+
+  // 底部 — 「+ 在此日新增行程」
+  var foot = document.createElement('div');
+  foot.style.cssText = 'padding:12px 18px;border-top:0.5px solid var(--bdr);display:flex;gap:8px;flex-shrink:0';
+  foot.innerHTML =
+    '<button type="button" onclick="document.getElementById(\'day-modal-overlay\').remove()" style="padding:9px 14px;background:transparent;border:0.5px solid var(--bdr2);border-radius:7px;color:var(--t1);cursor:pointer;font-family:var(--sans);font-size:13px">關閉</button>' +
+    '<button type="button" onclick="addScheduleAtDate(\'' + dateStr + '\')" style="flex:1;padding:9px;background:var(--acc);color:#FFF;border:none;border-radius:7px;cursor:pointer;font-family:var(--sans);font-size:13px;font-weight:600">+ 在此日新增行程</button>';
+  modal.appendChild(foot);
+
+  overlay.appendChild(modal);
+  document.body.appendChild(overlay);
+}
+
+// 從月曆日期格 → 直接打開新增表單並預填日期
+function addScheduleAtDate(dateStr) {
+  var modal = document.getElementById('day-modal-overlay');
+  if (modal) modal.remove();
+  var f = document.getElementById('add-schedule-form');
+  if (!f) return;
+  f.style.display = 'block';
+  var dateInput = document.getElementById('sch-date');
+  if (dateInput) dateInput.value = dateStr;
+  setTimeout(function(){
+    f.scrollIntoView({behavior:'smooth', block:'start'});
+    var t = document.getElementById('sch-title');
+    if (t) t.focus();
+  }, 100);
 }
 
 // HTML escape 工具（月曆事件標題用）
@@ -11380,6 +11452,9 @@ async function saveScheduleEdit(id) {
     toast.textContent = '✅ 行程已更新';
     document.body.appendChild(toast);
     setTimeout(function(){ toast.remove(); }, 2500);
+    // 關閉日期 modal（如果開著）
+    var dayModal = document.getElementById('day-modal-overlay');
+    if (dayModal) dayModal.remove();
     renderCalendar();
   } catch (err) {
     console.error('[saveScheduleEdit] 錯誤', err);
@@ -11639,6 +11714,7 @@ async function doneSchedule(id) {
   try {
     var res = await sb.from('schedules').update({ is_done: true }).eq('id', id);
     if (res && res.error) { alert('標記完成失敗：' + res.error.message); return; }
+    var dm = document.getElementById('day-modal-overlay'); if (dm) dm.remove();
     renderCalendar();
   } catch (err) {
     console.error('[doneSchedule]', err);
@@ -11650,6 +11726,7 @@ async function deleteSchedule(id) {
   try {
     var res = await sb.from('schedules').delete().eq('id', id);
     if (res && res.error) { alert('刪除失敗：' + res.error.message); return; }
+    var dm = document.getElementById('day-modal-overlay'); if (dm) dm.remove();
     renderCalendar();
   } catch (err) {
     console.error('[deleteSchedule]', err);
@@ -14604,14 +14681,47 @@ async function downloadShareZip(lead, btn) {
     var safeName = (lead.name || '客戶').replace(/[\/\\?%*:|"<>]/g, '_');
     var folder = zip.folder(safeName + '_分享資料');
 
+    // 🆕 撈現有貸款
+    var zipLoans = [];
+    try {
+      var zlRes = await sb.from('lead_loans').select('*').eq('lead_id', leadId).order('created_at');
+      zipLoans = (zlRes.data || []).filter(function(l){
+        return ['property_1st','property_2nd','property_3rd'].indexOf(l.loan_type) < 0;
+      });
+    } catch (e) { console.warn('[zip] 載入貸款失敗', e); }
+    var zipLoanLabels = {credit:'銀行信貸', car_new:'汽車貸', bike:'機車貸', phone:'手機貸', pawn:'民間借款', car_used:'中古車貸'};
+
     // 加入文字摘要 README.txt
     var readme = '客戶分享資料包\n';
     readme += '═══════════════════════\n';
     readme += '客戶姓名：' + (lead.name || '—') + '\n';
     if (lead.phone) readme += '電話：' + lead.phone + '\n';
     if (lead.required_amount) readme += '需求資金：$' + lead.required_amount.toLocaleString() + '\n';
+    if (lead.fund_purpose) readme += '資金用途：' + lead.fund_purpose + '\n';
     readme += '產出時間：' + new Date().toLocaleString('zh-TW') + '\n';
     readme += '檔案數量：' + checkboxes.length + ' 筆\n';
+
+    // 🆕 現有貸款摘要
+    if (zipLoans.length > 0) {
+      readme += '\n【現有貸款】\n';
+      var totBal = 0, totMon = 0;
+      zipLoans.forEach(function(loan){
+        var lbl = zipLoanLabels[loan.loan_type] || loan.loan_type || '貸款';
+        var bal = Number(loan.balance) || 0;
+        var mon = Number(loan.monthly_payment) || 0;
+        var pen = Number(loan.penalty_fee) || 0;
+        totBal += bal;
+        totMon += mon;
+        var row = '・' + lbl;
+        if (loan.institution_name) row += '（' + loan.institution_name + '）';
+        row += ' 餘額 $' + bal.toLocaleString();
+        if (mon)  row += '・月繳 $' + mon.toLocaleString();
+        row += '・' + (pen ? '違約 $' + pen.toLocaleString() : '違約無');
+        readme += row + '\n';
+      });
+      readme += '合計：餘額 $' + totBal.toLocaleString() + ' / 月繳 $' + totMon.toLocaleString() + '\n';
+    }
+
     readme += '═══════════════════════\n\n';
     readme += '【檔案清單】\n';
 
@@ -14828,6 +14938,17 @@ async function exportLeadPDF(leadId) {
       } catch(e) {}
     }
 
+    // 🆕 從 lead_loans 表讀取現有貸款
+    var leadLoansArr = [];
+    try {
+      var loansRes = await sb.from('lead_loans').select('*').eq('lead_id', leadId).order('created_at');
+      leadLoansArr = (loansRes.data || []).filter(function(l){
+        return ['property_1st','property_2nd','property_3rd'].indexOf(l.loan_type) < 0;
+      });
+    } catch (lnErr) {
+      console.warn('[exportLeadPDF] 載入貸款失敗', lnErr);
+    }
+
     var scores = calcScores(lead);
     var housingLabels = {self_own:'本人名下（自有）',self_live:'自住（非本人名下）',family:'親屬房子',rent:'租屋',other:'其他'};
     var docLabels = {
@@ -14949,6 +15070,37 @@ async function exportLeadPDF(leadId) {
       }
     });
     propRows = propData.map(function(r){ return '<tr><td style="color:#666;width:110px;font-size:13px">'+r[0]+'</td><td style="font-weight:500;font-size:13px">'+r[1]+'</td></tr>'; }).join('');
+  }
+
+  // 🆕 現有貸款（lead_loans 表，排除不動產貸款）
+  var loanTypeLabelsPDF = {
+    credit:'🏦 銀行信貸', car_new:'🚗 汽車貸', bike:'🛵 機車貸',
+    phone:'📱 手機貸', pawn:'🏪 民間借款', car_used:'🚗 中古車貸款'
+  };
+  var leadLoansRows = '';
+  var leadLoansTotalBal = 0, leadLoansTotalMon = 0;
+  if (leadLoansArr.length > 0) {
+    leadLoansRows = leadLoansArr.map(function(loan){
+      var label = loanTypeLabelsPDF[loan.loan_type] || loan.loan_type || '貸款';
+      var bal = Number(loan.balance) || 0;
+      var mon = Number(loan.monthly_payment) || 0;
+      var pen = Number(loan.penalty_fee) || 0;
+      leadLoansTotalBal += bal;
+      leadLoansTotalMon += mon;
+      return '<tr>' +
+        '<td style="font-size:13px;width:110px">' + label + '</td>' +
+        '<td style="font-size:13px">' + (loan.institution_name || '—') + '</td>' +
+        '<td style="font-size:13px;font-weight:600;color:#C8511A">$' + bal.toLocaleString() + '</td>' +
+        '<td style="font-size:13px">月繳 $' + mon.toLocaleString() + '</td>' +
+        '<td style="font-size:13px">' + (pen ? '違約 $'+pen.toLocaleString() : '違約無') + '</td>' +
+        '</tr>';
+    }).join('');
+    // 合計列
+    leadLoansRows += '<tr style="background:#f5f5f5;font-weight:600">' +
+      '<td colspan="2" style="font-size:13px">合計（' + leadLoansArr.length + ' 筆）</td>' +
+      '<td style="font-size:13px;color:#C8511A">$' + leadLoansTotalBal.toLocaleString() + '</td>' +
+      '<td style="font-size:13px;color:#C8511A">月繳 $' + leadLoansTotalMon.toLocaleString() + '</td>' +
+      '<td></td></tr>';
   }
 
   // 結案項目
@@ -15073,6 +15225,12 @@ async function exportLeadPDF(leadId) {
   // 不動產
   if (lead.has_property && propRows) {
     w.document.write('<h2>🏠 不動產資料</h2><table>'+propRows+'</table>');
+  }
+
+  // 🆕 現有貸款（信貸/車貸/機車貸/手機貸/民間借款）
+  if (leadLoansRows) {
+    w.document.write('<h2>💰 現有貸款</h2>');
+    w.document.write('<table><tr style="background:#f5f5f5;font-weight:600"><td>類型</td><td>機構</td><td>餘額</td><td>月繳</td><td>違約金</td></tr>'+leadLoansRows+'</table>');
   }
 
   // 結案項目
@@ -15565,7 +15723,7 @@ function shareToLine() {
 function shareInviteToLine(code) {
   shareTextToLine('我的顧問PRO邀請碼：' + code + '\n' + BASE_URL);
 }
-function shareLeadLine(id) {
+async function shareLeadLine(id) {
   var lead = leads.find(function(l) { return l.id === id; });
   if (!lead) return;
   var s = calcScores(lead);
@@ -15573,6 +15731,16 @@ function shareLeadLine(id) {
   var laborLabels3 = {none:'未投保','6m+':'6個月以上','1y+':'1年以上','2y+':'2年以上'};
   var laborTypeMap3 = {company:'一般公司(勞保)',govt:'政府機關(公保)',farmer:'農漁(農保)',union:'職業工會',national:'國民年金',self:'自營業主'};
   var landTypeMap3 = {build:'建地',farm:'農地',forest:'林地',indigenous:'原住民保留地',special_farm:'特定農業區',industrial:'工業用地',waterway:'水利用地',other:'其他'};
+
+  // 🆕 撈現有貸款
+  var leadLoansLine = [];
+  try {
+    var lnRes = await sb.from('lead_loans').select('*').eq('lead_id', id).order('created_at');
+    leadLoansLine = (lnRes.data || []).filter(function(l){
+      return ['property_1st','property_2nd','property_3rd'].indexOf(l.loan_type) < 0;
+    });
+  } catch (e) { console.warn('[shareLeadLine] 載入貸款失敗', e); }
+  var loanTypeMapLine = {credit:'銀行信貸', car_new:'汽車貸', bike:'機車貸', phone:'手機貸', pawn:'民間借款', car_used:'中古車貸'};
 
   var lines = [];
   lines.push('━━━━━━━━━━━━━━━');
@@ -15657,6 +15825,28 @@ function shareLeadLine(id) {
         lines.push(s2);
       }
     });
+  }
+
+  // 🆕 現有貸款
+  if (leadLoansLine.length > 0) {
+    lines.push('');
+    lines.push('💳 現有貸款');
+    var totalBal = 0, totalMon = 0;
+    leadLoansLine.forEach(function(loan){
+      var label = loanTypeMapLine[loan.loan_type] || loan.loan_type || '貸款';
+      var bal = Number(loan.balance) || 0;
+      var mon = Number(loan.monthly_payment) || 0;
+      var pen = Number(loan.penalty_fee) || 0;
+      totalBal += bal;
+      totalMon += mon;
+      var row = '・' + label;
+      if (loan.institution_name) row += '（' + loan.institution_name + '）';
+      row += ' 餘額 $' + bal.toLocaleString();
+      if (mon)  row += '・月繳 $' + mon.toLocaleString();
+      row += '・' + (pen ? '違約 $' + pen.toLocaleString() : '違約無');
+      lines.push(row);
+    });
+    lines.push('合計：餘額 $' + totalBal.toLocaleString() + ' / 月繳 $' + totalMon.toLocaleString());
   }
 
   // 貸款需求
