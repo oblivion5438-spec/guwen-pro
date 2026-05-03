@@ -3928,8 +3928,17 @@ async function saveLead() {
     late_pay_days: parseInt(gv('n-late-pay')) || 0,
   };
 
+  console.log('[saveAddLead] payload =', payload);
   var r = await sb.from('leads').insert(payload).select().single();
-  if (r.error) { hideLoading(); document.getElementById('add-err').textContent='儲存失敗：'+r.error.message; document.getElementById('add-err').style.display='block'; return; }
+  if (r.error) {
+    console.error('[saveAddLead] Supabase 錯誤:', r.error);
+    hideLoading();
+    var errMsg = r.error.message || '未知錯誤';
+    if (/id_number_hash/i.test(errMsg))     errMsg = '身分證欄位儲存失敗：\n' + errMsg + '\n\n可能原因：\n1. 資料庫缺少 id_number_hash 欄位\n2. 該身分證已被其他客戶使用（unique 衝突）';
+    document.getElementById('add-err').textContent = '儲存失敗：' + errMsg;
+    document.getElementById('add-err').style.display = 'block';
+    return;
+  }
 
   // 收集貸款
   var loans = [];
@@ -4989,8 +4998,18 @@ async function saveLeadEdit(id) {
     fund_purpose:       gv('purpose') || null,
   };
   showLoading('儲存中…');
+  console.log('[saveLeadEdit] payload =', payload);
   var r = await sb.from('leads').update(payload).eq('id', id);
-  if (r.error) { hideLoading(); alert('儲存資料失敗：' + r.error.message); return; }
+  if (r.error) {
+    console.error('[saveLeadEdit] Supabase 錯誤:', r.error);
+    hideLoading();
+    var errMsg = r.error.message || '未知錯誤';
+    if (/id_number_hash/i.test(errMsg))     errMsg = '身分證欄位儲存失敗：\n' + errMsg + '\n\n可能原因：\n1. 資料庫缺少 id_number_hash 欄位\n2. 該身分證已被其他客戶使用（unique 衝突）';
+    else if (/violates check constraint/i.test(errMsg)) errMsg = '欄位驗證失敗：' + errMsg;
+    else if (/row-level security|RLS/i.test(errMsg))    errMsg = '權限不足：' + errMsg;
+    alert('儲存資料失敗：' + errMsg);
+    return;
+  }
   // 更新本地資料
   var lead = leads.find(function(l){ return l.id === id; });
   if (lead) Object.assign(lead, payload);
@@ -17436,10 +17455,12 @@ async function submitClientForm() {
   var laborYears = g('c-labor-years') || '';
 
   // 只送 DB 確定存在的欄位
+  var idnoCli = (g('c-idno') || '').trim().toUpperCase();
   var payload = {
     member_id: clientMember.id,
-    name: g('c-name') || '（未命名）',
+    name: g('c-name') || '(未命名)',
     phone: g('c-phone') || null,
+    id_number_hash: idnoCli || null,
     age: parseInt(g('c-age')) || null,
     work_type: [gf('c-company'), gf('c-position')].filter(Boolean).join(' · ') || null,
     alert_status: g('c-alert') || 'none',
