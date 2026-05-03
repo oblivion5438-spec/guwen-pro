@@ -11,7 +11,7 @@
 <meta name="application-name" content="顧問PRO">
 <meta name="description" content="貸款顧問業務管理平台">
 <meta name="format-detection" content="telephone=no">
-<meta name="build-id" content="2026-05-03-r9-no-labor">
+<meta name="build-id" content="2026-05-03-r10-email">
 <!-- PWA Manifest -->
 <link rel="manifest" href="/manifest.json">
 <!-- Apple Touch Icons -->
@@ -584,7 +584,7 @@ select.fi{-webkit-appearance:auto;appearance:auto;display:block;max-width:100%;w
 </div><!-- #app -->
 
 <script>
-console.log('[顧問PRO] JS 載入 build=2026-05-03-r9-no-labor, 時間=' + new Date().toLocaleTimeString());
+console.log('[顧問PRO] JS 載入 build=2026-05-03-r10-email, 時間=' + new Date().toLocaleTimeString());
 // ══════════════════════════════
 // SUPABASE
 // ══════════════════════════════
@@ -4319,6 +4319,8 @@ async function saveLead() {
 
   // 🔔 背景通知團隊團長/管理員（失敗也不影響主流程）
   notifyTeamAdminsNewLead(r.data);
+  // 📧 寄 Email 通知該案件的承辦顧問
+  sendLeadEmail(r.data);
 
   showLeadDetail(r.data.id);
 }
@@ -12807,6 +12809,36 @@ function requestNotificationPermission() {
 //   2. 查 owner 所屬 team
 //   3. 撈出該 team 中 role IN ('leader','admin') 的成員 email
 //   4. 呼叫 Edge Function notify-admin 寄信（背景執行，失敗不擋主流程）
+// ══════════════════════════════
+// 📧 新客戶 Email 通知（呼叫 Supabase Edge Function send-lead-email）
+// 失敗不影響主流程
+// ══════════════════════════════
+async function sendLeadEmail(leadRow) {
+  try {
+    if (!leadRow || !leadRow.id) return;
+    var ownerId = leadRow.member_id || (currentUser && currentUser.id);
+    if (!ownerId) return;
+    console.log('[sendLeadEmail] 觸發新客戶 Email 通知, lead=', leadRow.id);
+    // 呼叫 Edge Function（後端會自己撈承辦顧問的 email + 撈完整 lead 資料）
+    var res = await sb.functions.invoke('send-lead-email', {
+      body: {
+        lead_id: leadRow.id,
+        owner_id: ownerId,
+        // 提供詳情頁連結（讓 Email 內可點擊）
+        lead_url: 'https://guwen-pro.vercel.app/app.html#lead-' + leadRow.id
+      }
+    });
+    if (res && res.error) {
+      console.warn('[sendLeadEmail] 失敗（不影響主流程）:', res.error);
+    } else {
+      console.log('[sendLeadEmail] Email 已寄送', res && res.data);
+    }
+  } catch (err) {
+    console.warn('[sendLeadEmail] 例外（不影響主流程）:', err);
+  }
+}
+
+
 async function notifyTeamAdminsNewLead(leadRow) {
   try {
     if (!leadRow || !leadRow.id) return;
@@ -18002,6 +18034,8 @@ async function submitClientForm() {
 
   // 🔔 背景通知該顧問所屬團隊的團長/管理員（失敗不影響評估畫面）
   notifyTeamAdminsNewLead(r.data);
+  // 📧 寄 Email 通知該案件的承辦顧問
+  sendLeadEmail(r.data);
 
   // 用本地資料直接計算評分（不依賴 DB 欄位）
   var scoreData = {
