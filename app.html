@@ -888,23 +888,31 @@ function uploadDoc(event, leadId, type, aiPrompt) {
 // 真正執行儲存：把 pending 上傳到 Supabase
 async function saveLeadEditDocs(leadId) {
   console.log('[saveLeadEditDocs] 開始 - leadId =', leadId);
-  console.log('[saveLeadEditDocs] pendingEditDocs 全部 =', JSON.parse(JSON.stringify(Object.keys(pendingEditDocs).reduce(function(acc, k){
-    acc[k] = {};
-    Object.keys(pendingEditDocs[k] || {}).forEach(function(t){
-      acc[k][t] = (pendingEditDocs[k][t] || []).length + ' 筆';
+  // 印出當前所有 pending（簡化版）
+  try {
+    var allKeys = Object.keys(pendingEditDocs);
+    console.log('[saveLeadEditDocs] pendingEditDocs 客戶數:', allKeys.length);
+    allKeys.forEach(function(k){
+      var types = Object.keys(pendingEditDocs[k] || {});
+      types.forEach(function(t){
+        var arr = pendingEditDocs[k][t] || [];
+        console.log('  客戶 ' + k.slice(0,8) + '... · ' + t + ': ' + arr.length + ' 筆');
+      });
     });
-    return acc;
-  }, {}))));
+  } catch (logErr) { console.warn('log 失敗', logErr); }
   var pending = pendingEditDocs[leadId];
   if (!pending) {
     console.log('[saveLeadEditDocs] 此客戶沒有 pending docs，跳過');
     return { uploaded: 0, failed: 0 };
   }
-  console.log('[saveLeadEditDocs] 此客戶 pending 類型：', Object.keys(pending));
+  console.log('[saveLeadEditDocs] 此客戶 pending 類型:', Object.keys(pending));
   Object.keys(pending).forEach(function(t){
-    console.log('[saveLeadEditDocs]  ' + t + ':', (pending[t]||[]).length, '筆');
-    (pending[t]||[]).forEach(function(it, idx){
-      console.log('    ['+idx+'] ' + it.name + ' (size: ' + (it.file ? it.file.size : '?') + ', type: ' + (it.file ? it.file.type : '?') + ')');
+    var arr = pending[t] || [];
+    console.log('[saveLeadEditDocs]   ' + t + ':', arr.length, '筆');
+    arr.forEach(function(it, idx){
+      var sz = it.file ? it.file.size : '?';
+      var tp = it.file ? it.file.type : '?';
+      console.log('    [' + idx + '] ' + it.name + ' (size: ' + sz + ', type: ' + tp + ')');
     });
   });
 
@@ -941,7 +949,7 @@ async function saveLeadEditDocs(leadId) {
           console.error('[saveLeadEditDocs] 上傳失敗:', item.name, upRes.error);
           var errMsg = upRes.error.message || '未知錯誤';
           // 一律跳明顯錯誤（不管原因，讓使用者看到）
-          alert('❌ 檔案「' + item.name + '」上傳到 Storage 失敗：\n\n' + errMsg + '\n\n常見原因：\n1. lead-documents bucket 不允許此 MIME 類型（application/pdf）\n2. 檔案大小超過限制\n3. RLS 政策擋住寫入\n\n👉 請打開 F12 Console 看完整錯誤');
+          alert('檔案「' + item.name + '」上傳到 Storage 失敗：\n\n' + errMsg + '\n\n常見原因：\n1. lead-documents bucket 不允許此 MIME 類型(application/pdf)\n2. 檔案大小超過限制\n3. RLS 政策擋住寫入\n\n請打開 F12 Console 看完整錯誤');
           throw new Error(errMsg);
         }
 
@@ -956,7 +964,7 @@ async function saveLeadEditDocs(leadId) {
         console.log('[saveLeadEditDocs]   lead_documents insert result:', insRes);
         if (insRes.error) {
           console.error('[saveLeadEditDocs] 寫入 lead_documents 失敗:', insRes.error);
-          alert('❌ 檔案已上傳但寫入 lead_documents 表失敗：\n\n' + (insRes.error.message || '未知錯誤') + '\n\n常見原因：\n1. lead_documents 表的 type 欄位有 CHECK constraint 不接受「' + type + '」\n2. RLS 政策擋住\n\n👉 請打開 F12 Console 看完整錯誤');
+          alert('檔案已上傳但寫入 lead_documents 表失敗：\n\n' + (insRes.error.message || '未知錯誤') + '\n\n常見原因：\n1. lead_documents 表的 type 欄位有 CHECK constraint 不接受「' + type + '」\n2. RLS 政策擋住\n\n請打開 F12 Console 看完整錯誤');
           throw new Error(insRes.error.message);
         }
 
