@@ -11,7 +11,7 @@
 <meta name="application-name" content="顧問PRO">
 <meta name="description" content="貸款顧問業務管理平台">
 <meta name="format-detection" content="telephone=no">
-<meta name="build-id" content="2026-05-03-r10-email">
+<meta name="build-id" content="2026-05-03-r11-email-fix">
 <!-- PWA Manifest -->
 <link rel="manifest" href="/manifest.json">
 <!-- Apple Touch Icons -->
@@ -584,7 +584,7 @@ select.fi{-webkit-appearance:auto;appearance:auto;display:block;max-width:100%;w
 </div><!-- #app -->
 
 <script>
-console.log('[顧問PRO] JS 載入 build=2026-05-03-r10-email, 時間=' + new Date().toLocaleTimeString());
+console.log('[顧問PRO] JS 載入 build=2026-05-03-r11-email-fix, 時間=' + new Date().toLocaleTimeString());
 // ══════════════════════════════
 // SUPABASE
 // ══════════════════════════════
@@ -12819,8 +12819,8 @@ async function sendLeadEmail(leadRow) {
     var ownerId = leadRow.member_id || (currentUser && currentUser.id);
     if (!ownerId) return;
     console.log('[sendLeadEmail] 觸發新客戶 Email 通知, lead=', leadRow.id);
-    // 呼叫 Edge Function（後端會自己撈承辦顧問的 email + 撈完整 lead 資料）
-    var res = await sb.functions.invoke('send-lead-email', {
+    // 呼叫 Edge Function（注意：slug 是 rapid-worker，不是 send-lead-email）
+    var res = await sb.functions.invoke('rapid-worker', {
       body: {
         lead_id: leadRow.id,
         owner_id: ownerId,
