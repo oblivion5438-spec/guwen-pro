@@ -11,7 +11,7 @@
 <meta name="application-name" content="顧問PRO">
 <meta name="description" content="貸款顧問業務管理平台">
 <meta name="format-detection" content="telephone=no">
-<meta name="build-id" content="2026-05-03-r2-fixed">
+<meta name="build-id" content="2026-05-03-r4-quote-fix">
 <!-- PWA Manifest -->
 <link rel="manifest" href="/manifest.json">
 <!-- Apple Touch Icons -->
@@ -584,7 +584,7 @@ select.fi{-webkit-appearance:auto;appearance:auto;display:block;max-width:100%;w
 </div><!-- #app -->
 
 <script>
-console.log('[顧問PRO] JS 載入 build=2026-05-03-r2-fixed, 時間=' + new Date().toLocaleTimeString());
+console.log('[顧問PRO] JS 載入 build=2026-05-03-r4-quote-fix, 時間=' + new Date().toLocaleTimeString());
 // ══════════════════════════════
 // SUPABASE
 // ══════════════════════════════
@@ -865,9 +865,122 @@ async function loadDocuments(leadId) {
 var pendingEditDocs = {};
 
 // 選擇檔案後僅做「暫存」，不立刻上傳
-function uploadDoc(event, leadId, type, aiPrompt) {
+// ⭐ 立即上傳某 type 的 pending 檔案（不必等到「儲存所有變更」）
+async function uploadDocsNow(leadId, type) {
+  console.log('[uploadDocsNow] start', leadId, type);
+  if (!pendingEditDocs[leadId] || !pendingEditDocs[leadId][type] || pendingEditDocs[leadId][type].length === 0) {
+    alert('沒有待上傳的檔案');
+    return;
+  }
+  var items = pendingEditDocs[leadId][type].slice(); // copy
+  console.log('[uploadDocsNow] 將上傳 ' + items.length + ' 筆');
+
+  var uploaded = 0, failed = 0;
+  var failedDetails = [];
+
+  for (var i = 0; i < items.length; i++) {
+    var item = items[i];
+    try {
+      var ext = (item.name || 'file').split('.').pop() || 'jpg';
+      var path = currentUser.id + '/' + leadId + '/' + type + '_' + Date.now() + '_' + i + '.' + ext;
+      var contentType = item.file && item.file.type ? item.file.type : (
+        /pdf$/i.test(ext) ? 'application/pdf' :
+        /png$/i.test(ext) ? 'image/png' :
+        /jpe?g$/i.test(ext) ? 'image/jpeg' :
+        'application/octet-stream'
+      );
+      console.log('[uploadDocsNow] uploading', item.name, 'as', contentType, 'to', path);
+
+      var upRes = await sb.storage.from('lead-documents').upload(path, item.file, {
+        upsert: false,
+        contentType: contentType
+      });
+      console.log('[uploadDocsNow] storage result:', upRes);
+      if (upRes.error) {
+        failed++;
+        failedDetails.push(item.name + ': Storage 錯誤 - ' + upRes.error.message);
+        continue;
+      }
+
+      var insRes = await sb.from('lead_documents').insert({
+        lead_id: leadId,
+        member_id: currentUser.id,
+        type: type,
+        storage_path: path,
+        ai_summary: null
+      }).select().single();
+      console.log('[uploadDocsNow] insert result:', insRes);
+      if (insRes.error) {
+        failed++;
+        failedDetails.push(item.name + ': DB 錯誤 - ' + insRes.error.message);
+        continue;
+      }
+
+      // 加入 leadDocuments
+      if (!leadDocuments[leadId]) leadDocuments[leadId] = {};
+      if (!leadDocuments[leadId][type]) leadDocuments[leadId][type] = [];
+      var publicUrl = sb.storage.from('lead-documents').getPublicUrl(path).data.publicUrl;
+      leadDocuments[leadId][type].push({
+        id: insRes.data ? insRes.data.id : undefined,
+        url: publicUrl,
+        filename: item.name,
+        ai_summary: null,
+        uploaded_at: new Date().toLocaleDateString('zh-TW')
+      });
+      if (item.previewUrl) URL.revokeObjectURL(item.previewUrl);
+      uploaded++;
+    } catch (err) {
+      console.error('[uploadDocsNow] 例外:', err);
+      failed++;
+      failedDetails.push(item.name + ': ' + (err.message || err));
+    }
+  }
+
+  // 清空 pending
+  if (uploaded > 0) {
+    pendingEditDocs[leadId][type] = pendingEditDocs[leadId][type].filter(function(p){
+      return !items.includes(p);
+    });
+    if (pendingEditDocs[leadId][type].length === 0) {
+      delete pendingEditDocs[leadId][type];
+    }
+  }
+
+  // 顯示結果
+  if (failed === 0) {
+    var toast = document.createElement('div');
+    toast.style.cssText = 'position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--grn);color:#FFF;padding:10px 18px;border-radius:8px;z-index:99999;font-size:14px;font-weight:600;box-shadow:0 4px 12px rgba(0,0,0,.4)';
+    toast.textContent = '✅ 已上傳 ' + uploaded + ' 個檔案';
+    document.body.appendChild(toast);
+    setTimeout(function(){ toast.remove(); }, 3000);
+  } else {
+    alert('完成：成功 ' + uploaded + ' / 失敗 ' + failed + '\n\n失敗原因：\n' + failedDetails.join('\n') + '\n\n👉 請打開 F12 Console 查看詳細');
+  }
+
+  // 刷新畫面（保持編輯模式）
+  showLeadDetail(leadId);
+  setTimeout(function(){
+    var editEl = document.getElementById('lead-edit-' + leadId);
+    var viewEl = document.getElementById('lead-view-' + leadId);
+    var docsEdit = document.getElementById('docs-edit-only-' + leadId);
+    var docsStatus = document.getElementById('docs-status-' + leadId);
+    var saveBottom = document.getElementById('save-bottom-' + leadId);
+    var btn = document.getElementById('edit-btn-' + leadId);
+    if (editEl) editEl.style.display = 'block';
+    if (viewEl) viewEl.style.display = 'none';
+    if (docsEdit) docsEdit.style.display = 'block';
+    if (docsStatus) docsStatus.style.display = 'none';
+    if (saveBottom) saveBottom.style.display = 'block';
+    if (btn) btn.textContent = '✕ 取消';
+  }, 50);
+}
+
+function uploadDoc(event, leadId, type, aiPromptOverride) {
   var files = event.target.files;
   if (!files || files.length === 0) return;
+  // 優先用傳入的，若無則從全域 map 拿（避免 HTML attribute escaping 問題）
+  var aiPrompt = aiPromptOverride || (window._docAiPrompts && window._docAiPrompts[type]) || '';
+  console.log('[uploadDoc]', leadId, type, '收到', files.length, '個檔案');
   if (!pendingEditDocs[leadId]) pendingEditDocs[leadId] = {};
   if (!pendingEditDocs[leadId][type]) pendingEditDocs[leadId][type] = [];
   // 多檔同時加入
@@ -2531,28 +2644,40 @@ async function renderDash() {
   }
 
   // ⚡ 載入客戶來源（轉介）改為背景進行，不阻塞首屏
-  // 包 try/catch 避免 referrals 表不存在/欄位錯誤造成整段 JS 噎住
+  // 簡化查詢，避開 schema cache 找不到 foreign key 的問題
   try {
     sb.from('referrals')
-      .select('lead_id, sender:sender_id(id,name)')
+      .select('lead_id, sender_id, status')
       .eq('receiver_id', currentUser.id)
       .eq('status', 'pending')
-      .then(function(refRes) {
-        if (refRes && refRes.error) {
-          console.warn('[referrals] 載入失敗（不影響使用）:', refRes.error.message);
+      .then(async function(refRes) {
+        if (!refRes || refRes.error) {
+          // 表不存在或欄位錯誤 → 安靜跳過（不影響其他功能）
           return;
         }
-        if (refRes && refRes.data) {
-          refRes.data.forEach(function(ref) {
-            var lead = leads.find(function(l){ return l.id === ref.lead_id; });
-            if (lead && ref.sender) lead.referral_source = ref.sender.name || '業者';
-          });
+        if (!refRes.data || refRes.data.length === 0) return;
+        // 拿到所有 sender_id，一次查 members
+        var senderIds = [];
+        refRes.data.forEach(function(ref){
+          if (ref.sender_id && senderIds.indexOf(ref.sender_id) < 0) senderIds.push(ref.sender_id);
+        });
+        var senderMap = {};
+        if (senderIds.length > 0) {
+          try {
+            var memRes = await sb.from('members').select('id, name').in('id', senderIds);
+            if (memRes && memRes.data) {
+              memRes.data.forEach(function(m){ senderMap[m.id] = m.name; });
+            }
+          } catch (memErr) { /* 忽略 */ }
         }
+        // 套到 leads
+        refRes.data.forEach(function(ref) {
+          var lead = leads.find(function(l){ return l.id === ref.lead_id; });
+          if (lead) lead.referral_source = senderMap[ref.sender_id] || '業者';
+        });
       })
-      .catch(function(err){ console.warn('[referrals] 例外:', err); });
-  } catch (refErr) {
-    console.warn('[referrals] 同步例外:', refErr);
-  }
+      .catch(function(){ /* 忽略 referrals 載入失敗 */ });
+  } catch (refErr) { /* 忽略 */ }
 
   var now = new Date();
   var tms = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -4550,9 +4675,12 @@ function showLeadDetail(id) {
   var mydataDocs = leadDocuments[id] ? (leadDocuments[id].mydata || []) : [];
   var mydataPending = (pendingEditDocs[id] && pendingEditDocs[id].mydata) || [];
   var mydataInputId = 'file-' + id + '-mydata';
+  // 也存到全域 map（保持一致）
+  if (!window._docAiPrompts) window._docAiPrompts = {};
+  window._docAiPrompts['mydata'] = '這是客戶從 MyData 下載的政府資料 PDF/截圖。';
   html += '<div style="font-size:13px;color:var(--t2);margin-bottom:6px">📎 客戶下載後傳回的 PDF / 截圖：</div>';
   html += '<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:4px">';
-  html += '<input type="file" id="' + mydataInputId + '" accept="image/*,application/pdf" multiple style="display:none" onchange="uploadDoc(event,\'' + id + '\',\'mydata\',\'這是客戶從 MyData 下載的政府資料 PDF/截圖。\')">';
+  html += '<input type="file" id="' + mydataInputId + '" accept="image/*,application/pdf" multiple style="display:none" onchange="uploadDoc(event,\'' + id + '\',\'mydata\')">';
   html += '<button onclick="document.getElementById(\'' + mydataInputId + '\').click()" style="display:inline-flex;align-items:center;gap:5px;padding:5px 12px;background:var(--card);border:0.5px solid var(--bdr2);border-radius:6px;cursor:pointer;font-size:13px;color:var(--t1);font-family:var(--sans);white-space:nowrap">📎 選擇檔案（可多選）</button>';
   if (mydataDocs.length > 0) html += '<span style="font-size:12px;color:var(--t3)">已儲存 ' + mydataDocs.length + ' 筆</span>';
   if (mydataPending.length > 0) html += '<span style="font-size:12px;color:#FFA500;font-weight:600">待儲存 ' + mydataPending.length + ' 筆</span>';
@@ -4864,9 +4992,16 @@ function buildDocSection(opts) {
   // 上傳區 - 支援多檔
   var inputId = 'file-' + id + '-' + type;
   var pendingArr = (pendingEditDocs[id] && pendingEditDocs[id][type]) || [];
+  // ⭐ 把 aiPrompt 存到全域 map，避免塞進 HTML attribute 造成引號破損
+  if (!window._docAiPrompts) window._docAiPrompts = {};
+  window._docAiPrompts[type] = opts.aiPrompt || '';
   h += '<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:4px">';
-  h += '<input type="file" id="' + inputId + '" accept="image/*,application/pdf" multiple style="display:none" onchange="uploadDoc(event,\'' + id + '\',\'' + type + '\',\'' + (opts.aiPrompt||'').replace(/'/g,"\\'").replace(/\n/g,' ') + '\')">';
+  h += '<input type="file" id="' + inputId + '" accept="image/*,application/pdf" multiple style="display:none" onchange="uploadDoc(event,\'' + id + '\',\'' + type + '\')">';
   h += '<button onclick="document.getElementById(\'' + inputId + '\').click()" style="display:inline-flex;align-items:center;gap:5px;padding:5px 12px;background:var(--card);border:0.5px solid var(--bdr2);border-radius:6px;cursor:pointer;font-size:13px;color:var(--t1);font-family:var(--sans);white-space:nowrap">📷 選擇檔案（可多選）</button>';
+  // ⭐ 如果有 pending，顯示「立即上傳此區」按鈕（讓使用者不必滾到底部按總儲存）
+  if (pendingArr.length > 0) {
+    h += '<button onclick="uploadDocsNow(\'' + id + '\',\'' + type + '\')" style="display:inline-flex;align-items:center;gap:5px;padding:5px 12px;background:var(--grn);color:#FFF;border:none;border-radius:6px;cursor:pointer;font-size:13px;font-family:var(--sans);font-weight:600">💾 立即上傳此區 ('+pendingArr.length+')</button>';
+  }
   if (docs.length > 0) h += '<span style="font-size:12px;color:var(--t3)">已儲存 ' + docs.length + ' 筆</span>';
   if (pendingArr.length > 0) h += '<span style="font-size:12px;color:#FFA500;font-weight:600">待儲存 ' + pendingArr.length + ' 筆</span>';
   h += '</div>';
