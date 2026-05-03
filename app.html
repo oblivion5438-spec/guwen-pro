@@ -11,7 +11,7 @@
 <meta name="application-name" content="顧問PRO">
 <meta name="description" content="貸款顧問業務管理平台">
 <meta name="format-detection" content="telephone=no">
-<meta name="build-id" content="2026-05-03-r4-quote-fix">
+<meta name="build-id" content="2026-05-03-r5-perf">
 <!-- PWA Manifest -->
 <link rel="manifest" href="/manifest.json">
 <!-- Apple Touch Icons -->
@@ -584,7 +584,7 @@ select.fi{-webkit-appearance:auto;appearance:auto;display:block;max-width:100%;w
 </div><!-- #app -->
 
 <script>
-console.log('[顧問PRO] JS 載入 build=2026-05-03-r4-quote-fix, 時間=' + new Date().toLocaleTimeString());
+console.log('[顧問PRO] JS 載入 build=2026-05-03-r5-perf, 時間=' + new Date().toLocaleTimeString());
 // ══════════════════════════════
 // SUPABASE
 // ══════════════════════════════
@@ -836,27 +836,49 @@ async function loadDocuments(leadId) {
         newCount++;
       }
     });
-    // ⭐ 有新資料 → 重新整個 detail 畫面（這樣 buildDocSection 才會用新資料重畫）
+    // 有新資料 → 只更新文件區（不重畫整頁，避免卡頓）
     if (newCount > 0) {
-      // 但避免重畫造成編輯模式被打斷：如果使用者已經在編輯，跳過重畫
-      var editEl = document.getElementById('lead-edit-' + leadId);
-      var isEditing = editEl && editEl.style.display !== 'none';
-      if (!isEditing) {
-        // 用 setTimeout 避免遞迴呼叫
-        setTimeout(function() { showLeadDetail(leadId); }, 50);
-      } else {
-        // 編輯模式：只更新 count 數字
-        var types = Object.keys(leadDocuments[leadId]);
-        types.forEach(function(type) {
-          var docs = leadDocuments[leadId][type] || [];
-          var countEl = document.querySelector('[data-doc-count="' + leadId + '-' + type + '"]');
-          if (countEl && docs.length > 0) countEl.textContent = '已儲存 ' + docs.length + ' 筆';
-        });
-      }
+      refreshDocSections(leadId);
     }
   } catch (err) {
     console.warn('[loadDocuments] 例外:', err);
   }
+}
+
+// 只重畫文件區塊（不動詳情頁其他部分）
+function refreshDocSections(leadId) {
+  var lead = leads.find(function(l){ return l.id === leadId; });
+  if (!lead) return;
+  var types = ['mydata','asset','verdict','traffic','license','id_card','vehicle','build_reg','land_reg','house_photos','movable'];
+  types.forEach(function(type) {
+    var docs = (leadDocuments[leadId] && leadDocuments[leadId][type]) || [];
+    if (docs.length === 0) return;
+    // 找該 type 的容器（buildDocSection 裡的整個區塊不容易直接定位，所以更新 count + 已上傳列表）
+    // 1. 更新 count badge
+    var countEl = document.querySelector('[data-doc-count="' + leadId + '-' + type + '"]');
+    if (countEl) countEl.textContent = '已儲存 ' + docs.length + ' 筆';
+    // 2. 找該 type 已上傳列表的容器：file input 的下面有同層的 doc list
+    //    不容易精準定位，所以用「找含該 inputId 的父容器」策略
+    var fileInput = document.getElementById('file-' + leadId + '-' + type);
+    if (!fileInput) return;
+    var section = fileInput.closest('div[style*="border-radius:9px"]');
+    if (!section) return;
+    // 把容器內所有 .doc-rendered 移除（之前 render 的），重新塞
+    section.querySelectorAll('[data-doc-rendered="1"]').forEach(function(n){ n.remove(); });
+    // 重新插入每筆已上傳文件 HTML（用 renderDocResult 產生）
+    var loadingEl = document.getElementById('doc-loading-' + leadId + '-' + type);
+    docs.forEach(function(doc, di) {
+      var html = renderDocResult(leadId, type, doc, di);
+      var temp = document.createElement('div');
+      temp.innerHTML = html;
+      var node = temp.firstElementChild;
+      if (node) {
+        node.dataset.docRendered = '1';
+        if (loadingEl) section.insertBefore(node, loadingEl);
+        else section.appendChild(node);
+      }
+    });
+  });
 }
 
 // ── 上傳圖片並 AI 讀取 ──
@@ -954,25 +976,28 @@ async function uploadDocsNow(leadId, type) {
     document.body.appendChild(toast);
     setTimeout(function(){ toast.remove(); }, 3000);
   } else {
-    alert('完成：成功 ' + uploaded + ' / 失敗 ' + failed + '\n\n失敗原因：\n' + failedDetails.join('\n') + '\n\n👉 請打開 F12 Console 查看詳細');
+    alert('完成：成功 ' + uploaded + ' / 失敗 ' + failed + '\n\n失敗原因：\n' + failedDetails.join('\n') + '\n\n請打開 F12 Console 查看詳細');
   }
 
-  // 刷新畫面（保持編輯模式）
-  showLeadDetail(leadId);
-  setTimeout(function(){
-    var editEl = document.getElementById('lead-edit-' + leadId);
-    var viewEl = document.getElementById('lead-view-' + leadId);
-    var docsEdit = document.getElementById('docs-edit-only-' + leadId);
-    var docsStatus = document.getElementById('docs-status-' + leadId);
-    var saveBottom = document.getElementById('save-bottom-' + leadId);
-    var btn = document.getElementById('edit-btn-' + leadId);
-    if (editEl) editEl.style.display = 'block';
-    if (viewEl) viewEl.style.display = 'none';
-    if (docsEdit) docsEdit.style.display = 'block';
-    if (docsStatus) docsStatus.style.display = 'none';
-    if (saveBottom) saveBottom.style.display = 'block';
-    if (btn) btn.textContent = '✕ 取消';
-  }, 50);
+  // ⚡ 不重畫整頁，只更新該文件區的 UI（避免卡頓）
+  refreshDocSections(leadId);
+  // 移除「待儲存」的視覺顯示和「立即上傳此區」按鈕（直接清掉這個 type 在 DOM 內的暫存項）
+  var fileInput = document.getElementById('file-' + leadId + '-' + type);
+  if (fileInput) {
+    var section = fileInput.closest('div[style*="border-radius:9px"]');
+    if (section) {
+      // 移除待儲存項（橘色虛線框）
+      section.querySelectorAll('div[style*="border:0.5px dashed rgba(255,165,0"]').forEach(function(n){ n.remove(); });
+      // 移除「立即上傳此區」按鈕
+      section.querySelectorAll('button').forEach(function(btn){
+        if (btn.textContent.indexOf('立即上傳此區') >= 0) btn.remove();
+      });
+      // 移除「待儲存 N 筆」文字
+      section.querySelectorAll('span').forEach(function(s){
+        if (/^待儲存\s*\d+\s*筆$/.test(s.textContent.trim())) s.remove();
+      });
+    }
+  }
 }
 
 function uploadDoc(event, leadId, type, aiPromptOverride) {
@@ -4834,23 +4859,32 @@ function showLeadDetail(id) {
     } catch(e) {}
   }
 
-  loadDocuments(id);
+  // 只在第一次點該客戶時撈文件（cache 在 leadDocuments[id]）
+  if (!leadDocuments[id] || Object.keys(leadDocuments[id]).length === 0) {
+    loadDocuments(id);
+  } else {
+    // 已有 cache → 立即用 cache 渲染文件（不呼叫 DB）
+    setTimeout(function(){ refreshDocSections(id); }, 30);
+  }
 
   // 補充資料上傳按鈕（DOM 方式）+ 載入已上傳的補充資料
   setTimeout(function() {
     var btnArea = document.getElementById('extra-docs-btn-' + id);
     if (!btnArea) return;
-    var label = document.createElement('label');
-    label.style.cssText = 'padding:8px 16px;background:var(--inp);border:0.5px solid var(--bdr2);border-radius:8px;cursor:pointer;font-size:13px;font-family:var(--sans);color:var(--t1);display:inline-flex;align-items:center;gap:6px;margin-top:8px';
-    label.innerHTML = '<span>📎</span> 新增文件/圖片/PDF';
-    var fileInput = document.createElement('input');
-    fileInput.type = 'file';
-    fileInput.accept = 'image/*,.pdf,.doc,.docx,.xlsx';
-    fileInput.multiple = true;
-    fileInput.style.display = 'none';
-    fileInput.onchange = function() { handleExtraFileAdd(fileInput, 'extra-docs-list-'+id, id); };
-    label.appendChild(fileInput);
-    btnArea.appendChild(label);
+    // 防止重複建按鈕（每次重畫不重建）
+    if (!btnArea.querySelector('label')) {
+      var label = document.createElement('label');
+      label.style.cssText = 'padding:8px 16px;background:var(--inp);border:0.5px solid var(--bdr2);border-radius:8px;cursor:pointer;font-size:13px;font-family:var(--sans);color:var(--t1);display:inline-flex;align-items:center;gap:6px;margin-top:8px';
+      label.innerHTML = '<span>📎</span> 新增文件/圖片/PDF';
+      var fileInput = document.createElement('input');
+      fileInput.type = 'file';
+      fileInput.accept = 'image/*,.pdf,.doc,.docx,.xlsx';
+      fileInput.multiple = true;
+      fileInput.style.display = 'none';
+      fileInput.onchange = function() { handleExtraFileAdd(fileInput, 'extra-docs-list-'+id, id); };
+      label.appendChild(fileInput);
+      btnArea.appendChild(label);
+    }
 
     // 載入既有的補充資料
     loadExtraDocs(id);
