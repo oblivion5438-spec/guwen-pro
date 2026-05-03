@@ -11,7 +11,7 @@
 <meta name="application-name" content="顧問PRO">
 <meta name="description" content="貸款顧問業務管理平台">
 <meta name="format-detection" content="telephone=no">
-<meta name="build-id" content="2026-05-03-r5-perf">
+<meta name="build-id" content="2026-05-03-r6-loan-rules">
 <!-- PWA Manifest -->
 <link rel="manifest" href="/manifest.json">
 <!-- Apple Touch Icons -->
@@ -584,7 +584,7 @@ select.fi{-webkit-appearance:auto;appearance:auto;display:block;max-width:100%;w
 </div><!-- #app -->
 
 <script>
-console.log('[顧問PRO] JS 載入 build=2026-05-03-r5-perf, 時間=' + new Date().toLocaleTimeString());
+console.log('[顧問PRO] JS 載入 build=2026-05-03-r6-loan-rules, 時間=' + new Date().toLocaleTimeString());
 // ══════════════════════════════
 // SUPABASE
 // ══════════════════════════════
@@ -1605,23 +1605,39 @@ function calcScores(lead) {
   var bike = 0;
   var bikeBlocked = false;
   if (salary > 0) {
-    // 投保單位（機車貸款）
+    // 投保單位（機車貸款）— 完整版含公保加分 / 自營業主扣分
     var laborType3 = lead.labor_type || '';
-    if (laborType3 === 'farmer') {
+    if (laborType3 === 'govt') {
+      bike += (R.bikeLaborTypeGovtBonus || 5);
+    } else if (laborType3 === 'farmer') {
       if (R.bikeLaborTypeFarmerBlock) bikeBlocked = true;
-      else bike += R.bikeLaborTypeFarmerPenalty;
+      else bike += (R.bikeLaborTypeFarmerPenalty || -5);
     } else if (laborType3 === 'union') {
       if (R.bikeLaborTypeUnionBlock) bikeBlocked = true;
-      else bike += R.bikeLaborTypeUnionPenalty;
+      else bike += (R.bikeLaborTypeUnionPenalty || -5);
     } else if (laborType3 === 'national') {
       if (R.bikeLaborTypeNationalBlock) bikeBlocked = true;
-      else bike += R.bikeLaborTypeNationalPenalty;
+      else bike += (R.bikeLaborTypeNationalPenalty || -8);
+    } else if (laborType3 === 'self') {
+      bike += (R.bikeLaborTypeSelfPenalty || -5);
+    }
+    // 不動產私人設定（三胎/民間借款）
+    if (!bikeBlocked && lead.has_property) {
+      var propLoans3rd = lead.property_loan_3rd_amt || lead.property_3rd_amt || 0;
+      var hasPrivate = propLoans3rd > 0;
+      if (hasPrivate) {
+        if (R.bikePropPrivateBlock) bikeBlocked = true;
+        else bike += (R.bikePropPrivatePenalty || -15);
+      }
     }
     if (!bikeBlocked) {
       if (hasBikeLic) bike += R.bikeLicBonus;
+      if (hasCarLic)  bike += (R.bikeCarLicBonus || 3);
       bike += salary >= 25000 ? 40 : salary >= 18000 ? 28 : 15;
-      if (finRejCount >= 2) bike += R.finRej2;
-      else if (finRejCount === 1) bike += R.finRej1;
+      // 融資婉拒次數（含 2 次、3 次以上）
+      if (finRejCount >= 3) bike += (R.bikeFinRejOver2 || R.finRejOver2 || -20);
+      else if (finRejCount === 2) bike += (R.bikeFinRej2 || R.finRej2 || -10);
+      else if (finRejCount === 1) bike += (R.bikeFinRej1 || R.finRej1 || -5);
       if (finRej === '<1m') bike += R.finRejectLt1m;
       else if (finRej === 'none') bike += 15;
       // 遲繳
@@ -1642,24 +1658,50 @@ function calcScores(lead) {
   if (salary >= phoneMinSalary) {
     // 投保單位（手機貸）
     var laborType4 = lead.labor_type || '';
-    if (laborType4 === 'farmer' && R.phoneLaborTypeFarmerBlock) {
-      phoneBlocked = true;
-    }
+    // 投保單位封鎖
+    if (laborType4 === 'farmer' && R.phoneLaborTypeFarmerBlock) phoneBlocked = true;
+    if (!phoneBlocked && laborType4 === 'union' && R.phoneLaborTypeUnionBlock) phoneBlocked = true;
+    if (!phoneBlocked && laborType4 === 'national' && R.phoneLaborTypeNationalBlock) phoneBlocked = true;
     // 目前有手機貸
     if (!phoneBlocked && hasPhoneLoan && R.phoneHasLoanBlock) {
       phoneBlocked = true;
     }
+    // 不動產私人設定
+    if (!phoneBlocked && lead.has_property) {
+      var propLoans3rdP = lead.property_loan_3rd_amt || lead.property_3rd_amt || 0;
+      if (propLoans3rdP > 0 && R.phonePropPrivateBlock) phoneBlocked = true;
+    }
     if (!phoneBlocked) {
       phone = 45 + (salary >= 40000 ? 20 : salary >= 30000 ? 12 : 5);
-      // 投保單位扣分（沒封鎖時）
-      if (laborType4 === 'farmer' && !R.phoneLaborTypeFarmerBlock) {
-        phone += (R.phoneLaborTypeFarmerPenalty || -8);
-      }
+      // 投保單位（公保 / 農保 / 工會 / 國民年金 / 自營業主）
+      if (laborType4 === 'govt')        phone += (R.phoneLaborTypeGovtBonus || 3);
+      else if (laborType4 === 'farmer') phone += (R.phoneLaborTypeFarmerPenalty || -8);
+      else if (laborType4 === 'union')  phone += (R.phoneLaborTypeUnionPenalty || -8);
+      else if (laborType4 === 'national') phone += (R.phoneLaborTypeNationalPenalty || -10);
+      else if (laborType4 === 'self')   phone += (R.phoneLaborTypeSelfPenalty || -5);
+      // 信用卡持卡加分
+      var ccAge = lead.credit_card_age;
+      if (ccAge === '1y+')  phone += (R.phoneCC1y || 15);
+      else if (ccAge === '6m+') phone += (R.phoneCC6m || 10);
+      else if (ccAge === '3m+') phone += (R.phoneCC3m || 5);
+      // 駕照
+      if (hasCarLic)  phone += (R.phoneCarLicBonus || 3);
+      if (hasBikeLic) phone += (R.phoneBikeLicBonus || 2);
       // 目前有手機貸扣分（沒封鎖時）
       if (hasPhoneLoan && !R.phoneHasLoanBlock) {
         phone += (R.phoneHasLoanPenalty || -20);
       }
-      if (finRejCount >= 2) phone += R.finRej2;
+      // 不動產私人設定扣分（沒封鎖時）
+      if (lead.has_property) {
+        var propLoans3rdP2 = lead.property_loan_3rd_amt || lead.property_3rd_amt || 0;
+        if (propLoans3rdP2 > 0 && !R.phonePropPrivateBlock) {
+          phone += (R.phonePropPrivatePenalty || -15);
+        }
+      }
+      // 融資婉拒（含完整 1/2/3+）
+      if (finRejCount >= 3) phone += (R.phoneFinRejOver2 || R.finRejOver2 || -20);
+      else if (finRejCount === 2) phone += (R.phoneFinRej2 || R.finRej2 || -10);
+      else if (finRejCount === 1) phone += (R.phoneFinRej1 || R.finRej1 || -5);
       if (finRej === '<1m') phone += R.finRejectLt1m;
       // 遲繳
       if (latePayDays > 30) phone += R.latePayOver30;
@@ -10359,13 +10401,19 @@ function renderScoreRules() {
   }
   h += '</div>';
   h += '<div class="frow2"><div class="frow"><div class="flbl">機車駕照加分</div><input class="fi" id="sr-bikeic2" type="number" value="' + R.bikeLicBonus + '"></div>';
-  h += '<div class="frow"><div class="flbl">融資婉拒1次</div><input class="fi" id="sr-bike-frej1" type="number" value="' + R.finRej1 + '"></div></div>';
+  h += '<div class="frow"><div class="flbl">汽車駕照加分</div><input class="fi" id="sr-bike-carlic" type="number" value="' + (R.bikeCarLicBonus||3) + '"></div></div>';
+  h += '<div class="sl">3個月內融資婉拒次數扣分</div>';
+  h += '<div class="frow2"><div class="frow"><div class="flbl">1次</div><input class="fi" id="sr-bike-frej1" type="number" value="' + R.finRej1 + '"></div>';
+  h += '<div class="frow"><div class="flbl">2次</div><input class="fi" id="sr-bike-frej2" type="number" value="' + (R.bikeFinRej2 || R.finRej2 || -10) + '"></div></div>';
+  h += '<div class="frow"><div class="flbl">3次以上</div><input class="fi" id="sr-bike-frejOver2" type="number" value="' + (R.bikeFinRejOver2 || R.finRejOver2 || -20) + '"></div>';
 
   // 投保單位（機車貸款）
   h += '<div class="sl">投保單位影響（機車貸款）</div>';
-  h += '<div class="frow2"><div class="frow"><div class="flbl">農漁（農保）扣分</div><input class="fi" id="sr-bike-lt-farmer" type="number" value="' + (R.bikeLaborTypeFarmerPenalty||-5) + '"></div>';
-  h += '<div class="frow"><div class="flbl">職業工會扣分</div><input class="fi" id="sr-bike-lt-union" type="number" value="' + (R.bikeLaborTypeUnionPenalty||-5) + '"></div></div>';
-  h += '<div class="frow"><div class="flbl">國民年金扣分</div><input class="fi" id="sr-bike-lt-national" type="number" value="' + (R.bikeLaborTypeNationalPenalty||-8) + '"></div>';
+  h += '<div class="frow2"><div class="frow"><div class="flbl">政府機關（公保）加分</div><input class="fi" id="sr-bike-lt-govt" type="number" value="' + (R.bikeLaborTypeGovtBonus||5) + '"></div>';
+  h += '<div class="frow"><div class="flbl">農漁（農保）扣分</div><input class="fi" id="sr-bike-lt-farmer" type="number" value="' + (R.bikeLaborTypeFarmerPenalty||-5) + '"></div></div>';
+  h += '<div class="frow2"><div class="frow"><div class="flbl">職業工會扣分</div><input class="fi" id="sr-bike-lt-union" type="number" value="' + (R.bikeLaborTypeUnionPenalty||-5) + '"></div>';
+  h += '<div class="frow"><div class="flbl">國民年金扣分</div><input class="fi" id="sr-bike-lt-national" type="number" value="' + (R.bikeLaborTypeNationalPenalty||-8) + '"></div></div>';
+  h += '<div class="frow"><div class="flbl">自營業主扣分</div><input class="fi" id="sr-bike-lt-self" type="number" value="' + (R.bikeLaborTypeSelfPenalty||-5) + '"></div>';
   h += '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">';
   h += '<div style="display:flex;align-items:center;gap:8px;padding:8px 12px;background:var(--inp);border-radius:8px">';
   h += '<div class="tgl ' + (R.bikeLaborTypeFarmerBlock?'on':'') + '" onclick="scoreRules.bikeLaborTypeFarmerBlock=!scoreRules.bikeLaborTypeFarmerBlock;renderScoreRules()"></div>';
@@ -10377,6 +10425,24 @@ function renderScoreRules() {
   h += '<div class="tgl ' + (R.bikeLaborTypeNationalBlock?'on':'') + '" onclick="scoreRules.bikeLaborTypeNationalBlock=!scoreRules.bikeLaborTypeNationalBlock;renderScoreRules()"></div>';
   h += '<span style="font-size:13px;color:var(--red)">國民年金 → 封鎖機車貸款</span></div>';
   h += '</div>';
+
+  // 不動產私人設定（機車貸款）
+  h += '<div class="sl">不動產私人設定（三胎/民間借款）</div>';
+  h += '<div style="font-size:12px;color:var(--t2);margin-bottom:8px">客戶名下不動產有私人設定時的處理方式</div>';
+  h += '<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">';
+  h += '<div class="tgl ' + (R.bikePropPrivateBlock?'on':'') + '" onclick="scoreRules.bikePropPrivateBlock=!scoreRules.bikePropPrivateBlock;renderScoreRules()"></div>';
+  h += '<span style="font-size:13px;color:var(--red)">封鎖（無法申辦機車貸款）</span></div>';
+  if (!R.bikePropPrivateBlock) {
+    h += '<div class="frow"><div class="flbl">否則扣分</div><input class="fi" id="sr-bike-prop-pen" type="number" value="' + (R.bikePropPrivatePenalty||-15) + '"></div>';
+  }
+
+  // 地址與戶籍不同（機車貸款）
+  h += '<div style="display:flex;align-items:center;gap:8px;padding:8px 12px;background:var(--yl);border-radius:8px;margin-top:8px">';
+  h += '<div class="tgl ' + (R.bikeAddrMismatchSuggest?'on':'') + '" onclick="scoreRules.bikeAddrMismatchSuggest=!scoreRules.bikeAddrMismatchSuggest;renderScoreRules()"></div>';
+  h += '<div><div style="font-size:13px;font-weight:500;color:var(--yel)">居住地址與戶籍地址不同 → 建議不列為封鎖</div>';
+  h += '<div style="font-size:12px;color:var(--t2);margin-top:2px">開啟後：地址不同時顯示提示「建議評估後決定」</div></div>';
+  h += '</div>';
+
   h += '</div>';
 
   // ── 手機商品貸規則 ──
@@ -10394,14 +10460,52 @@ function renderScoreRules() {
     h += '<div class="frow"><div class="flbl">否則扣分</div><input class="fi" id="sr-phone-loan-pen" type="number" value="' + (R.phoneHasLoanPenalty||-20) + '"></div>';
   }
   h += '</div>';
-  // 手機貸款投保單位農漁保
-  h += '<div style="padding:10px 0">';
-  h += '<div style="font-size:14px;font-weight:500;margin-bottom:8px">投保單位影響（手機商品貸）</div>';
-  h += '<div class="frow"><div class="flbl">農漁（農保）扣分</div><input class="fi" id="sr-phone-lt-farmer" type="number" value="' + (R.phoneLaborTypeFarmerPenalty||-8) + '"></div>';
-  h += '<div style="display:flex;align-items:center;gap:8px;padding:8px 12px;background:var(--inp);border-radius:8px;margin-top:8px">';
+
+  // 信用卡持卡（手機貸）
+  h += '<div class="sl">信用卡持卡加分（手機商品貸）</div>';
+  h += '<div class="frow2"><div class="frow"><div class="flbl">3個月內</div><input class="fi" id="sr-phone-cc3m" type="number" value="' + (R.phoneCC3m||5) + '"></div>';
+  h += '<div class="frow"><div class="flbl">6個月以上</div><input class="fi" id="sr-phone-cc6m" type="number" value="' + (R.phoneCC6m||10) + '"></div></div>';
+  h += '<div class="frow"><div class="flbl">1年以上</div><input class="fi" id="sr-phone-cc1y" type="number" value="' + (R.phoneCC1y||15) + '"></div>';
+
+  // 駕照加分（手機貸）
+  h += '<div class="frow2" style="margin-top:8px"><div class="frow"><div class="flbl">汽車駕照加分</div><input class="fi" id="sr-phone-carlic" type="number" value="' + (R.phoneCarLicBonus||3) + '"></div>';
+  h += '<div class="frow"><div class="flbl">機車駕照加分</div><input class="fi" id="sr-phone-bikeic" type="number" value="' + (R.phoneBikeLicBonus||2) + '"></div></div>';
+
+  // 融資婉拒（手機貸）
+  h += '<div class="sl">3個月內融資婉拒次數扣分</div>';
+  h += '<div class="frow2"><div class="frow"><div class="flbl">1次</div><input class="fi" id="sr-phone-frej1" type="number" value="' + (R.phoneFinRej1 || R.finRej1 || -5) + '"></div>';
+  h += '<div class="frow"><div class="flbl">2次</div><input class="fi" id="sr-phone-frej2" type="number" value="' + (R.phoneFinRej2 || R.finRej2 || -10) + '"></div></div>';
+  h += '<div class="frow"><div class="flbl">3次以上</div><input class="fi" id="sr-phone-frejOver2" type="number" value="' + (R.phoneFinRejOver2 || R.finRejOver2 || -20) + '"></div>';
+
+  // 投保單位（手機商品貸）— 完整版
+  h += '<div class="sl">投保單位影響（手機商品貸）</div>';
+  h += '<div class="frow2"><div class="frow"><div class="flbl">政府機關（公保）加分</div><input class="fi" id="sr-phone-lt-govt" type="number" value="' + (R.phoneLaborTypeGovtBonus||3) + '"></div>';
+  h += '<div class="frow"><div class="flbl">農漁（農保）扣分</div><input class="fi" id="sr-phone-lt-farmer" type="number" value="' + (R.phoneLaborTypeFarmerPenalty||-8) + '"></div></div>';
+  h += '<div class="frow2"><div class="frow"><div class="flbl">職業工會扣分</div><input class="fi" id="sr-phone-lt-union" type="number" value="' + (R.phoneLaborTypeUnionPenalty||-8) + '"></div>';
+  h += '<div class="frow"><div class="flbl">國民年金扣分</div><input class="fi" id="sr-phone-lt-national" type="number" value="' + (R.phoneLaborTypeNationalPenalty||-10) + '"></div></div>';
+  h += '<div class="frow"><div class="flbl">自營業主扣分</div><input class="fi" id="sr-phone-lt-self" type="number" value="' + (R.phoneLaborTypeSelfPenalty||-5) + '"></div>';
+  h += '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">';
+  h += '<div style="display:flex;align-items:center;gap:8px;padding:8px 12px;background:var(--inp);border-radius:8px">';
   h += '<div class="tgl ' + (R.phoneLaborTypeFarmerBlock?'on':'') + '" onclick="scoreRules.phoneLaborTypeFarmerBlock=!scoreRules.phoneLaborTypeFarmerBlock;renderScoreRules()"></div>';
   h += '<span style="font-size:13px;color:var(--red)">農漁保 → 封鎖手機商品貸</span></div>';
+  h += '<div style="display:flex;align-items:center;gap:8px;padding:8px 12px;background:var(--inp);border-radius:8px">';
+  h += '<div class="tgl ' + (R.phoneLaborTypeUnionBlock?'on':'') + '" onclick="scoreRules.phoneLaborTypeUnionBlock=!scoreRules.phoneLaborTypeUnionBlock;renderScoreRules()"></div>';
+  h += '<span style="font-size:13px;color:var(--red)">職業工會 → 封鎖手機商品貸</span></div>';
+  h += '<div style="display:flex;align-items:center;gap:8px;padding:8px 12px;background:var(--inp);border-radius:8px">';
+  h += '<div class="tgl ' + (R.phoneLaborTypeNationalBlock?'on':'') + '" onclick="scoreRules.phoneLaborTypeNationalBlock=!scoreRules.phoneLaborTypeNationalBlock;renderScoreRules()"></div>';
+  h += '<span style="font-size:13px;color:var(--red)">國民年金 → 封鎖手機商品貸</span></div>';
   h += '</div>';
+
+  // 不動產私人設定（手機商品貸）
+  h += '<div class="sl">不動產私人設定（三胎/民間借款）</div>';
+  h += '<div style="font-size:12px;color:var(--t2);margin-bottom:8px">客戶名下不動產有私人設定時的處理方式</div>';
+  h += '<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">';
+  h += '<div class="tgl ' + (R.phonePropPrivateBlock?'on':'') + '" onclick="scoreRules.phonePropPrivateBlock=!scoreRules.phonePropPrivateBlock;renderScoreRules()"></div>';
+  h += '<span style="font-size:13px;color:var(--red)">封鎖（無法申辦）</span></div>';
+  if (!R.phonePropPrivateBlock) {
+    h += '<div class="frow"><div class="flbl">否則扣分</div><input class="fi" id="sr-phone-prop-pen" type="number" value="' + (R.phonePropPrivatePenalty||-15) + '"></div>';
+  }
+
   h += '</div>';
 
   // ── 遲繳（統一套用所有融資貸款）──
@@ -10468,12 +10572,38 @@ function saveScoreRules() {
   scoreRules.carLaborTypeNationalPenalty = g('sr-car-lt-national');
   scoreRules.carLaborTypeSelfPenalty = g('sr-car-lt-self');
   if (!scoreRules.carPropPrivateBlock) scoreRules.carPropPrivatePenalty = g('sr-car-prop-pen');
-  scoreRules.phoneLaborTypeFarmerPenalty = g('sr-phone-lt-farmer');
   scoreRules.phoneMinSalary = g('sr-phone-min-salary') || 22000;
   if (!scoreRules.phoneHasLoanBlock) scoreRules.phoneHasLoanPenalty = g('sr-phone-loan-pen');
-  // 投保單位（機車貸款）
-  scoreRules.bikeLaborTypeUnionPenalty = g('sr-bike-lt-union');
+  // 投保單位（機車貸款） — 完整版
+  scoreRules.bikeLaborTypeGovtBonus     = g('sr-bike-lt-govt');
+  scoreRules.bikeLaborTypeFarmerPenalty = g('sr-bike-lt-farmer');
+  scoreRules.bikeLaborTypeUnionPenalty  = g('sr-bike-lt-union');
   scoreRules.bikeLaborTypeNationalPenalty = g('sr-bike-lt-national');
+  scoreRules.bikeLaborTypeSelfPenalty   = g('sr-bike-lt-self');
+  // 機車貸款其他完整欄位
+  scoreRules.bikeCarLicBonus            = g('sr-bike-carlic');
+  scoreRules.bikeFinRej1                = g('sr-bike-frej1');
+  scoreRules.bikeFinRej2                = g('sr-bike-frej2');
+  scoreRules.bikeFinRejOver2            = g('sr-bike-frejOver2');
+  if (!scoreRules.bikePropPrivateBlock) scoreRules.bikePropPrivatePenalty = g('sr-bike-prop-pen');
+  if (scoreRules.bikeUnder18Block === 'penalty') scoreRules.bikeUnder18Penalty = g('sr-bike-u18-pen');
+  if (!scoreRules.bikeHasLoanBlock) scoreRules.bikeHasLoanPenalty = g('sr-bike-loan-pen');
+  // 投保單位（手機商品貸） — 完整版
+  scoreRules.phoneLaborTypeGovtBonus     = g('sr-phone-lt-govt');
+  scoreRules.phoneLaborTypeFarmerPenalty = g('sr-phone-lt-farmer');
+  scoreRules.phoneLaborTypeUnionPenalty  = g('sr-phone-lt-union');
+  scoreRules.phoneLaborTypeNationalPenalty = g('sr-phone-lt-national');
+  scoreRules.phoneLaborTypeSelfPenalty   = g('sr-phone-lt-self');
+  // 手機商品貸其他完整欄位
+  scoreRules.phoneCC3m                   = g('sr-phone-cc3m');
+  scoreRules.phoneCC6m                   = g('sr-phone-cc6m');
+  scoreRules.phoneCC1y                   = g('sr-phone-cc1y');
+  scoreRules.phoneCarLicBonus            = g('sr-phone-carlic');
+  scoreRules.phoneBikeLicBonus           = g('sr-phone-bikeic');
+  scoreRules.phoneFinRej1                = g('sr-phone-frej1');
+  scoreRules.phoneFinRej2                = g('sr-phone-frej2');
+  scoreRules.phoneFinRejOver2            = g('sr-phone-frejOver2');
+  if (!scoreRules.phonePropPrivateBlock) scoreRules.phonePropPrivatePenalty = g('sr-phone-prop-pen');
   scoreRules.latePayLt7 = g('sr-late-lt7'); scoreRules.latePay7_14 = g('sr-late-7-14');
   scoreRules.latePay14_30 = g('sr-late-14-30'); scoreRules.latePayOver30 = g('sr-late-over30');
   scoreRules.pawnHasBorrow = g('sr-pawn-borrow'); scoreRules.pawnNoCollateral = g('sr-pawn-no-col');
@@ -11913,9 +12043,9 @@ function isUnservicableSchedule(s) {
 // 行程新增/刪除/修改後呼叫，避免儀表板顯示舊資料
 // ══════════════════════════════
 function refreshDashboardWeek() {
-  // 清掉快取資料
+  // 一律清掉快取資料（即使使用者在別的頁面，下次切回儀表板才能看到新資料）
   window._dashWeekData = null;
-  // 如果使用者目前在儀表板（dash-week-events 元素還在 DOM 內），就重新整渲染
+  // 如果使用者目前在儀表板，立即重新渲染
   if (currentNav === 'dash' && typeof renderDash === 'function') {
     try { renderDash(); } catch (e) { console.warn('[refreshDashboardWeek]', e); }
   }
@@ -12562,8 +12692,20 @@ async function doneSchedule(id) {
 async function deleteSchedule(id) {
   if (!confirm('確定刪除此行程？')) return;
   try {
-    var res = await sb.from('schedules').delete().eq('id', id);
-    if (res && res.error) { alert('刪除失敗：' + res.error.message); return; }
+    console.log('[deleteSchedule] 嘗試刪除 id=', id);
+    var res = await sb.from('schedules').delete().eq('id', id).select();
+    console.log('[deleteSchedule] 結果:', res);
+    if (res && res.error) {
+      console.error('[deleteSchedule] 錯誤:', res.error);
+      alert('刪除失敗：' + res.error.message);
+      return;
+    }
+    // 檢查是否真的刪到（RLS 可能 silent fail）
+    if (!res.data || res.data.length === 0) {
+      alert('刪除沒成功 — RLS 權限不足或行程已不存在。\n請至 Supabase 確認 schedules 表的 RLS DELETE policy 是否允許 member_id = auth.uid()');
+      return;
+    }
+    console.log('[deleteSchedule] 成功刪除', res.data.length, '筆');
     var dm = document.getElementById('day-modal-overlay'); if (dm) dm.remove();
     refreshDashboardWeek();
     renderCalendar();
