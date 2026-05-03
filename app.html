@@ -11,7 +11,7 @@
 <meta name="application-name" content="顧問PRO">
 <meta name="description" content="貸款顧問業務管理平台">
 <meta name="format-detection" content="telephone=no">
-<meta name="build-id" content="2026-05-03-r6-loan-rules">
+<meta name="build-id" content="2026-05-03-r7-labor-display">
 <!-- PWA Manifest -->
 <link rel="manifest" href="/manifest.json">
 <!-- Apple Touch Icons -->
@@ -584,7 +584,7 @@ select.fi{-webkit-appearance:auto;appearance:auto;display:block;max-width:100%;w
 </div><!-- #app -->
 
 <script>
-console.log('[顧問PRO] JS 載入 build=2026-05-03-r6-loan-rules, 時間=' + new Date().toLocaleTimeString());
+console.log('[顧問PRO] JS 載入 build=2026-05-03-r7-labor-display, 時間=' + new Date().toLocaleTimeString());
 // ══════════════════════════════
 // SUPABASE
 // ══════════════════════════════
@@ -4473,12 +4473,18 @@ function showLeadDetail(id) {
     if (laborLabels[raw]) {
       laborStr = laborLabels[raw];
     } else {
-      // 純數字：智慧判斷月或年並顯示
+      // 純數字一律視為月份（系統現在統一用月份儲存）
       var num = parseFloat(raw) || 0;
-      if (num >= 12) {
-        laborStr = num + ' 個月';  // 月
-      } else if (num > 0) {
-        laborStr = num + ' 年（=' + Math.round(num*12) + '個月）';  // 舊資料：年
+      if (num > 0) {
+        var years = Math.floor(num / 12);
+        var remMonths = num - years * 12;
+        if (years > 0 && remMonths === 0) {
+          laborStr = num + ' 個月（= ' + years + ' 年）';
+        } else if (years > 0) {
+          laborStr = num + ' 個月（≈ ' + years + ' 年 ' + remMonths + ' 個月）';
+        } else {
+          laborStr = num + ' 個月';
+        }
       } else {
         laborStr = '未填';
       }
@@ -15961,7 +15967,23 @@ async function exportLeadPDF(leadId) {
 
   var laborLabels2 = {none:'未投保','6m+':'6個月以上','1y+':'1年以上','2y+':'2年以上'};
   var laborTypeLabels2 = {company:'一般公司（勞保）',govt:'政府機關（公保）',farmer:'農漁（農保）',union:'職業工會（自付）',national:'國民年金（國保）',self:'自營業主'};
-  var laborStr2 = (laborLabels2[lead.labor_insurance_years]||'—');
+  var laborRawPdf = lead.labor_insurance_years;
+  var laborStr2 = '—';
+  if (laborRawPdf) {
+    if (laborLabels2[laborRawPdf]) {
+      laborStr2 = laborLabels2[laborRawPdf];
+    } else {
+      // 純數字當月份顯示
+      var nPdf = parseFloat(laborRawPdf) || 0;
+      if (nPdf > 0) {
+        var yPdf = Math.floor(nPdf / 12);
+        var mPdf = nPdf - yPdf * 12;
+        if (yPdf > 0 && mPdf === 0) laborStr2 = nPdf + ' 個月（= ' + yPdf + ' 年）';
+        else if (yPdf > 0)         laborStr2 = nPdf + ' 個月（≈ ' + yPdf + ' 年 ' + mPdf + ' 個月）';
+        else                       laborStr2 = nPdf + ' 個月';
+      }
+    }
+  }
   if (lead.labor_type && laborTypeLabels2[lead.labor_type]) laborStr2 += '・' + laborTypeLabels2[lead.labor_type];
 
   var birthdayStr = '—';
