@@ -905,8 +905,26 @@ async function saveLeadEditDocs(leadId) {
       try {
         var ext = (item.name || 'file').split('.').pop() || 'jpg';
         var path = currentUser.id + '/' + leadId + '/' + type + '_' + Date.now() + '_' + i + '.' + ext;
-        var upRes = await sb.storage.from('lead-documents').upload(path, item.file, { upsert: false });
-        if (upRes.error) throw new Error(upRes.error.message);
+        // 帶 contentType 確保 Supabase 認得 MIME（PDF 必要）
+        var contentType = item.file && item.file.type ? item.file.type : (
+          /pdf$/i.test(ext) ? 'application/pdf' :
+          /png$/i.test(ext) ? 'image/png' :
+          /jpe?g$/i.test(ext) ? 'image/jpeg' :
+          'application/octet-stream'
+        );
+        var upRes = await sb.storage.from('lead-documents').upload(path, item.file, {
+          upsert: false,
+          contentType: contentType
+        });
+        if (upRes.error) {
+          console.error('[saveLeadEditDocs] 上傳失敗:', item.name, upRes.error);
+          var errMsg = upRes.error.message || '未知錯誤';
+          // 跳出明顯錯誤
+          if (/mime|content.type|not.allowed/i.test(errMsg)) {
+            alert('檔案「' + item.name + '」上傳被拒絕：\n' + errMsg + '\n\nSupabase Storage 的 lead-documents bucket 可能未允許 application/pdf。\n請至 Supabase Dashboard → Storage → lead-documents → 設定 → 允許的 MIME → 加入 application/pdf');
+          }
+          throw new Error(errMsg);
+        }
 
         var insRes = await sb.from('lead_documents').insert({
           lead_id: leadId,
@@ -915,6 +933,10 @@ async function saveLeadEditDocs(leadId) {
           storage_path: path,
           ai_summary: null
         }).select().single();
+        if (insRes.error) {
+          console.error('[saveLeadEditDocs] 寫入 lead_documents 失敗:', insRes.error);
+          throw new Error(insRes.error.message);
+        }
 
         // 加進記憶體（後續 buildDocSection 會看到）
         if (!leadDocuments[leadId]) leadDocuments[leadId] = {};
@@ -931,7 +953,7 @@ async function saveLeadEditDocs(leadId) {
         if (item.previewUrl) URL.revokeObjectURL(item.previewUrl);
         uploaded++;
       } catch(err) {
-        console.error('上傳失敗:', item.name, err);
+        console.error('[saveLeadEditDocs] 上傳失敗:', item.name, err);
         failed++;
       }
     }
@@ -3129,15 +3151,15 @@ function renderAddLead() {
 
   var docTypes = [
     {key:'mydata',    icon:'📊', label:'MyData 截圖',         accept:'image/*,.pdf', multiple:true},
-    {key:'movable',   icon:'🏷️', label:'動產擔保查詢截圖',    accept:'image/*',      multiple:false},
-    {key:'verdict',   icon:'⚖️', label:'司法裁判書截圖',      accept:'image/*',      multiple:false},
-    {key:'traffic',   icon:'🚗', label:'監理網罰單截圖',      accept:'image/*',      multiple:false},
-    {key:'license',   icon:'📜', label:'技術士證照截圖',      accept:'image/*',      multiple:true},
-    {key:'vehicle',   icon:'🚙', label:'行照',               accept:'image/*',      multiple:false},
+    {key:'movable',   icon:'🏷️', label:'動產擔保查詢截圖',    accept:'image/*,.pdf', multiple:false},
+    {key:'verdict',   icon:'⚖️', label:'司法裁判書截圖',      accept:'image/*,.pdf', multiple:false},
+    {key:'traffic',   icon:'🚗', label:'監理網罰單截圖',      accept:'image/*,.pdf', multiple:false},
+    {key:'license',   icon:'📜', label:'技術士證照截圖',      accept:'image/*,.pdf', multiple:true},
+    {key:'vehicle',   icon:'🚙', label:'行照',               accept:'image/*,.pdf', multiple:false},
     {key:'build_reg', icon:'📄', label:'建物謄本',           accept:'image/*,.pdf', multiple:false},
     {key:'land_reg',  icon:'📄', label:'土地謄本',           accept:'image/*,.pdf', multiple:false},
-    {key:'house_photos', icon:'🏠', label:'屋況照片',        accept:'image/*',      multiple:true},
-    {key:'id_card',   icon:'🪪', label:'雙證件照片',         accept:'image/*',      multiple:true},
+    {key:'house_photos', icon:'🏠', label:'屋況照片',        accept:'image/*,.pdf', multiple:true},
+    {key:'id_card',   icon:'🪪', label:'雙證件照片',         accept:'image/*,.pdf', multiple:true},
   ];
 
   var dh = '<div class="fs-title">📎 文件上傳</div>';
@@ -3840,28 +3862,48 @@ function handleLeadDocUpload(e) {
 
 async function uploadPendingLeadDocs(leadId) {
   // 上傳所有 pending 的檔案到 Supabase Storage + lead_documents 表
+  var totalFailed = 0;
+  var failedNames = [];
   for (var key in pendingLeadDocs) {
     var items = pendingLeadDocs[key];
     for (var i = 0; i < items.length; i++) {
       var item = items[i];
       var ext = (item.name || 'file').split('.').pop();
       var path = 'leads/' + leadId + '/' + key + '_' + Date.now() + '_' + i + '.' + ext;
-      var res = await sb.storage.from('lead-documents').upload(path, item.file, {upsert:true});
+      // 帶 contentType 確保 Supabase 認得 PDF
+      var contentType = item.file && item.file.type ? item.file.type : (
+        /pdf$/i.test(ext) ? 'application/pdf' :
+        /png$/i.test(ext) ? 'image/png' :
+        /jpe?g$/i.test(ext) ? 'image/jpeg' :
+        'application/octet-stream'
+      );
+      var res = await sb.storage.from('lead-documents').upload(path, item.file, {upsert:true, contentType:contentType});
       if (!res.error) {
         // 寫入 lead_documents 表（這樣詳情頁才看得到）
-        await sb.from('lead_documents').insert({
+        var insRes = await sb.from('lead_documents').insert({
           lead_id: leadId,
           member_id: currentUser.id,
           type: key,
           storage_path: path,
           ai_summary: null
         });
+        if (insRes.error) {
+          console.error('[uploadPendingLeadDocs] 寫 lead_documents 失敗:', insRes.error);
+          totalFailed++;
+          failedNames.push(item.name);
+        }
       } else {
-        console.error('上傳失敗:', item.name, res.error);
+        console.error('[uploadPendingLeadDocs] Storage 上傳失敗:', item.name, res.error);
+        totalFailed++;
+        failedNames.push(item.name);
       }
     }
   }
   pendingLeadDocs = {};
+  if (totalFailed > 0) {
+    alert('⚠️ 有 ' + totalFailed + ' 個檔案上傳失敗：\n' + failedNames.join('\n') +
+          '\n\n可能原因：\n1. Supabase Storage 的 lead-documents bucket 不允許該 MIME 類型（特別是 application/pdf）\n2. 檔案太大\n3. 網路中斷\n\n請打開 F12 Console 查看詳細錯誤');
+  }
 }
 
 async function saveLead() {
@@ -4777,11 +4819,18 @@ function buildDocSection(opts) {
 
 function renderDocResult(leadId, type, doc, di) {
   var h = '<div style="margin-top:8px;background:var(--card);border:0.5px solid var(--bdr2);border-radius:8px;overflow:hidden">';
-  // 圖片預覽
+  // 判斷是否 PDF（從檔名或 url 推斷）
+  var isPdf = /\.pdf($|\?)/i.test(doc.filename||'') || /\.pdf($|\?)/i.test(doc.url||'');
+  // 圖片/PDF 預覽列
   h += '<div style="display:flex;align-items:center;gap:8px;padding:8px 10px;border-bottom:0.5px solid var(--bdr)">';
-  h += '<img src="' + doc.url + '" onclick="window.open(\'' + doc.url + '\')" style="width:48px;height:36px;object-fit:cover;border-radius:4px;cursor:pointer" onerror="this.style.display=\'none\'">';
+  if (isPdf) {
+    // PDF：顯示 📄 圖示 + 點擊開新分頁
+    h += '<div onclick="window.open(\'' + doc.url + '\')" style="width:48px;height:36px;display:flex;align-items:center;justify-content:center;background:rgba(192,64,48,.1);border:0.5px solid rgba(192,64,48,.3);border-radius:4px;cursor:pointer;font-size:18px" title="點擊開啟 PDF">📄</div>';
+  } else {
+    h += '<img src="' + doc.url + '" onclick="window.open(\'' + doc.url + '\')" style="width:48px;height:36px;object-fit:cover;border-radius:4px;cursor:pointer" onerror="this.outerHTML=\'<div onclick=window.open(&quot;' + doc.url + '&quot;) style=&quot;width:48px;height:36px;display:flex;align-items:center;justify-content:center;background:var(--inp);border-radius:4px;cursor:pointer;font-size:18px&quot;>📄</div>\'">';
+  }
   h += '<div style="flex:1"><div style="font-size:13px;font-weight:500">' + (doc.filename||'截圖') + '</div>';
-  h += '<div style="font-size:11px;color:var(--t3)">' + (doc.uploaded_at||'') + '</div></div>';
+  h += '<div style="font-size:11px;color:var(--t3)">' + (doc.uploaded_at||'') + (isPdf ? ' · PDF' : '') + '</div></div>';
   h += '<a href="' + doc.url + '" download target="_blank" style="font-size:12px;padding:3px 8px;background:transparent;border:0.5px solid var(--bdr2);border-radius:5px;color:var(--t2);text-decoration:none">下載</a>';
   h += '<button onclick="deleteDoc(\'' + leadId + '\',\'' + type + '\',' + di + ')" style="font-size:12px;padding:3px 8px;border-radius:5px;border:0.5px solid rgba(192,64,48,.3);background:transparent;color:var(--red);cursor:pointer;font-family:var(--sans)">刪</button>';
   h += '</div>';
