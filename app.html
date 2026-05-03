@@ -11,7 +11,7 @@
 <meta name="application-name" content="顧問PRO">
 <meta name="description" content="貸款顧問業務管理平台">
 <meta name="format-detection" content="telephone=no">
-<meta name="build-id" content="2026-05-03-r1-fresh">
+<meta name="build-id" content="2026-05-03-r2-fixed">
 <!-- PWA Manifest -->
 <link rel="manifest" href="/manifest.json">
 <!-- Apple Touch Icons -->
@@ -584,7 +584,7 @@ select.fi{-webkit-appearance:auto;appearance:auto;display:block;max-width:100%;w
 </div><!-- #app -->
 
 <script>
-console.log('[顧問PRO] JS 載入 build=2026-05-03-r1-fresh, 時間=' + new Date().toLocaleTimeString());
+console.log('[顧問PRO] JS 載入 build=2026-05-03-r2-fixed, 時間=' + new Date().toLocaleTimeString());
 // ══════════════════════════════
 // SUPABASE
 // ══════════════════════════════
@@ -814,28 +814,48 @@ var leadClosings = {}; // { lead_id: [ closing items ] }
 
 // ── 載入該客戶已有的文件 ──
 async function loadDocuments(leadId) {
-  var res = await sb.from('lead_documents').select('*').eq('lead_id', leadId).order('created_at');
-  if (!res.data || res.data.length === 0) return;
-  if (!leadDocuments[leadId]) leadDocuments[leadId] = {};
-  var changed = false;
-  res.data.forEach(function(doc) {
-    if (!leadDocuments[leadId][doc.type]) leadDocuments[leadId][doc.type] = [];
-    var existing = leadDocuments[leadId][doc.type].find(function(d){return d.id===doc.id;});
-    if (!existing) {
-      var url = sb.storage.from('lead-documents').getPublicUrl(doc.storage_path).data.publicUrl;
-      leadDocuments[leadId][doc.type].push({ id: doc.id, url: url, filename: doc.storage_path.split('/').pop(), ai_summary: doc.ai_summary, uploaded_at: new Date(doc.created_at).toLocaleDateString('zh-TW') });
-      changed = true;
+  try {
+    var res = await sb.from('lead_documents').select('*').eq('lead_id', leadId).order('created_at');
+    if (!res || res.error) {
+      console.warn('[loadDocuments] 失敗:', res && res.error);
+      return;
     }
-  });
-  // 只有有新文件時才更新，且只更新文件區塊（不重繪整頁）
-  if (changed) {
-    var types = ['asset','verdict','traffic','license'];
-    types.forEach(function(type) {
-      var docs = leadDocuments[leadId][type] || [];
-      if (docs.length === 0) return;
-      var countEl = document.querySelector('[data-doc-count="' + leadId + '-' + type + '"]');
-      if (countEl) countEl.textContent = '已儲存 ' + docs.length + ' 筆';
+    if (!leadDocuments[leadId]) leadDocuments[leadId] = {};
+    var newCount = 0;
+    (res.data || []).forEach(function(doc) {
+      if (!leadDocuments[leadId][doc.type]) leadDocuments[leadId][doc.type] = [];
+      var existing = leadDocuments[leadId][doc.type].find(function(d){return d.id===doc.id;});
+      if (!existing) {
+        var url = sb.storage.from('lead-documents').getPublicUrl(doc.storage_path).data.publicUrl;
+        leadDocuments[leadId][doc.type].push({
+          id: doc.id, url: url,
+          filename: doc.storage_path.split('/').pop(),
+          ai_summary: doc.ai_summary,
+          uploaded_at: new Date(doc.created_at).toLocaleDateString('zh-TW')
+        });
+        newCount++;
+      }
     });
+    // ⭐ 有新資料 → 重新整個 detail 畫面（這樣 buildDocSection 才會用新資料重畫）
+    if (newCount > 0) {
+      // 但避免重畫造成編輯模式被打斷：如果使用者已經在編輯，跳過重畫
+      var editEl = document.getElementById('lead-edit-' + leadId);
+      var isEditing = editEl && editEl.style.display !== 'none';
+      if (!isEditing) {
+        // 用 setTimeout 避免遞迴呼叫
+        setTimeout(function() { showLeadDetail(leadId); }, 50);
+      } else {
+        // 編輯模式：只更新 count 數字
+        var types = Object.keys(leadDocuments[leadId]);
+        types.forEach(function(type) {
+          var docs = leadDocuments[leadId][type] || [];
+          var countEl = document.querySelector('[data-doc-count="' + leadId + '-' + type + '"]');
+          if (countEl && docs.length > 0) countEl.textContent = '已儲存 ' + docs.length + ' 筆';
+        });
+      }
+    }
+  } catch (err) {
+    console.warn('[loadDocuments] 例外:', err);
   }
 }
 
@@ -2511,18 +2531,28 @@ async function renderDash() {
   }
 
   // ⚡ 載入客戶來源（轉介）改為背景進行，不阻塞首屏
-  sb.from('referrals')
-    .select('lead_id, sender:sender_id(id,name)')
-    .eq('receiver_id', currentUser.id)
-    .eq('status', 'pending')
-    .then(function(refRes) {
-      if (refRes.data) {
-        refRes.data.forEach(function(ref) {
-          var lead = leads.find(function(l){ return l.id === ref.lead_id; });
-          if (lead && ref.sender) lead.referral_source = ref.sender.name || '業者';
-        });
-      }
-    });
+  // 包 try/catch 避免 referrals 表不存在/欄位錯誤造成整段 JS 噎住
+  try {
+    sb.from('referrals')
+      .select('lead_id, sender:sender_id(id,name)')
+      .eq('receiver_id', currentUser.id)
+      .eq('status', 'pending')
+      .then(function(refRes) {
+        if (refRes && refRes.error) {
+          console.warn('[referrals] 載入失敗（不影響使用）:', refRes.error.message);
+          return;
+        }
+        if (refRes && refRes.data) {
+          refRes.data.forEach(function(ref) {
+            var lead = leads.find(function(l){ return l.id === ref.lead_id; });
+            if (lead && ref.sender) lead.referral_source = ref.sender.name || '業者';
+          });
+        }
+      })
+      .catch(function(err){ console.warn('[referrals] 例外:', err); });
+  } catch (refErr) {
+    console.warn('[referrals] 同步例外:', refErr);
+  }
 
   var now = new Date();
   var tms = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -4703,9 +4733,21 @@ function showLeadDetail(id) {
 async function loadExtraDocs(leadId) {
   var listEl = document.getElementById('extra-docs-list-' + leadId);
   if (!listEl) return;
+  // 防重入 marker（如果已經載入過或正在載入，跳過）
+  if (listEl.dataset.loading === '1') return;
+  if (listEl.dataset.loaded === '1') return;
+  listEl.dataset.loading = '1';
   try {
     var res = await sb.from('lead_documents').select('*').eq('lead_id', leadId).eq('type', 'extra').order('created_at', { ascending: false });
-    if (!res.data || res.data.length === 0) return;
+    // 重新確認 listEl 還在 DOM（可能使用者已經切到別頁）
+    var stillEl = document.getElementById('extra-docs-list-' + leadId);
+    if (!stillEl) return;
+    if (!res || !res.data || res.data.length === 0) {
+      stillEl.dataset.loaded = '1';
+      return;
+    }
+    // 清空舊內容（避免重複）
+    stillEl.innerHTML = '';
     res.data.forEach(function(doc) {
       var url = sb.storage.from('lead-documents').getPublicUrl(doc.storage_path).data.publicUrl;
       var filename = doc.storage_path.split('/').pop();
@@ -4769,8 +4811,12 @@ async function loadExtraDocs(leadId) {
 
       listEl.appendChild(item);
     });
+    stillEl.dataset.loaded = '1';
   } catch(e) {
     console.error('載入補充資料失敗:', e);
+  } finally {
+    var finalEl = document.getElementById('extra-docs-list-' + leadId);
+    if (finalEl) finalEl.dataset.loading = '0';
   }
 }
 
