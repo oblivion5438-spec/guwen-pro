@@ -11,7 +11,7 @@
 <meta name="application-name" content="顧問PRO">
 <meta name="description" content="貸款顧問業務管理平台">
 <meta name="format-detection" content="telephone=no">
-<meta name="build-id" content="2026-05-03-r7-labor-display">
+<meta name="build-id" content="2026-05-03-r8-dash-debug">
 <!-- PWA Manifest -->
 <link rel="manifest" href="/manifest.json">
 <!-- Apple Touch Icons -->
@@ -584,7 +584,7 @@ select.fi{-webkit-appearance:auto;appearance:auto;display:block;max-width:100%;w
 </div><!-- #app -->
 
 <script>
-console.log('[顧問PRO] JS 載入 build=2026-05-03-r7-labor-display, 時間=' + new Date().toLocaleTimeString());
+console.log('[顧問PRO] JS 載入 build=2026-05-03-r8-dash-debug, 時間=' + new Date().toLocaleTimeString());
 // ══════════════════════════════
 // SUPABASE
 // ══════════════════════════════
@@ -2801,10 +2801,12 @@ async function renderDash() {
 
   // ── 1. 本週行程 ──
   html += '<div class="card" style="margin-bottom:14px">';
-  html += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">';
+  html += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;gap:8px;flex-wrap:wrap">';
   html += '<div class="ct" style="margin-bottom:0">📅 本週行程</div>';
+  html += '<div style="display:flex;gap:6px">';
+  html += '<button onclick="renderDash()" class="btn-sm" title="重新撈最新資料" style="padding:5px 10px">🔄 重新整理</button>';
   html += '<button onclick="navTo(\'calendar\',null)" class="btn-sm">查看完整行事曆 →</button>';
-  html += '</div>';
+  html += '</div></div>';
   html += '<div id="dash-week-events"><div style="text-align:center;padding:10px;color:var(--t2);font-size:13px"><div class="spinner" style="margin:0 auto 6px"></div>載入中...</div></div>';
   html += '</div>';
 
@@ -2960,15 +2962,21 @@ async function renderDash() {
 
     var endStr = toLocalDateStr(new Date(today.getTime() + 6*24*60*60*1000));
 
+    console.log('[儀表板] 撈本週行程 範圍:', todayStr, '~', endStr, 'member_id=', currentUser.id);
     var evRes = await sb.from('schedules')
       .select('*, leads(name)')
       .eq('member_id', currentUser.id)
       .gte('schedule_date', todayStr)
       .lte('schedule_date', endStr)
       .order('schedule_date', {ascending: true});
+    console.log('[儀表板] 撈到', (evRes.data||[]).length, '筆原始資料:', evRes.data);
+    if (evRes.error) console.error('[儀表板] 查詢錯誤:', evRes.error);
     var allEvents = (evRes.data || []).filter(function(s){
-      return typeof isUnservicableSchedule !== 'function' || !isUnservicableSchedule(s);
+      var keep = typeof isUnservicableSchedule !== 'function' || !isUnservicableSchedule(s);
+      if (!keep) console.log('[儀表板] 過濾掉（無法承作/失聯）:', s.id, s.title);
+      return keep;
     });
+    console.log('[儀表板] 過濾後', allEvents.length, '筆');
 
     // 補一道 JS 排序：同日先按時間（沒時間的擺前面）
     allEvents.sort(function(a, b){
