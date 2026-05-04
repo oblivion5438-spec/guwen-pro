@@ -11,7 +11,7 @@
 <meta name="application-name" content="顧問PRO">
 <meta name="description" content="貸款顧問業務管理平台">
 <meta name="format-detection" content="telephone=no">
-<meta name="build-id" content="2026-05-03-r11-email-fix">
+<meta name="build-id" content="2026-05-03-r13-deeds">
 <!-- PWA Manifest -->
 <link rel="manifest" href="/manifest.json">
 <!-- Apple Touch Icons -->
@@ -584,7 +584,7 @@ select.fi{-webkit-appearance:auto;appearance:auto;display:block;max-width:100%;w
 </div><!-- #app -->
 
 <script>
-console.log('[顧問PRO] JS 載入 build=2026-05-03-r11-email-fix, 時間=' + new Date().toLocaleTimeString());
+console.log('[顧問PRO] JS 載入 build=2026-05-03-r13-deeds, 時間=' + new Date().toLocaleTimeString());
 // ══════════════════════════════
 // SUPABASE
 // ══════════════════════════════
@@ -1526,6 +1526,11 @@ function calcScores(lead) {
       if (R.laborTypeNationalBlock) { bankBlocked = true; }
       else bank += R.laborTypeNationalPenalty;
     } else if (laborType === 'self') bank += R.laborTypeSelfPenalty;
+    else {
+      // 未投保勞保（空字串或 'none'）
+      if (R.laborTypeNoneBlock) { bankBlocked = true; }
+      else bank += (R.laborTypeNonePenalty || -15);
+    }
     // 負債比扣分
     if (debtRatio >= 70) bank -= 20;
     else if (debtRatio >= 50) bank -= 10;
@@ -1566,6 +1571,7 @@ function calcScores(lead) {
     }
     if (!carBlocked) {
       if (hasCarLic) car += R.carLicBonus;
+      if (hasTransfer) car += (R.carTransferBonus || 8);
       car += salary >= 50000 ? 35 : salary >= 35000 ? 25 : salary >= 25000 ? 15 : 5;
       if (finRejCount === 1) car += R.finRej1;
       else if (finRejCount === 2) car += R.finRej2;
@@ -1642,6 +1648,7 @@ function calcScores(lead) {
     if (!bikeBlocked) {
       if (hasBikeLic) bike += R.bikeLicBonus;
       if (hasCarLic)  bike += (R.bikeCarLicBonus || 3);
+      if (hasTransfer) bike += (R.bikeTransferBonus || 5);
       bike += salary >= 25000 ? 40 : salary >= 18000 ? 28 : 15;
       // 融資婉拒次數（含 2 次、3 次以上）
       if (finRejCount >= 3) bike += (R.bikeFinRejOver2 || R.finRejOver2 || -20);
@@ -1699,6 +1706,8 @@ function calcScores(lead) {
       // 駕照
       if (hasCarLic)  phone += (R.phoneCarLicBonus || 3);
       if (hasBikeLic) phone += (R.phoneBikeLicBonus || 2);
+      // 有薪轉加分
+      if (hasTransfer) phone += (R.phoneTransferBonus || 6);
       // 目前有手機貸扣分（沒封鎖時）
       if (hasPhoneLoan && !R.phoneHasLoanBlock) {
         phone += (R.phoneHasLoanPenalty || -20);
@@ -4847,6 +4856,30 @@ function showLeadDetail(id) {
     title: '🏆 技術士持有證照查詢（勞動部）',
     extraBtn: '<button id="' + skillId + '" onclick="openAndCopy(\'https://eservice.wdasec.gov.tw/www/CC95T\',\'' + (lead.name||'').replace(/'/g,"\\'") + '\',\'' + skillId + '\')" style="padding:4px 10px;background:var(--card);border:0.5px solid var(--bdr2);color:var(--t1);border-radius:5px;cursor:pointer;font-family:var(--sans);font-size:12px">複製姓名開啟 →</button>',
     aiPrompt: '這是技術士持有證照查詢截圖。請提取所有持有的技術士證照資訊，格式為JSON陣列：[{"name":"證照名稱","level":"甲/乙/丙級","number":"證號","date":"發證日期"}]。只回傳JSON，不要其他文字。若查無資料回傳[]。'
+  });
+
+  // 🏠 屋況照片
+  html += buildDocSection({
+    id: id, type: 'house_photos', lead: lead,
+    color: '', borderColor: 'var(--bdr2)',
+    title: '🏠 屋況照片',
+    aiPrompt: '這是客戶不動產的屋況照片。請描述：1.房屋類型（公寓/透天/大樓）2.外觀狀況 3.可見特徵。'
+  });
+
+  // 📄 建物謄本
+  html += buildDocSection({
+    id: id, type: 'build_reg', lead: lead,
+    color: '', borderColor: 'var(--bdr2)',
+    title: '📄 建物謄本',
+    aiPrompt: '這是建物謄本。請提取：1.建物地址 2.建號 3.所有權人 4.主要用途 5.主要建材 6.建物總坪數 7.是否有設定（抵押權）8.設定金額。以條列方式簡潔呈現。'
+  });
+
+  // 📄 土地謄本
+  html += buildDocSection({
+    id: id, type: 'land_reg', lead: lead,
+    color: '', borderColor: 'var(--bdr2)',
+    title: '📄 土地謄本',
+    aiPrompt: '這是土地謄本。請提取：1.土地地址/地段 2.地號 3.所有權人 4.土地分類（建地/農地等）5.持分 6.地坪 7.是否有設定（抵押權）8.設定金額。以條列方式簡潔呈現。'
   });
 
   html += '<div style="font-size:12px;color:var(--t3);margin-top:4px">以上查詢依個資法第19條第1項第5款（客戶已同意），查詢公開登記資料。</div>';
@@ -10299,8 +10332,13 @@ function renderScoreRules() {
   h += '<div class="frow2"><div class="frow"><div class="flbl">自營業主扣分</div><input class="fi" id="sr-lt-self" type="number" value="' + (R.laborTypeSelfPenalty||-5) + '"></div>';
   h += '<div class="frow"><div class="flbl">職業工會扣分</div><input class="fi" id="sr-lt-union" type="number" value="' + (R.laborTypeUnionPenalty||-8) + '"></div></div>';
   h += '<div class="frow"><div class="flbl">國民年金扣分</div><input class="fi" id="sr-lt-national" type="number" value="' + (R.laborTypeNationalPenalty||-10) + '"></div>';
+  // 未投保勞保扣分
+  h += '<div class="frow" style="margin-top:6px"><div class="flbl">未投保勞保扣分</div><input class="fi" id="sr-lt-none" type="number" value="' + (R.laborTypeNonePenalty||-15) + '"></div>';
   // 封鎖選項
   h += '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">';
+  h += '<div style="display:flex;align-items:center;gap:8px;padding:8px 12px;background:var(--inp);border-radius:8px">';
+  h += '<div class="tgl ' + (R.laborTypeNoneBlock?'on':'') + '" onclick="scoreRules.laborTypeNoneBlock=!scoreRules.laborTypeNoneBlock;renderScoreRules()"></div>';
+  h += '<span style="font-size:13px;color:var(--red)">未投保勞保 → 封鎖銀行信貸</span></div>';
   h += '<div style="display:flex;align-items:center;gap:8px;padding:8px 12px;background:var(--inp);border-radius:8px">';
   h += '<div class="tgl ' + (R.laborTypeFarmerBlock?'on':'') + '" onclick="scoreRules.laborTypeFarmerBlock=!scoreRules.laborTypeFarmerBlock;renderScoreRules()"></div>';
   h += '<span style="font-size:13px;color:var(--red)">農漁保 → 封鎖銀行信貸</span></div>';
@@ -10357,6 +10395,7 @@ function renderScoreRules() {
 
   h += '<div class="frow2"><div class="frow"><div class="flbl">汽車駕照加分</div><input class="fi" id="sr-carlic" type="number" value="' + R.carLicBonus + '"></div>';
   h += '<div class="frow"><div class="flbl">機車駕照加分</div><input class="fi" id="sr-bikeic" type="number" value="' + R.bikeLicBonus + '"></div></div>';
+  h += '<div class="frow"><div class="flbl">有薪轉加分（汽車貸款）</div><input class="fi" id="sr-car-transfer" type="number" value="' + (R.carTransferBonus||8) + '"></div>';
   h += '<div class="sl">3個月內融資婉拒次數扣分</div>';
   h += '<div class="frow2"><div class="frow"><div class="flbl">1次</div><input class="fi" id="sr-frej1" type="number" value="' + R.finRej1 + '"></div>';
   h += '<div class="frow"><div class="flbl">2次</div><input class="fi" id="sr-frej2" type="number" value="' + R.finRej2 + '"></div></div>';
@@ -10435,6 +10474,7 @@ function renderScoreRules() {
   h += '</div>';
   h += '<div class="frow2"><div class="frow"><div class="flbl">機車駕照加分</div><input class="fi" id="sr-bikeic2" type="number" value="' + R.bikeLicBonus + '"></div>';
   h += '<div class="frow"><div class="flbl">汽車駕照加分</div><input class="fi" id="sr-bike-carlic" type="number" value="' + (R.bikeCarLicBonus||3) + '"></div></div>';
+  h += '<div class="frow"><div class="flbl">有薪轉加分（機車貸款）</div><input class="fi" id="sr-bike-transfer" type="number" value="' + (R.bikeTransferBonus||5) + '"></div>';
   h += '<div class="sl">3個月內融資婉拒次數扣分</div>';
   h += '<div class="frow2"><div class="frow"><div class="flbl">1次</div><input class="fi" id="sr-bike-frej1" type="number" value="' + R.finRej1 + '"></div>';
   h += '<div class="frow"><div class="flbl">2次</div><input class="fi" id="sr-bike-frej2" type="number" value="' + (R.bikeFinRej2 || R.finRej2 || -10) + '"></div></div>';
@@ -10508,6 +10548,7 @@ function renderScoreRules() {
   // 駕照加分（手機貸）
   h += '<div class="frow2" style="margin-top:8px"><div class="frow"><div class="flbl">汽車駕照加分</div><input class="fi" id="sr-phone-carlic" type="number" value="' + (R.phoneCarLicBonus||3) + '"></div>';
   h += '<div class="frow"><div class="flbl">機車駕照加分</div><input class="fi" id="sr-phone-bikeic" type="number" value="' + (R.phoneBikeLicBonus||2) + '"></div></div>';
+  h += '<div class="frow"><div class="flbl">有薪轉加分（手機商品貸）</div><input class="fi" id="sr-phone-transfer" type="number" value="' + (R.phoneTransferBonus||6) + '"></div>';
 
   // 融資婉拒（手機貸）
   h += '<div class="sl">3個月內融資婉拒次數扣分</div>';
@@ -10599,6 +10640,11 @@ function saveScoreRules() {
   scoreRules.laborTypeUnionPenalty = g('sr-lt-union');
   scoreRules.laborTypeNationalPenalty = g('sr-lt-national');
   scoreRules.laborTypeSelfPenalty = g('sr-lt-self');
+  scoreRules.laborTypeNonePenalty = g('sr-lt-none');
+  // 薪轉加分（三個貸款類型）
+  scoreRules.carTransferBonus   = g('sr-car-transfer');
+  scoreRules.bikeTransferBonus  = g('sr-bike-transfer');
+  scoreRules.phoneTransferBonus = g('sr-phone-transfer');
   scoreRules.bikeLaborTypeFarmerPenalty = g('sr-bike-lt-farmer');
   scoreRules.bikeLaborTypeUnionPenalty = g('sr-bike-lt-union');
   scoreRules.bikeLaborTypeNationalPenalty = g('sr-bike-lt-national');
