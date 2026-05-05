@@ -11,7 +11,7 @@
 <meta name="application-name" content="顧問PRO">
 <meta name="description" content="貸款顧問業務管理平台">
 <meta name="format-detection" content="telephone=no">
-<meta name="build-id" content="2026-05-03-r20-prop-fix">
+<meta name="build-id" content="2026-05-03-r21-finrej-3way">
 <!-- PWA Manifest -->
 <link rel="manifest" href="/manifest.json">
 <!-- Apple Touch Icons -->
@@ -584,7 +584,7 @@ select.fi{-webkit-appearance:auto;appearance:auto;display:block;max-width:100%;w
 </div><!-- #app -->
 
 <script>
-console.log('[顧問PRO] JS 載入 build=2026-05-03-r20-prop-fix, 時間=' + new Date().toLocaleTimeString());
+console.log('[顧問PRO] JS 載入 build=2026-05-03-r21-finrej-3way, 時間=' + new Date().toLocaleTimeString());
 // ══════════════════════════════
 // SUPABASE
 // ══════════════════════════════
@@ -3428,19 +3428,29 @@ function renderAddLead() {
       ct.appendChild(btn);
       var list = document.createElement('div'); list.id = ld.key + '-list';
       sec.appendChild(ct); sec.appendChild(list);
-      // 在手機商品貸下方插入融資婉拒欄位
-      if (ld.key === 'phone') {
+      // 在汽車/機車/手機商品貸下方插入融資婉拒欄位（三處同步）
+      if (ld.key === 'car' || ld.key === 'bike' || ld.key === 'phone') {
+        // 第一個（汽車）為主 input，後兩個為 mirror — 但都使用 syncFinRej() 同步
+        // 為了瀏覽器表單健康，每個 select 用唯一 ID（n-fin-rej-cnt-car / -bike / -phone）
+        // saveAddLead 取 car 這個為主
+        var sfx = ld.key; // 'car' / 'bike' / 'phone'
         var finRej = document.createElement('div');
         finRej.style.cssText = 'margin-top:10px;padding-top:10px;border-top:0.5px dashed var(--bdr)';
         finRej.innerHTML =
-          '<div style="font-size:13px;color:var(--t2);margin-bottom:8px">📋 融資端未過件記錄（影響汽車/機車/手機貸評分）</div>' +
-          '<div class="frow2"><div class="frow"><div class="flbl">3個月內融資婉拒次數</div><select class="fi" id="n-fin-rej-cnt"><option value="0">無</option><option value="1">1次</option><option value="2">2次</option><option value="3">3次</option><option value="4">4次以上（封鎖）</option></select></div>' +
-          '<div class="frow"><div class="flbl">融資端未過件距今</div><select class="fi" id="n-fin-rej"><option value="none">無</option><option value="&lt;1m">未滿1個月</option><option value="1-3m">1–3個月</option><option value="3-6m">3–6個月</option></select></div></div>';
+          '<div style="font-size:13px;color:var(--t2);margin-bottom:8px">📋 融資端未過件記錄（三處同步）</div>' +
+          '<div class="frow2"><div class="frow"><div class="flbl">3個月內融資婉拒次數</div><select class="fi" id="n-fin-rej-cnt-' + sfx + '" onchange="syncFinRejCnt(this.value)"><option value="0">無</option><option value="1">1次</option><option value="2">2次</option><option value="3">3次</option><option value="4">4次以上（封鎖）</option></select></div>' +
+          '<div class="frow"><div class="flbl">融資端未過件距今</div><select class="fi" id="n-fin-rej-' + sfx + '" onchange="syncFinRej(this.value)"><option value="none">無</option><option value="&lt;1m">未滿1個月</option><option value="1-3m">1–3個月</option><option value="3-6m">3–6個月</option></select></div></div>';
         sec.appendChild(finRej);
       }
       el.appendChild(sec);
     }
   });
+
+  // 隱藏 master input 給 saveAddLead 用（n-fin-rej-cnt / n-fin-rej）
+  var hiddenFin = document.createElement('div');
+  hiddenFin.style.display = 'none';
+  hiddenFin.innerHTML = '<input id="n-fin-rej-cnt" value="0"><input id="n-fin-rej" value="none">';
+  el.appendChild(hiddenFin);
 
   // 不動產區塊（DOM 方式建立）
   var propSec = document.createElement('div'); propSec.className = 'form-section'; propSec.id = 'prop-section';
@@ -4134,6 +4144,22 @@ function toggleCollateralKinds(selId, rowId) {
   var rowEl = document.getElementById(rowId);
   if (!selEl || !rowEl) return;
   rowEl.style.display = (selEl.value === 'true') ? 'block' : 'none';
+}
+
+// 三處（汽車/機車/手機）的融資婉拒次數同步
+function syncFinRejCnt(val) {
+  ['n-fin-rej-cnt-car','n-fin-rej-cnt-bike','n-fin-rej-cnt-phone','n-fin-rej-cnt'].forEach(function(id){
+    var el = document.getElementById(id);
+    if (el && el.value !== val) el.value = val;
+  });
+}
+
+// 三處（汽車/機車/手機）的融資端未過件距今同步
+function syncFinRej(val) {
+  ['n-fin-rej-car','n-fin-rej-bike','n-fin-rej-phone','n-fin-rej'].forEach(function(id){
+    var el = document.getElementById(id);
+    if (el && el.value !== val) el.value = val;
+  });
 }
 
 function validateIDFieldEdit(el, leadId) {
