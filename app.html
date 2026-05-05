@@ -11,7 +11,7 @@
 <meta name="application-name" content="顧問PRO">
 <meta name="description" content="貸款顧問業務管理平台">
 <meta name="format-detection" content="telephone=no">
-<meta name="build-id" content="2026-05-03-r16-form-full">
+<meta name="build-id" content="2026-05-03-r17-edit-sync">
 <!-- PWA Manifest -->
 <link rel="manifest" href="/manifest.json">
 <!-- Apple Touch Icons -->
@@ -584,7 +584,7 @@ select.fi{-webkit-appearance:auto;appearance:auto;display:block;max-width:100%;w
 </div><!-- #app -->
 
 <script>
-console.log('[顧問PRO] JS 載入 build=2026-05-03-r16-form-full, 時間=' + new Date().toLocaleTimeString());
+console.log('[顧問PRO] JS 載入 build=2026-05-03-r17-edit-sync, 時間=' + new Date().toLocaleTimeString());
 // ══════════════════════════════
 // SUPABASE
 // ══════════════════════════════
@@ -4807,12 +4807,42 @@ function showLeadDetail(id) {
   // 編輯模式（預設隱藏）
   html += '<div id="lead-edit-' + id + '" style="display:none">';
   html += '<div class="sl">個人識別</div>';
-  html += '<div class="frow"><div class="flbl">姓名</div><input class="fi" id="ef-name-' + id + '" value="' + (lead.name||'') + '"></div>';
+
+  // 解析既有 work_type（格式：公司 · 職位）
+  var wtParts = (lead.work_type||'').split(' · ');
+  var existCompany = wtParts[0] || '';
+  var existPositionRaw = wtParts[1] || '';
+  // 判斷職位（中文「負責人」也認）
+  var existPositionVal = (existPositionRaw === '負責人' || existPositionRaw === 'owner') ? 'owner' : 'employee';
+  // 解析資金用途其他
+  var standardPurposes = ['週轉','整合負債','購屋','購車','醫療','結婚','旅遊','創業','教育','投資','還債','整修房屋','其他'];
+  var purposeVal = lead.fund_purpose || '';
+  var purposeOther = '';
+  if (purposeVal && standardPurposes.indexOf(purposeVal) < 0) {
+    purposeOther = purposeVal;
+    purposeVal = '其他';
+  }
+
+  // 1. 姓名
+  html += '<div class="frow"><div class="flbl">姓名</div><input class="fi" id="ef-name-' + id + '" value="' + (lead.name||'').replace(/"/g,'&quot;') + '"></div>';
+
+  // 2. 需求資金 + 資金用途
+  html += '<div class="frow2" style="margin-top:6px"><div class="frow"><div class="flbl">需求資金（元）</div><input class="fi" id="ef-amount-' + id + '" type="number" value="' + (lead.required_amount||'') + '"></div>';
+  html += '<div class="frow"><div class="flbl">資金用途</div><select class="fi" id="ef-purpose-' + id + '" onchange="togglePurposeOther(\'ef-purpose-' + id + '\',\'ef-purpose-other-row-' + id + '\')">';
+  ['週轉','整合負債','購屋','購車','醫療','結婚','旅遊','創業','教育','投資','還債','整修房屋','其他'].forEach(function(p){
+    html += '<option value="' + p + '"' + (purposeVal===p?' selected':'') + '>' + p + '</option>';
+  });
+  html += '</select></div></div>';
+  html += '<div class="frow" id="ef-purpose-other-row-' + id + '" style="display:' + (purposeVal==='其他'?'block':'none') + ';margin-top:6px"><div class="flbl">請說明用途</div><input class="fi" id="ef-purpose-other-' + id + '" placeholder="輸入具體用途" value="' + purposeOther.replace(/"/g,'&quot;') + '"></div>';
+
+  // 3. 手機號碼
   html += '<div class="frow" style="margin-top:6px"><div class="flbl">手機號碼</div><input class="fi" id="ef-phone-' + id + '" type="tel" value="' + (lead.phone||'').replace(/"/g,'&quot;') + '" placeholder="0912-345-678" inputmode="numeric"></div>';
+
+  // 4. 身分證
   html += '<div class="frow" style="margin-top:6px"><div class="flbl">身分證字號</div><input class="fi" id="ef-idno-' + id + '" placeholder="A123456789" maxlength="10" style="letter-spacing:2px;font-family:monospace" value="' + (lead.id_number_hash||'') + '" oninput="validateIDFieldEdit(this,\'' + id + '\')"></div>';
   html += '<div id="ef-idno-err-' + id + '" style="font-size:12px;color:var(--red);display:none;margin-bottom:4px">格式錯誤（英文+9位數字，共10碼）</div>';
-  // 出生日期（民國年份）
-  var bdRoc = '';
+
+  // 5. 出生日期 + 年齡（不變）
   var bdY = '', bdM = '', bdD = '';
   if (lead.birthday) {
     var bdDate = new Date(lead.birthday);
@@ -4829,15 +4859,38 @@ function showLeadDetail(id) {
   html += '<div class="frow"><div class="flbl">年齡</div>';
   html += '<div id="ef-age-display-' + id + '" style="padding:10px 14px;background:var(--inp);border:0.5px solid var(--bdr2);border-radius:9px;font-size:15px;color:var(--t0);font-weight:600">' + (lead.age ? lead.age + ' 歲' : '填出生日期自動計算') + '</div>';
   html += '<input type="hidden" id="ef-age-' + id + '" value="' + (lead.age||'') + '"></div></div>';
-    // 解析既有 work_type（格式：公司 · 職位）
-  var wtParts = (lead.work_type||'').split(' · ');
-  var existCompany = wtParts[0] || '';
-  var existPosition = wtParts[1] || '';
-  html += '<div class="frow2" style="margin-top:6px"><div class="frow"><div class="flbl">公司名稱</div><input class="fi" id="ef-company-' + id + '" value="' + existCompany.replace(/"/g,'&quot;') + '" placeholder="XX 股份有限公司"></div>' +
-    '<div class="frow"><div class="flbl">職位</div><input class="fi" id="ef-position-' + id + '" value="' + existPosition.replace(/"/g,'&quot;') + '" placeholder="業務專員"></div></div>';
-  html += '<div class="frow" style="margin-top:6px"><div class="flbl">公司電話 <span style="font-size:12px;color:var(--t3)">（不會主動致電）</span></div><input class="fi" id="ef-biztel-' + id + '" type="tel" value="' + (lead.company_phone||'') + '" placeholder="02-12345678"></div>';
-  html += '<div class="frow" style="margin-top:6px"><div class="flbl">統一編號（公司戶填）</div><input class="fi" id="ef-tax-id-' + id + '" value="' + (lead.tax_id||'') + '" placeholder="12345678" maxlength="8"></div>';
-  html += '<div class="frow" style="margin-top:6px"><div class="flbl">警示/協商</div><select class="fi" id="ef-alert-' + id + '"><option value="none"' + (lead.alert_status==='none'?' selected':'') + '>否</option><option value="alert"' + (lead.alert_status==='alert'?' selected':'') + '>警示戶</option><option value="negotiation"' + (lead.alert_status==='negotiation'?' selected':'') + '>協商中</option><option value="rehabilitation"' + (lead.alert_status==='rehabilitation'?' selected':'') + '>更生</option><option value="liquidation"' + (lead.alert_status==='liquidation'?' selected':'') + '>清算</option></select></div>';
+
+  // 6. 公司名稱 + 職位（下拉式）
+  html += '<div class="frow2" style="margin-top:6px"><div class="frow"><div class="flbl">公司名稱</div><input class="fi" id="ef-company-' + id + '" value="' + existCompany.replace(/"/g,'&quot;') + '" placeholder="XX 股份有限公司"></div>';
+  html += '<div class="frow"><div class="flbl">職位</div><select class="fi" id="ef-position-' + id + '" onchange="togglePositionOwner(\'ef-position-' + id + '\',\'ef-tax-id-row-' + id + '\')"><option value="employee"' + (existPositionVal==='employee'?' selected':'') + '>員工</option><option value="owner"' + (existPositionVal==='owner'?' selected':'') + '>負責人</option></select></div></div>';
+
+  // 6-1. 統編 + 報稅類型（負責人才顯示）
+  html += '<div id="ef-tax-id-row-' + id + '" style="display:' + (existPositionVal==='owner'?'block':'none') + '">';
+  html += '<div class="frow2" style="margin-top:6px"><div class="frow"><div class="flbl">統一編號</div><input class="fi" id="ef-tax-id-' + id + '" value="' + (lead.tax_id||'') + '" placeholder="12345678" maxlength="8" inputmode="numeric"></div>';
+  html += '<div class="frow"><div class="flbl">報稅類型</div><select class="fi" id="ef-tax-type-' + id + '"><option value="">請選擇</option>';
+  [['401','401 三聯式'],['403','403 二聯式'],['404','404 收銀機'],['405','405 二聯式收銀機'],['406','406 電子計算機']].forEach(function(o){
+    html += '<option value="' + o[0] + '"' + (lead.tax_type===o[0]?' selected':'') + '>' + o[1] + '</option>';
+  });
+  html += '</select></div></div>';
+  html += '</div>';
+
+  // 7. 公司電話 + 工作多久
+  html += '<div class="frow2" style="margin-top:6px"><div class="frow"><div class="flbl">公司電話</div><input class="fi" id="ef-biztel-' + id + '" type="tel" value="' + (lead.company_phone||'') + '" placeholder="02-12345678"></div>';
+  html += '<div class="frow"><div class="flbl">工作多久（月）</div><input class="fi" id="ef-work-months-' + id + '" type="number" min="0" value="' + (lead.work_months||'') + '" placeholder="例：3" inputmode="numeric"></div></div>';
+
+  // 8. 投保單位 + 投保年資
+  html += '<div class="frow2" style="margin-top:6px"><div class="frow"><div class="flbl">投保單位性質</div><select class="fi" id="ef-labor-type-' + id + '">';
+  [['','未填'],['company','一般公司（勞保）'],['govt','政府機關（公保）'],['farmer','農漁（農保）'],['union','職業工會（自付）'],['national','國民年金（國保）'],['self','自營業主']].forEach(function(o){
+    html += '<option value="'+o[0]+'"'+((lead.labor_type||'')===o[0]?' selected':'')+'>'+o[1]+'</option>';
+  });
+  html += '</select></div>';
+  html += '<div class="frow"><div class="flbl">投保年資（月）</div><input class="fi" id="ef-labor-' + id + '" type="number" min="0" step="1" value="' + (lead.labor_insurance_years && /^\d/.test(String(lead.labor_insurance_years)) ? lead.labor_insurance_years : '') + '" placeholder="例：30" inputmode="numeric"></div></div>';
+
+  // 9. 有無薪轉 + 月薪
+  html += '<div class="frow2" style="margin-top:6px"><div class="frow"><div class="flbl">薪轉</div><select class="fi" id="ef-transfer-' + id + '"><option value="true"' + (lead.has_salary_transfer?' selected':'') + '>有</option><option value="false"' + (!lead.has_salary_transfer?' selected':'') + '>無</option></select></div>';
+  html += '<div class="frow"><div class="flbl">月薪（元）</div><input class="fi" id="ef-salary-' + id + '" type="number" value="' + (lead.monthly_salary||'') + '"></div></div>';
+
+  // 10/11/12. 居住地址、戶籍、居住情況
   html += '<div class="frow" style="margin-top:6px"><div class="flbl">居住地址</div><input class="fi" id="ef-addr-' + id + '" value="' + (lead.address||'') + '" placeholder="完整地址"></div>';
   html += '<div class="frow" style="margin-top:6px"><div class="flbl">戶籍地址</div><input class="fi" id="ef-huji-' + id + '" value="' + (lead.huji_address||'') + '" placeholder="不同戶籍才填"></div>';
   html += '<div class="frow" style="margin-top:6px"><div class="flbl">居住狀況</div><select class="fi" id="ef-housing-' + id + '">';
@@ -4845,22 +4898,19 @@ function showLeadDetail(id) {
     html += '<option value="' + o[0] + '"' + (lead.housing_status===o[0]?' selected':'') + '>' + o[1] + '</option>';
   });
   html += '</select></div>';
-  html += '<div class="sl">收入財務</div>';
-  html += '<div class="frow2"><div class="frow"><div class="flbl">月薪（元）</div><input class="fi" id="ef-salary-' + id + '" type="number" value="' + (lead.monthly_salary||'') + '"></div>';
-  html += '<div class="frow"><div class="flbl">薪轉</div><select class="fi" id="ef-transfer-' + id + '"><option value="true"' + (lead.has_salary_transfer?' selected':'') + '>有</option><option value="false"' + (!lead.has_salary_transfer?' selected':'') + '>無</option></select></div></div>';
-  html += '<div class="frow2" style="margin-top:6px"><div class="frow"><div class="flbl">勞保年資（月）</div><input class="fi" id="ef-labor-' + id + '" type="number" min="0" step="1" value="' + (lead.labor_insurance_years && /^\d/.test(String(lead.labor_insurance_years)) ? lead.labor_insurance_years : '') + '" placeholder="例：30 (= 2.5 年)" inputmode="numeric"></div>';
-  html += '<div class="frow"><div class="flbl">投保單位性質</div><select class="fi" id="ef-labor-type-' + id + '">';
-  [['','未填'],['company','一般公司（勞保）'],['govt','政府機關（公保）'],['farmer','農漁（農保）'],['union','職業工會（自付）'],['national','國民年金（國保）'],['self','自營業主']].forEach(function(o){
-    html += '<option value="'+o[0]+'"'+((lead.labor_type||'')===o[0]?' selected':'')+'>'+o[1]+'</option>';
-  });
-  html += '</select></div></div>';
-  html += '<div class="frow2" style="margin-top:6px"><div class="frow"><div class="flbl">信用卡持卡</div><select class="fi" id="ef-cc-' + id + '">';
+
+  // 警示
+  html += '<div class="frow" style="margin-top:6px"><div class="flbl">警示/協商</div><select class="fi" id="ef-alert-' + id + '"><option value="none"' + (lead.alert_status==='none'?' selected':'') + '>否</option><option value="alert"' + (lead.alert_status==='alert'?' selected':'') + '>警示戶</option><option value="negotiation"' + (lead.alert_status==='negotiation'?' selected':'') + '>協商中</option><option value="rehabilitation"' + (lead.alert_status==='rehabilitation'?' selected':'') + '>更生</option><option value="liquidation"' + (lead.alert_status==='liquidation'?' selected':'') + '>清算</option></select></div>';
+
+  html += '<div class="sl">駕照與信用</div>';
+  html += '<div class="frow2"><div class="frow"><div class="flbl">信用卡持卡</div><select class="fi" id="ef-cc-' + id + '">';
   [['none','無卡'],['3m+','3個月以上'],['6m+','6個月以上'],['1y+','1年以上'],['2y+','2年以上'],['3y+','3年以上'],['5y+','5年以上']].forEach(function(o){
     html += '<option value="'+o[0]+'"'+(lead.credit_card_age===o[0]?' selected':'')+'>'+o[1]+'</option>';
   });
-  html += '</select></div></div>';
-  html += '<div class="frow2" style="margin-top:6px"><div class="frow"><div class="flbl">汽車駕照</div><select class="fi" id="ef-carlic-' + id + '"><option value="true"' + (lead.has_car_license?' selected':'') + '>有</option><option value="false"' + (!lead.has_car_license?' selected':'') + '>無</option></select></div>';
-  html += '<div class="frow"><div class="flbl">機車駕照</div><select class="fi" id="ef-bikeic-' + id + '"><option value="true"' + (lead.has_bike_license?' selected':'') + '>有</option><option value="false"' + (!lead.has_bike_license?' selected':'') + '>無</option></select></div></div>';
+  html += '</select></div>';
+  html += '<div class="frow"><div class="flbl">汽車駕照</div><select class="fi" id="ef-carlic-' + id + '"><option value="true"' + (lead.has_car_license?' selected':'') + '>有</option><option value="false"' + (!lead.has_car_license?' selected':'') + '>無</option></select></div></div>';
+  html += '<div class="frow2" style="margin-top:6px"><div class="frow"><div class="flbl">機車駕照</div><select class="fi" id="ef-bikeic-' + id + '"><option value="true"' + (lead.has_bike_license?' selected':'') + '>有</option><option value="false"' + (!lead.has_bike_license?' selected':'') + '>無</option></select></div>';
+  html += '<div class="frow"></div></div>';
 
   // ⭐ 信用紀錄（影響評分）
   html += '<div class="sl" style="margin-top:14px">信用紀錄（會影響 AI 評分）</div>';
@@ -5560,15 +5610,30 @@ async function saveLeadEdit(id) {
   }
 
   var idno = gv('idno').trim().toUpperCase();
+
+  // 處理職位（員工/負責人下拉）
+  var positionVal = gv('position');  // 'employee' or 'owner'
+  var positionLabel = positionVal === 'owner' ? '負責人' : '員工';
+  // 統編 + 報稅類型只在負責人時送
+  var taxIdVal = positionVal === 'owner' ? (gv('tax-id') || null) : null;
+  var taxTypeVal = positionVal === 'owner' ? (gv('tax-type') || null) : null;
+  // 資金用途：選「其他」時用手填值
+  var purposeVal = gv('purpose');
+  if (purposeVal === '其他' && gv('purpose-other')) purposeVal = gv('purpose-other');
+
   var payload = {
     name:               gv('name').trim() || null,
     phone:              gv('phone') || null,
     id_number_hash:     idno || null,
     birthday:           bdayValue,
     age:                ageValue,
-    work_type: [gv('company'), gv('position')].filter(Boolean).join(' · ') || null,
+    work_type:          [gv('company'), positionLabel].filter(Boolean).join(' · ') || null,
     company_phone:      gv('biztel') || null,
-    tax_id:             gv('tax-id') || null,
+    tax_id:             taxIdVal,
+    tax_type:           taxTypeVal,
+    work_months:        parseInt(gv('work-months')) || null,
+    required_amount:    parseInt(gv('amount')) || null,
+    fund_purpose:       purposeVal || null,
     alert_status:       gv('alert') || 'none',
     address:            gv('addr') || null,
     huji_address:       gv('huji') || null,
