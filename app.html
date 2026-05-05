@@ -11,7 +11,7 @@
 <meta name="application-name" content="顧問PRO">
 <meta name="description" content="貸款顧問業務管理平台">
 <meta name="format-detection" content="telephone=no">
-<meta name="build-id" content="2026-05-03-r23-prop-display">
+<meta name="build-id" content="2026-05-03-r25-pdf-clean">
 <!-- PWA Manifest -->
 <link rel="manifest" href="/manifest.json">
 <!-- Apple Touch Icons -->
@@ -584,7 +584,7 @@ select.fi{-webkit-appearance:auto;appearance:auto;display:block;max-width:100%;w
 </div><!-- #app -->
 
 <script>
-console.log('[顧問PRO] JS 載入 build=2026-05-03-r23-prop-display, 時間=' + new Date().toLocaleTimeString());
+console.log('[顧問PRO] JS 載入 build=2026-05-03-r25-pdf-clean, 時間=' + new Date().toLocaleTimeString());
 // ══════════════════════════════
 // SUPABASE
 // ══════════════════════════════
@@ -16647,23 +16647,26 @@ async function exportLeadPDF(leadId) {
   var laborLabels2 = {none:'未投保','6m+':'6個月以上','1y+':'1年以上','2y+':'2年以上'};
   var laborTypeLabels2 = {company:'一般公司（勞保）',govt:'政府機關（公保）',farmer:'農漁（農保）',union:'職業工會（自付）',national:'國民年金（國保）',self:'自營業主'};
   var laborRawPdf = lead.labor_insurance_years;
-  var laborStr2 = '—';
+  var laborYearsStr = '';   // 投保年資
   if (laborRawPdf) {
     if (laborLabels2[laborRawPdf]) {
-      laborStr2 = laborLabels2[laborRawPdf];
+      laborYearsStr = laborLabels2[laborRawPdf];
     } else {
       // 純數字當月份顯示
       var nPdf = parseFloat(laborRawPdf) || 0;
       if (nPdf > 0) {
         var yPdf = Math.floor(nPdf / 12);
         var mPdf = nPdf - yPdf * 12;
-        if (yPdf > 0 && mPdf === 0) laborStr2 = nPdf + ' 個月（= ' + yPdf + ' 年）';
-        else if (yPdf > 0)         laborStr2 = nPdf + ' 個月（≈ ' + yPdf + ' 年 ' + mPdf + ' 個月）';
-        else                       laborStr2 = nPdf + ' 個月';
+        if (yPdf > 0 && mPdf === 0) laborYearsStr = nPdf + ' 個月（= ' + yPdf + ' 年）';
+        else if (yPdf > 0)         laborYearsStr = nPdf + ' 個月（≈ ' + yPdf + ' 年 ' + mPdf + ' 個月）';
+        else                       laborYearsStr = nPdf + ' 個月';
       }
     }
   }
-  if (lead.labor_type && laborTypeLabels2[lead.labor_type]) laborStr2 += '・' + laborTypeLabels2[lead.labor_type];
+  var laborTypeStr = (lead.labor_type && laborTypeLabels2[lead.labor_type]) ? laborTypeLabels2[lead.labor_type] : '';
+  // 舊版相容：仍提供 laborStr2 給其他地方用
+  var laborStr2 = laborYearsStr || '—';
+  if (laborTypeStr) laborStr2 = (laborYearsStr ? laborYearsStr + '・' : '') + laborTypeStr;
 
   var birthdayStr = '—';
   if (lead.birthday) {
@@ -16678,32 +16681,95 @@ async function exportLeadPDF(leadId) {
     birthdayStr = lead.age + '歲';
   }
 
+  // 解析公司+職位（work_type 格式：「公司 · 員工/負責人」）
+  var wtPartsPdf = (lead.work_type||'').split(' · ');
+  var companyNamePdf = wtPartsPdf[0] || '';
+  var positionLblPdf = wtPartsPdf[1] || '';
+  var isOwnerPdf = positionLblPdf === '負責人' || positionLblPdf === 'owner';
+
+  // 報稅類型標籤
+  var taxTypeLabelsPdf = {'401':'401 三聯式','403':'403 二聯式','404':'404 收銀機','405':'405 二聯式收銀機','406':'406 電子計算機'};
+  var taxTypeStr = lead.tax_type ? (taxTypeLabelsPdf[lead.tax_type]||lead.tax_type) : '';
+
+  // 工作多久
+  var workMonthsStr = '';
+  if (lead.work_months) {
+    var wmN = parseInt(lead.work_months) || 0;
+    if (wmN > 0) {
+      var wmY = Math.floor(wmN / 12);
+      var wmRest = wmN - wmY * 12;
+      if (wmY > 0 && wmRest === 0)      workMonthsStr = wmN + ' 個月（= ' + wmY + ' 年）';
+      else if (wmY > 0)                  workMonthsStr = wmN + ' 個月（≈ ' + wmY + ' 年 ' + wmRest + ' 個月）';
+      else                               workMonthsStr = wmN + ' 個月';
+    }
+  }
+
+  // 抵押品
+  var collateralStr = '';
+  if (lead.has_collateral) {
+    var ckParts = [];
+    if (lead.collateral_car) ckParts.push('🚗 汽車');
+    if (lead.collateral_bike) ckParts.push('🛵 機車');
+    collateralStr = ckParts.length > 0 ? '有（' + ckParts.join('、') + '）' : '有';
+  } else {
+    collateralStr = '';  // 無抵押不顯示
+  }
+
+  // 警示
+  var alertLabelsPdf = {alert:'警示戶', negotiation:'協商中', rehabilitation:'更生', liquidation:'清算'};
+  var alertStr = (lead.alert_status && lead.alert_status !== 'none') ? (alertLabelsPdf[lead.alert_status]||lead.alert_status) : '';
+
+  // 銀行/融資未過件距今
+  var rejTimeLabels = {'<1m':'未滿1個月', '1-3m':'1–3個月', '3-6m':'3–6個月'};
+  var bankRejTimeStr = (lead.bank_recent_reject && lead.bank_recent_reject !== 'none') ? (rejTimeLabels[lead.bank_recent_reject]||lead.bank_recent_reject) : '';
+  var finRejTimeStr = (lead.finance_recent_reject && lead.finance_recent_reject !== 'none') ? (rejTimeLabels[lead.finance_recent_reject]||lead.finance_recent_reject) : '';
+
   var infoRows = [
+    // 1. 姓名
     ['姓名', lead.name||'—'],
-    ['出生日期', birthdayStr],
-    ['電話', lead.phone||'—'],
-    ['身分證', lead.id_number_hash||'—'],
-    ['統一編號', lead.tax_id||'—'],
-    ['居住地址', lead.address||'—'],
-    ['戶籍地址', lead.huji_address||'—'],
-    ['居住狀況', housingLabels[lead.housing_status]||'—'],
-    ['工作', lead.work_type||'—'],
-    ['公司名稱', lead.company_name||'—'],
-    ['公司電話', lead.company_phone||'—'],
-    ['月薪', lead.monthly_salary?'$'+lead.monthly_salary.toLocaleString():'—'],
-    ['薪轉', lead.has_salary_transfer?'有':'無'],
-    ['勞保投保', laborStr2],
-    ['信用卡持卡', lead.credit_card_age||'—'],
-    ['汽車駕照', lead.has_car_license?'有':'無'],
-    ['機車駕照', lead.has_bike_license?'有':'無'],
-    ['銀行婉拒', (lead.bank_reject_count||0)+'次'],
-    ['融資婉拒', (lead.fin_reject_count||0)+'次'],
-    ['遲繳天數', (lead.late_pay_days||0)+'天'],
-    ['警示協商', lead.alert_status==='none'||!lead.alert_status?'無':lead.alert_status],
+    // 2. 需求資金 + 資金用途
     ['需求資金', lead.required_amount?'$'+lead.required_amount.toLocaleString():'—'],
     ['資金用途', lead.fund_purpose||'—'],
-    ['顧問備註', lead.advisor_note||'—'],
-  ].filter(function(r){ return r[1] && r[1] !== '—'; })
+    // 3. 手機
+    ['手機號碼', lead.phone||'—'],
+    // 4. 身分證
+    ['身分證', lead.id_number_hash||'—'],
+    // 5. 出生日期 + 年齡（已合併在 birthdayStr）
+    ['出生日期', birthdayStr],
+    // 6. 公司 + 職位
+    ['公司名稱', companyNamePdf||'—'],
+    ['職位', positionLblPdf||'—'],
+    // 6-1. 統編 + 報稅類型（負責人才顯示）
+    ['統一編號', isOwnerPdf ? (lead.tax_id||'') : ''],
+    ['報稅類型', isOwnerPdf ? taxTypeStr : ''],
+    // 7. 公司電話 + 工作多久
+    ['公司電話', lead.company_phone||'—'],
+    ['工作多久', workMonthsStr],
+    // 8. 投保單位 + 投保年資
+    ['投保單位', laborTypeStr],
+    ['投保年資', laborYearsStr],
+    // 9. 薪轉 + 月薪
+    ['薪轉', lead.has_salary_transfer?'有':'無'],
+    ['月薪', lead.monthly_salary?'$'+lead.monthly_salary.toLocaleString():'—'],
+    // 10/11/12. 居住 / 戶籍 / 居住情況
+    ['居住地址', lead.address||'—'],
+    ['戶籍地址', lead.huji_address||'—'],
+    ['居住狀況', housingLabels[lead.housing_status]||''],
+    // 警示
+    ['警示協商', alertStr],
+    // 駕照與抵押
+    ['汽車駕照', lead.has_car_license?'有':'無'],
+    ['機車駕照', lead.has_bike_license?'有':'無'],
+    ['抵押品', collateralStr],
+    // 銀行端未過件
+    ['銀行婉拒次數', (lead.bank_reject_count||0) > 0 ? (lead.bank_reject_count+' 次') : ''],
+    ['銀行婉拒距今', bankRejTimeStr],
+    // 融資端未過件
+    ['融資婉拒次數', (lead.fin_reject_count||0) > 0 ? (lead.fin_reject_count+' 次') : ''],
+    ['融資婉拒距今', finRejTimeStr],
+    // 顧問備註
+    ['顧問備註', lead.advisor_note||''],
+  ].filter(function(r){ return r[1] && r[1] !== '—' && r[1] !== ''; })
    .map(function(r){ return '<tr><td style="color:#666;width:110px;font-size:13px">'+r[0]+'</td><td style="font-weight:500;font-size:13px">'+r[1]+'</td></tr>'; }).join('');
 
   // 不動產資料（多筆，每筆有自己的地址 / 估價 / 一二三胎）
@@ -16832,15 +16898,14 @@ async function exportLeadPDF(leadId) {
       var detailParts = [];
       if (mon)  detailParts.push('月繳 $' + mon.toLocaleString());
       if (paid > 0) detailParts.push('已繳 ' + paid + '期');
-      var extraParts = [];
-      if (res > 0) extraParts.push('剩餘 $' + res.toLocaleString());
-      if (pen) extraParts.push('違約 $' + pen.toLocaleString());
+      // 第 5 欄：剩餘金額（取代違約金）
+      var residualDisplay = res > 0 ? '$' + res.toLocaleString() : '—';
       return '<tr>' +
         '<td style="font-size:13px;width:110px">' + label + '</td>' +
         '<td style="font-size:13px">' + (loan.institution_name || '—') + '</td>' +
         '<td style="font-size:13px;font-weight:600;color:#C8511A">$' + bal.toLocaleString() + '</td>' +
         '<td style="font-size:13px">' + (detailParts.join('・') || '—') + '</td>' +
-        '<td style="font-size:13px">' + (extraParts.join('・') || '—') + '</td>' +
+        '<td style="font-size:13px">' + residualDisplay + '</td>' +
         '</tr>';
     }).join('');
     // 合計列
@@ -16848,7 +16913,7 @@ async function exportLeadPDF(leadId) {
       '<td colspan="2" style="font-size:13px">合計（' + leadLoansArr.length + ' 筆）</td>' +
       '<td style="font-size:13px;color:#C8511A">$' + leadLoansTotalBal.toLocaleString() + '</td>' +
       '<td style="font-size:13px;color:#C8511A">月繳 $' + leadLoansTotalMon.toLocaleString() + '</td>' +
-      '<td style="font-size:13px;color:#C8511A">' + (leadLoansTotalRes > 0 ? '剩餘 $' + leadLoansTotalRes.toLocaleString() : '') + '</td></tr>';
+      '<td style="font-size:13px;color:#C8511A">' + (leadLoansTotalRes > 0 ? '$' + leadLoansTotalRes.toLocaleString() : '—') + '</td></tr>';
   }
 
   // 結案項目
@@ -16948,13 +17013,18 @@ async function exportLeadPDF(leadId) {
   // 寫出 HTML（先重設文件清掉「載入中」）
   w.document.open();
   w.document.write('<!DOCTYPE html><html><head><meta charset="UTF-8"><title>'+lead.name+' 客戶完整資料</title><style>');
-  w.document.write('body{font-family:-apple-system,sans-serif;padding:32px;color:#111;max-width:850px;margin:0 auto;background:#fff}');
-  w.document.write('h2{font-size:15px;font-weight:700;margin:24px 0 8px;padding-bottom:5px;border-bottom:2px solid #C8511A;color:#C8511A}');
-  w.document.write('table{width:100%;border-collapse:collapse}td{padding:7px 10px;border-bottom:1px solid #eee}');
-  w.document.write('.header{display:flex;justify-content:space-between;align-items:flex-start;padding-bottom:16px;border-bottom:2px solid #111;margin-bottom:20px}');
+  w.document.write('body{font-family:-apple-system,sans-serif;padding:32px;color:#111;max-width:850px;margin:0 auto;background:#fff;line-height:1.5}');
+  w.document.write('h2{font-size:15px;font-weight:700;margin:28px 0 10px;padding-bottom:6px;border-bottom:2px solid #C8511A;color:#C8511A}');
+  w.document.write('table{width:100%;border-collapse:collapse;margin-bottom:8px}');
+  w.document.write('td{padding:8px 12px;border-bottom:1px solid #eee;vertical-align:top}');
+  w.document.write('table tr:last-child td{border-bottom:none}');
+  // 基本資料表格：第一欄固定寬度
+  w.document.write('table.info-table td:first-child{width:120px;color:#666;font-size:13px}');
+  w.document.write('table.info-table td:nth-child(2){font-weight:500;font-size:13px}');
+  w.document.write('.header{display:flex;justify-content:space-between;align-items:flex-start;padding-bottom:18px;border-bottom:2px solid #111;margin-bottom:24px}');
   w.document.write('.logo{font-size:22px;font-weight:900}.logo span{color:#C8511A}');
-  w.document.write('.tag{display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;background:#f0f0f0;color:#555;margin:2px}');
-  w.document.write('@media print{button{display:none}body{padding:16px}.header{padding-bottom:10px}}');
+  w.document.write('.tag{display:inline-block;padding:3px 10px;border-radius:12px;font-size:11px;background:#f0f0f0;color:#555;margin:2px}');
+  w.document.write('@media print{button{display:none}body{padding:16px}.header{padding-bottom:10px}h2{margin-top:18px}}');
   w.document.write('</style></head><body>');
 
   // Header
@@ -16968,17 +17038,17 @@ async function exportLeadPDF(leadId) {
   w.document.write('<h2>📊 AI 評估機率</h2><table>'+scoreRows+'</table>');
 
   // 基本資料
-  w.document.write('<h2>👤 基本資料</h2><table>'+infoRows+'</table>');
+  w.document.write('<h2>👤 基本資料</h2><table class="info-table">'+infoRows+'</table>');
 
   // 不動產
   if (lead.has_property && propRows) {
-    w.document.write('<h2>🏠 不動產資料</h2><table>'+propRows+'</table>');
+    w.document.write('<h2>🏠 不動產資料</h2><table class="info-table">'+propRows+'</table>');
   }
 
   // 🆕 現有貸款（信貸/車貸/機車貸/手機貸/民間借款）
   if (leadLoansRows) {
     w.document.write('<h2>💰 現有貸款</h2>');
-    w.document.write('<table><tr style="background:#f5f5f5;font-weight:600"><td>類型</td><td>機構</td><td>餘額</td><td>月繳</td><td>違約金</td></tr>'+leadLoansRows+'</table>');
+    w.document.write('<table><tr style="background:#f5f5f5;font-weight:600"><td>類型</td><td>機構</td><td>餘額</td><td>月繳/已繳</td><td>剩餘金額</td></tr>'+leadLoansRows+'</table>');
   }
 
   // 結案項目
