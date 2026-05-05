@@ -11,7 +11,7 @@
 <meta name="application-name" content="顧問PRO">
 <meta name="description" content="貸款顧問業務管理平台">
 <meta name="format-detection" content="telephone=no">
-<meta name="build-id" content="2026-05-03-r13-deeds">
+<meta name="build-id" content="2026-05-03-r14-form-rev1">
 <!-- PWA Manifest -->
 <link rel="manifest" href="/manifest.json">
 <!-- Apple Touch Icons -->
@@ -584,7 +584,7 @@ select.fi{-webkit-appearance:auto;appearance:auto;display:block;max-width:100%;w
 </div><!-- #app -->
 
 <script>
-console.log('[顧問PRO] JS 載入 build=2026-05-03-r13-deeds, 時間=' + new Date().toLocaleTimeString());
+console.log('[顧問PRO] JS 載入 build=2026-05-03-r14-form-rev1, 時間=' + new Date().toLocaleTimeString());
 // ══════════════════════════════
 // SUPABASE
 // ══════════════════════════════
@@ -3307,12 +3307,22 @@ function renderAddLead() {
   html += '<div id="add-err" class="err-msg" style="display:none"></div>';
 
   html += '<div class="form-section"><div class="fs-title">🪪 個人基本</div>';
+  // 1. 姓名
   html += '<div class="frow"><div class="flbl">姓名 <span class="req">*</span></div><input class="fi" id="n-name" placeholder="真實姓名"></div>';
+
+  // 2. 需求資金 + 資金用途（同一列）+ 用途其他展開
+  html += '<div class="frow2"><div class="frow"><div class="flbl">需求資金（元）<span class="req">*</span></div><input class="fi" id="n-amount" type="number" placeholder="500000" inputmode="numeric"></div>';
+  html += '<div class="frow"><div class="flbl">資金用途</div><select class="fi" id="n-purpose" onchange="togglePurposeOther(\'n-purpose\',\'n-purpose-other-row\')"><option value="週轉">週轉</option><option value="整合負債">整合負債</option><option value="購屋">購屋</option><option value="購車">購車</option><option value="醫療">醫療</option><option value="結婚">結婚</option><option value="旅遊">旅遊</option><option value="創業">創業</option><option value="教育">教育</option><option value="投資">投資</option><option value="還債">還債</option><option value="整修房屋">整修房屋</option><option value="其他">其他</option></select></div></div>';
+  html += '<div class="frow" id="n-purpose-other-row" style="display:none"><div class="flbl">請說明用途</div><input class="fi" id="n-purpose-other" placeholder="輸入具體用途"></div>';
+
+  // 3. 手機號碼
   html += '<div class="frow"><div class="flbl">手機號碼</div><input class="fi" id="n-phone" type="tel" placeholder="0912-345-678" inputmode="numeric"></div>';
+
+  // 4. 身分證字號
   html += '<div class="frow"><div class="flbl">身分證字號</div><input class="fi" id="n-idno" placeholder="A123456789" maxlength="10" style="letter-spacing:2px;font-family:monospace" oninput="validateIDField(this)"></div>';
   html += '<div id="n-idno-err" style="font-size:13px;color:var(--red);display:none;margin-top:-10px;margin-bottom:8px">格式錯誤（英文+數字共10碼）</div>';
 
-  // 出生日期（民國年份）
+  // 5. 出生日期 + 年齡（不變）
   html += '<div class="frow2"><div class="frow"><div class="flbl">出生日期（民國）</div>';
   html += '<div style="display:flex;gap:6px;align-items:center">';
   html += '<div style="display:flex;align-items:center;gap:3px;flex:1"><input class="fi" id="n-bday-y" type="number" placeholder="民國年" min="1" max="130" inputmode="numeric" style="text-align:center" oninput="calcAgeFromROC(\'n-bday-y\',\'n-bday-m\',\'n-bday-d\',\'n-birthday\',\'n-age-display\')"><span style="font-size:13px;color:var(--t2);flex-shrink:0">年</span></div>';
@@ -3323,24 +3333,40 @@ function renderAddLead() {
   html += '<div id="n-age-display" style="padding:10px 14px;background:var(--inp);border:0.5px solid var(--bdr2);border-radius:9px;font-size:15px;color:var(--t2)">填寫出生日期後自動顯示</div>';
   html += '<input type="hidden" id="n-age"></div></div>';
 
+  // 6. 公司名稱 + 職位（員工/負責人下拉）
   html += '<div class="frow2"><div class="frow"><div class="flbl">公司名稱</div><input class="fi" id="n-company" placeholder="XX 股份有限公司"></div>' +
-  '<div class="frow"><div class="flbl">職位</div><input class="fi" id="n-position" placeholder="業務專員" oninput="checkPositionForTaxId(\'n-position\',\'n-tax-id-row\')"></div></div>' +
-  '<div id="n-tax-id-row" style="display:none"><div class="frow"><div class="flbl">統一編號 <span style="font-size:12px;color:var(--org)">（負責人/自營業主填寫）</span></div><input class="fi" id="n-tax-id" placeholder="12345678" maxlength="8" inputmode="numeric" oninput="this.value=this.value.replace(/\\D/g,\'\')"></div></div>' +
-  '<div class="frow" style="margin-top:0"><div class="flbl">公司電話 <span style="font-size:12px;color:var(--t3)">（備註用，不會主動致電）</span></div><input class="fi" id="n-biztel" type="tel" placeholder="02-12345678"></div>';
-  html += '<div class="frow"><div class="flbl">警示/協商/更生/清算</div><select class="fi" id="n-alert"><option value="none">否</option><option value="alert">警示戶</option><option value="negotiation">協商中</option><option value="rehabilitation">更生</option><option value="liquidation">清算</option></select></div>';
-  html += '<div class="frow"><div class="flbl">居住地址</div><input class="fi" id="n-addr" placeholder="完整地址"></div>';
-  html += '<div class="frow"><div class="flbl">戶籍地址</div><input class="fi" id="n-huji" placeholder="不同戶籍才填"></div>';
-  html += '<div class="frow"><div class="flbl">居住狀況</div><select class="fi" id="n-housing"><option value="none">未填</option><option value="self_own">本人名下（自有）</option><option value="self_live">自住（非本人名下）</option><option value="family">親屬/家人房子</option><option value="rent">租屋</option><option value="other">其他</option></select></div>';
-  html += '<div class="frow2"><div class="frow"><div class="flbl">需求資金（元）<span class="req">*</span></div><input class="fi" id="n-amount" type="number" placeholder="500000" inputmode="numeric"></div>';
-  html += '<div class="frow"><div class="flbl">資金用途</div><select class="fi" id="n-purpose"><option>週轉</option><option>整合負債</option><option>購屋</option><option>購車</option><option>其他</option></select></div></div>';
+  '<div class="frow"><div class="flbl">職位</div><select class="fi" id="n-position" onchange="togglePositionOwner(\'n-position\',\'n-tax-id-row\')"><option value="employee">員工</option><option value="owner">負責人</option></select></div></div>';
+
+  // 6-1. 統編 + 報稅類型（負責人才顯示）
+  html += '<div id="n-tax-id-row" style="display:none">';
+  html += '<div class="frow2"><div class="frow"><div class="flbl">統一編號</div><input class="fi" id="n-tax-id" placeholder="12345678" maxlength="8" inputmode="numeric" oninput="this.value=this.value.replace(/\\D/g,\'\')"></div>';
+  html += '<div class="frow"><div class="flbl">報稅類型</div><select class="fi" id="n-tax-type"><option value="">請選擇</option><option value="401">401 三聯式</option><option value="403">403 二聯式</option><option value="404">404 收銀機</option><option value="405">405 二聯式收銀機</option><option value="406">406 電子計算機</option></select></div></div>';
   html += '</div>';
 
-  html += '<div class="form-section"><div class="fs-title">💼 收入財務</div>';
-  html += '<div class="frow2"><div class="frow"><div class="flbl">月薪（元）</div><input class="fi" id="n-salary" type="number" placeholder="40000" inputmode="numeric"></div>';
-  html += '<div class="frow"><div class="flbl">有無薪轉</div><select class="fi" id="n-transfer"><option value="true">有</option><option value="false">無</option></select></div></div>';
-  // 勞保：年資 + 投保單位
-  html += '<div class="frow2"><div class="frow"><div class="flbl">勞保年資（月）</div><input class="fi" id="n-labor" type="number" min="0" step="1" placeholder="例：30 (= 2.5 年)" inputmode="numeric"></div>';
-  html += '<div class="frow"><div class="flbl">投保單位性質</div><select class="fi" id="n-labor-type"><option value="">未填</option><option value="company">一般公司（勞保）</option><option value="govt">政府機關（公保）</option><option value="farmer">農漁（農保）</option><option value="union">職業工會（自付）</option><option value="national">國民年金（國保）</option><option value="self">自營業主</option></select></div></div>';
+  // 7. 公司電話 + 工作多久（月）
+  html += '<div class="frow2"><div class="frow"><div class="flbl">公司電話 <span style="font-size:12px;color:var(--t3)">（備註用）</span></div><input class="fi" id="n-biztel" type="tel" placeholder="02-12345678"></div>';
+  html += '<div class="frow"><div class="flbl">工作多久（月）</div><input class="fi" id="n-work-months" type="number" min="0" placeholder="例：3" inputmode="numeric"></div></div>';
+
+  // 8. 投保單位 + 投保年資
+  html += '<div class="frow2"><div class="frow"><div class="flbl">投保單位性質</div><select class="fi" id="n-labor-type"><option value="">未填</option><option value="company">一般公司（勞保）</option><option value="govt">政府機關（公保）</option><option value="farmer">農漁（農保）</option><option value="union">職業工會（自付）</option><option value="national">國民年金（國保）</option><option value="self">自營業主</option></select></div>';
+  html += '<div class="frow"><div class="flbl">投保年資（月）</div><input class="fi" id="n-labor" type="number" min="0" step="1" placeholder="例：30 (= 2.5 年)" inputmode="numeric"></div></div>';
+
+  // 9. 有無薪轉 + 月薪
+  html += '<div class="frow2"><div class="frow"><div class="flbl">有無薪轉</div><select class="fi" id="n-transfer"><option value="true">有</option><option value="false">無</option></select></div>';
+  html += '<div class="frow"><div class="flbl">月薪（元）</div><input class="fi" id="n-salary" type="number" placeholder="40000" inputmode="numeric"></div></div>';
+
+  // 10. 居住地址
+  html += '<div class="frow"><div class="flbl">居住地址</div><input class="fi" id="n-addr" placeholder="完整地址"></div>';
+  // 11. 戶籍地址
+  html += '<div class="frow"><div class="flbl">戶籍地址</div><input class="fi" id="n-huji" placeholder="不同戶籍才填"></div>';
+  // 12. 居住情況
+  html += '<div class="frow"><div class="flbl">居住狀況</div><select class="fi" id="n-housing"><option value="none">未填</option><option value="self_own">本人名下（自有）</option><option value="self_live">自住（非本人名下）</option><option value="family">親屬/家人房子</option><option value="rent">租屋</option><option value="other">其他</option></select></div>';
+
+  // 警示／信用狀況（保留在最後）
+  html += '<div class="frow"><div class="flbl">警示/協商/更生/清算</div><select class="fi" id="n-alert"><option value="none">否</option><option value="alert">警示戶</option><option value="negotiation">協商中</option><option value="rehabilitation">更生</option><option value="liquidation">清算</option></select></div>';
+  html += '</div>';
+
+  html += '<div class="form-section"><div class="fs-title">💼 駕照與信用</div>';
   html += '<div class="frow2"><div class="frow"><div class="flbl">信用卡持卡</div><select class="fi" id="n-cc"><option value="none">無卡</option><option value="3m+">3個月以上</option><option value="6m+">6個月以上</option><option value="1y+">1年以上</option><option value="2y+">2年以上</option><option value="3y+">3年以上</option><option value="5y+">5年以上</option></select></div>';
   html += '<div class="frow"><div class="flbl">汽車駕照</div><select class="fi" id="n-car-lic"><option value="true">有</option><option value="false">無</option></select></div></div>';
   html += '<div class="frow2"><div class="frow"><div class="flbl">機車駕照</div><select class="fi" id="n-bike-lic"><option value="true">有</option><option value="false">無</option></select></div>';
@@ -3919,6 +3945,22 @@ function checkPositionForTaxId(posId, rowId) {
   rowEl.style.display = show ? "block" : "none";
 }
 
+// 新版：職位下拉選 owner/employee 控制統編欄位顯示
+function togglePositionOwner(posId, rowId) {
+  var posEl = document.getElementById(posId);
+  var rowEl = document.getElementById(rowId);
+  if (!posEl || !rowEl) return;
+  rowEl.style.display = (posEl.value === 'owner') ? 'block' : 'none';
+}
+
+// 資金用途選「其他」時展開手動填寫欄位
+function togglePurposeOther(selId, rowId) {
+  var selEl = document.getElementById(selId);
+  var rowEl = document.getElementById(rowId);
+  if (!selEl || !rowEl) return;
+  rowEl.style.display = (selEl.value === '其他') ? 'block' : 'none';
+}
+
 function validateIDFieldEdit(el, leadId) {
   var val = el.value.toUpperCase();
   el.value = val;
@@ -4211,16 +4253,26 @@ async function saveLead() {
     { ltype: gv('n-prop3-ltype'), inst: gv('n-prop3-inst'), rate: parseFloat(gi('n-prop3-rate'))||0, pay: gi('n-prop3-pay'), penalty: gi('n-prop3-penalty') },
   ]);
 
+  // 處理職位 + 統編相關
+  var positionVal = gv('n-position');  // 'employee' or 'owner'
+  var positionLabel = positionVal === 'owner' ? '負責人' : '員工';
+  var taxTypeVal = positionVal === 'owner' ? (gv('n-tax-type') || null) : null;
+  // 資金用途：選「其他」時用手填值
+  var purposeVal = gv('n-purpose');
+  if (purposeVal === '其他' && gv('n-purpose-other')) purposeVal = gv('n-purpose-other');
+
   var payload = {
     member_id: currentUser.id, name: name,
     phone: gv('n-phone') || null,
     id_number_hash: idnoRaw || null,
     birthday: birthdayVal,
-    tax_id: gv('n-tax-id') || null,
-    age: parseInt(gv('n-age')) || null, work_type: [gv('n-company'),gv('n-position')].filter(Boolean).join(' · ') || null,
+    tax_id: positionVal === 'owner' ? (gv('n-tax-id') || null) : null,
+    tax_type: taxTypeVal,
+    work_months: parseInt(gv('n-work-months')) || null,
+    age: parseInt(gv('n-age')) || null, work_type: [gv('n-company'), positionLabel].filter(Boolean).join(' · ') || null,
     company_phone: gv('n-biztel') || null,
     alert_status: gv('n-alert'), address: gv('n-addr'), huji_address: gv('n-huji'),
-    required_amount: parseInt(gv('n-amount')) || null, fund_purpose: gv('n-purpose'),
+    required_amount: parseInt(gv('n-amount')) || null, fund_purpose: purposeVal,
     monthly_salary: parseInt(gv('n-salary')) || null,
     has_salary_transfer: gv('n-transfer') === 'true',
     labor_insurance_years: gv('n-labor') || null,
