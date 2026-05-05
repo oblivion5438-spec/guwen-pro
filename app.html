@@ -11,7 +11,7 @@
 <meta name="application-name" content="顧問PRO">
 <meta name="description" content="貸款顧問業務管理平台">
 <meta name="format-detection" content="telephone=no">
-<meta name="build-id" content="2026-05-03-r19-bldg-addr">
+<meta name="build-id" content="2026-05-03-r20-prop-fix">
 <!-- PWA Manifest -->
 <link rel="manifest" href="/manifest.json">
 <!-- Apple Touch Icons -->
@@ -584,7 +584,7 @@ select.fi{-webkit-appearance:auto;appearance:auto;display:block;max-width:100%;w
 </div><!-- #app -->
 
 <script>
-console.log('[顧問PRO] JS 載入 build=2026-05-03-r19-bldg-addr, 時間=' + new Date().toLocaleTimeString());
+console.log('[顧問PRO] JS 載入 build=2026-05-03-r20-prop-fix, 時間=' + new Date().toLocaleTimeString());
 // ══════════════════════════════
 // SUPABASE
 // ══════════════════════════════
@@ -3443,7 +3443,7 @@ function renderAddLead() {
   });
 
   // 不動產區塊（DOM 方式建立）
-  var propSec = document.createElement('div'); propSec.className = 'form-section'; propSec.id = 'prop-section'; propSec.style.display = 'none';
+  var propSec = document.createElement('div'); propSec.className = 'form-section'; propSec.id = 'prop-section';
   var ph = '<div class="fs-title">🏠 不動產資料與貸款</div>';
   ph += '<div style="font-size:12px;color:var(--t2);margin-bottom:10px">可新增多筆不動產，每筆可為建物或土地（例：一建二土）</div>';
 
@@ -3928,53 +3928,114 @@ function addPropItemEdit(leadId, data) {
   if (!list) return;
   var div = document.createElement('div');
   div.id = 'prop-item-' + idx;
-  div.style.cssText = 'background:var(--bg2);border:0.5px solid var(--bdr);border-radius:10px;padding:12px;margin-bottom:8px;position:relative';
+  div.style.cssText = 'background:var(--inp);border:0.5px solid var(--bdr2);border-radius:12px;margin-bottom:10px;overflow:hidden';
   var d = data || {};
   var typeVal = d.type || '';
   var num = propItemCountEdit[leadId];
 
-  var h = '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">';
-  h += '<div style="font-size:13px;font-weight:700;color:var(--acc)">不動產 #'+num+'</div>';
-  h += '<button type="button" onclick="document.getElementById(\'prop-item-'+idx+'\').remove()" style="background:transparent;border:none;color:var(--red);font-size:16px;cursor:pointer">✕</button>';
-  h += '</div>';
-  h += '<div style="display:flex;gap:8px;margin-bottom:8px">';
-  h += '<button type="button" id="pi-bldg-btn-'+idx+'" onclick="setPropItemType(\''+idx+'\',\'bldg\')" style="padding:7px 16px;border-radius:20px;font-family:var(--sans);font-size:13px;font-weight:600;cursor:pointer;border:1.5px solid '+(typeVal==='bldg'?'var(--acc)':'var(--bdr2)')+';background:'+(typeVal==='bldg'?'var(--al)':'transparent')+';color:'+(typeVal==='bldg'?'var(--acc)':'var(--t2)')+'"">🏢 建物</button>';
-  h += '<button type="button" id="pi-land-btn-'+idx+'" onclick="setPropItemType(\''+idx+'\',\'land\')" style="padding:7px 16px;border-radius:20px;font-family:var(--sans);font-size:13px;font-weight:600;cursor:pointer;border:1.5px solid '+(typeVal==='land'?'var(--acc)':'var(--bdr2)')+';background:'+(typeVal==='land'?'var(--al)':'transparent')+';color:'+(typeVal==='land'?'var(--acc)':'var(--t2)')+'"">🌱 土地</button>';
-  h += '<input type="hidden" id="pi-type-'+idx+'" value="'+typeVal+'">';
-  h += '</div>';
+  // 抽屜式標題列
+  var hdr = document.createElement('div');
+  hdr.style.cssText = 'display:flex;align-items:center;justify-content:space-between;padding:12px 14px;cursor:pointer;background:var(--card)';
+  var titleArea = document.createElement('div');
+  titleArea.style.cssText = 'display:flex;align-items:center;gap:8px;flex:1;min-width:0';
+  var caretEl = document.createElement('span');
+  caretEl.id = 'pi-caret-' + idx;
+  caretEl.textContent = '▼';
+  caretEl.style.cssText = 'font-size:11px;color:var(--t2);transition:transform 0.2s';
+  var titleLbl = document.createElement('span');
+  titleLbl.style.cssText = 'font-size:14px;font-weight:700;color:var(--acc)';
+  titleLbl.textContent = '不動產 #' + num;
+  var summaryLbl = document.createElement('span');
+  summaryLbl.id = 'pi-summary-' + idx;
+  summaryLbl.style.cssText = 'font-size:12px;color:var(--t3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap';
+  titleArea.appendChild(caretEl);
+  titleArea.appendChild(titleLbl);
+  titleArea.appendChild(summaryLbl);
+  var delBtn = document.createElement('button');
+  delBtn.type = 'button';
+  delBtn.style.cssText = 'background:transparent;border:none;color:var(--red);font-size:18px;cursor:pointer;padding:2px;flex-shrink:0';
+  delBtn.textContent = '✕';
+  delBtn.onclick = (function(targetId) {
+    return function(e) {
+      e.stopPropagation();
+      var el = document.getElementById(targetId);
+      if (el) el.remove();
+    };
+  })('prop-item-' + idx);
+  hdr.appendChild(titleArea);
+  hdr.appendChild(delBtn);
+  hdr.onclick = (function(bid, cid) {
+    return function() {
+      var b = document.getElementById(bid);
+      var c = document.getElementById(cid);
+      if (!b) return;
+      var collapsed = b.style.display === 'none';
+      b.style.display = collapsed ? 'block' : 'none';
+      if (c) c.style.transform = collapsed ? 'rotate(0deg)' : 'rotate(-90deg)';
+    };
+  })('pi-body-' + idx, 'pi-caret-' + idx);
+
+  // 內容區
+  var body = document.createElement('div');
+  body.id = 'pi-body-' + idx;
+  body.style.cssText = 'padding:12px 14px;border-top:0.5px solid var(--bdr)';
+
+  var h = '';
+  // 類型按鈕
+  h += '<div class="frow"><div class="flbl">類型</div>';
+  h += '<div style="display:flex;gap:8px;margin-top:4px">';
+  h += '<button type="button" id="pi-bldg-btn-'+idx+'" onclick="setPropItemType(\''+idx+'\',\'bldg\')" style="padding:8px 20px;border-radius:20px;font-family:var(--sans);font-size:14px;font-weight:600;cursor:pointer;border:1.5px solid '+(typeVal==='bldg'?'var(--acc)':'var(--bdr2)')+';background:'+(typeVal==='bldg'?'var(--al)':'transparent')+';color:'+(typeVal==='bldg'?'var(--acc)':'var(--t2)')+'">🏢 建物</button>';
+  h += '<button type="button" id="pi-land-btn-'+idx+'" onclick="setPropItemType(\''+idx+'\',\'land\')" style="padding:8px 20px;border-radius:20px;font-family:var(--sans);font-size:14px;font-weight:600;cursor:pointer;border:1.5px solid '+(typeVal==='land'?'var(--acc)':'var(--bdr2)')+';background:'+(typeVal==='land'?'var(--al)':'transparent')+';color:'+(typeVal==='land'?'var(--acc)':'var(--t2)')+'">🌱 土地</button>';
+  h += '</div><input type="hidden" id="pi-type-'+idx+'" value="'+typeVal+'"></div>';
+
   // 建物欄位
-  h += '<div id="pi-bldg-fields-'+idx+'" style="display:'+(typeVal==='bldg'?'block':'none')+'">';
+  h += '<div id="pi-bldg-fields-'+idx+'" style="display:'+(typeVal==='bldg'?'block':'none')+';margin-top:10px">';
   h += '<div class="frow"><div class="flbl">建物地址</div><input class="fi" id="pi-bldg-addr-'+idx+'" placeholder="完整地址（例：台北市中山區XX路XX號）" value="'+((d.bldgAddr||'').replace(/"/g,'&quot;'))+'"></div>';
-  h += '<div class="frow2" style="margin-top:6px"><div class="frow"><div class="flbl">房屋類型</div><select class="fi" id="pi-bldg-type-'+idx+'">';
+  h += '<div class="frow2" style="margin-top:6px"><div class="frow"><div class="flbl">房屋類型</div><select class="fi" id="pi-bldg-type-'+idx+'" onchange="updatePropItemSummary(\''+idx+'\')">';
   [['','選擇'],['elevator','電梯大樓'],['huaxia','華廈'],['apartment','公寓'],['townhouse','透天厝'],['shop','店面'],['office','辦公室'],['factory','廠房']].forEach(function(o){
     h += '<option value="'+o[0]+'"'+((d.bldgType||'')===o[0]?' selected':'')+'>'+o[1]+'</option>';
   });
-  h += '</select></div><div class="frow"><div class="flbl">屋齡（年）</div><input class="fi" id="pi-bldg-age-'+idx+'" type="number" placeholder="15" value="'+(d.bldgAge||'')+'"></div></div>';
-  h += '<div class="frow2"><div class="frow"><div class="flbl">建坪（坪）</div><input class="fi" id="pi-bldg-size-'+idx+'" type="number" placeholder="30" value="'+(d.bldgSize||'')+'"></div>';
+  h += '</select></div>';
+  h += '<div class="frow"><div class="flbl">屋齡（年）</div><input class="fi" id="pi-bldg-age-'+idx+'" type="number" placeholder="15" value="'+(d.bldgAge||'')+'" inputmode="numeric"></div></div>';
+  h += '<div class="frow2"><div class="frow"><div class="flbl">建坪（坪）</div><input class="fi" id="pi-bldg-size-'+idx+'" type="number" placeholder="30" value="'+(d.bldgSize||'')+'" step="0.1"></div>';
   h += '<div class="frow"><div class="flbl">車位</div><select class="fi" id="pi-parking-'+idx+'">';
-  [['none','無'],['flat','平面'],['mech','機械'],['slope','坡道']].forEach(function(o){ h += '<option value="'+o[0]+'"'+((d.parking||'none')===o[0]?' selected':'')+'>'+o[1]+'</option>'; });
+  [['none','無'],['flat','平面'],['mech','機械'],['slope','坡道']].forEach(function(o){
+    h += '<option value="'+o[0]+'"'+((d.parking||'none')===o[0]?' selected':'')+'>'+o[1]+'</option>';
+  });
   h += '</select></div></div>';
+  // 未保存登記
   var unreg = d.unregistered||false;
-  h += '<div style="display:flex;align-items:center;gap:8px;margin-top:6px;padding:7px 10px;background:var(--yl);border-radius:8px">';
-  h += '<label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px"><input type="checkbox" id="pi-unreg-'+idx+'" '+(unreg?'checked':'')+' onchange="document.getElementById(\'pi-unreg-sec-'+idx+'\').style.display=this.checked?\'block\':\'none\'" style="width:14px;height:14px;accent-color:var(--yel)"> 未保存登記</label></div>';
-  h += '<div id="pi-unreg-sec-'+idx+'" style="display:'+(unreg?'block':'none')+';margin-top:6px;padding:8px;background:rgba(184,128,32,.1);border-radius:8px;border:0.5px solid rgba(184,128,32,.4)">';
-  h += '<div style="font-size:12px;color:var(--yel);font-weight:600;margin-bottom:5px">是否有稅籍證明？</div>';
-  h += '<div style="display:flex;gap:10px"><label style="display:flex;align-items:center;gap:5px;font-size:13px;cursor:pointer"><input type="radio" name="pi-tax-'+idx+'" value="yes" '+(d.taxCert==='yes'?'checked':'')+' style="accent-color:var(--grn)"> 有</label>';
-  h += '<label style="display:flex;align-items:center;gap:5px;font-size:13px;cursor:pointer"><input type="radio" name="pi-tax-'+idx+'" value="no" '+(d.taxCert==='no'?'checked':'')+' style="accent-color:var(--red)"> 無</label></div></div>';
+  h += '<div style="display:flex;align-items:center;gap:8px;margin-top:8px;padding:8px 10px;background:var(--yl);border-radius:8px">';
+  h += '<label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;font-weight:500"><input type="checkbox" id="pi-unreg-'+idx+'" '+(unreg?'checked':'')+' onchange="document.getElementById(\'pi-unreg-sec-'+idx+'\').style.display=this.checked?\'block\':\'none\'" style="width:15px;height:15px;accent-color:var(--yel)"> 未保存登記</label></div>';
+  h += '<div id="pi-unreg-sec-'+idx+'" style="display:'+(unreg?'block':'none')+';margin-top:6px;padding:10px;background:rgba(184,128,32,.1);border-radius:8px;border:0.5px solid rgba(184,128,32,.4)">';
+  h += '<div style="font-size:12px;font-weight:600;color:var(--yel);margin-bottom:6px">⚠️ 未保存登記建物 — 是否有稅籍證明？</div>';
+  h += '<div style="display:flex;gap:12px">';
+  h += '<label style="display:flex;align-items:center;gap:5px;font-size:13px;cursor:pointer"><input type="radio" name="pi-tax-'+idx+'" value="yes" '+(d.taxCert==='yes'?'checked':'')+' style="accent-color:var(--grn)"> 有稅籍證明</label>';
+  h += '<label style="display:flex;align-items:center;gap:5px;font-size:13px;cursor:pointer"><input type="radio" name="pi-tax-'+idx+'" value="no" '+(d.taxCert==='no'?'checked':'')+' style="accent-color:var(--red)"> 無稅籍證明</label>';
+  h += '</div></div>';
   h += '</div>';
+
   // 土地欄位
-  h += '<div id="pi-land-fields-'+idx+'" style="display:'+(typeVal==='land'?'block':'none')+'">';
-  h += '<div class="frow"><div class="flbl">土地用地類型</div><select class="fi" id="pi-land-type-'+idx+'">';
-  [['','請選擇'],['build','建地'],['farm','農地'],['forest','林地'],['indigenous','原住民保留地'],['special_farm','特定農業區'],['industrial','工業用地'],['waterway','水利用地'],['other','其他']].forEach(function(o){
+  h += '<div id="pi-land-fields-'+idx+'" style="display:'+(typeVal==='land'?'block':'none')+';margin-top:10px">';
+  h += '<div class="frow"><div class="flbl">土地用地類型</div><select class="fi" id="pi-land-type-'+idx+'" onchange="updatePropItemSummary(\''+idx+'\')">';
+  [['','請選擇'],['build','建地（住宅區/商業區）'],['farm','農地'],['forest','林地'],['indigenous','原住民保留地'],['special_farm','特定農業區'],['industrial','工業用地'],['waterway','水利用地'],['other','其他']].forEach(function(o){
     h += '<option value="'+o[0]+'"'+((d.landType||'')===o[0]?' selected':'')+'>'+o[1]+'</option>';
   });
   h += '</select></div>';
-  h += '<div class="frow2"><div class="frow"><div class="flbl">地坪（坪）</div><input class="fi" id="pi-land-size-'+idx+'" type="number" placeholder="20" value="'+(d.landSize||'')+'"></div>';
-  h += '<div class="frow"><div class="flbl">持分</div><input class="fi" id="pi-land-share-'+idx+'" placeholder="1/1" value="'+(d.landShare||'')+'"></div></div>';
+  h += '<div class="frow2"><div class="frow"><div class="flbl">地坪（坪）</div><input class="fi" id="pi-land-size-'+idx+'" type="number" placeholder="20" value="'+(d.landSize||'')+'" step="0.1"></div>';
+  h += '<div class="frow"><div class="flbl">持分比例</div><input class="fi" id="pi-land-share-'+idx+'" placeholder="1/1（全部）" value="'+(d.landShare||'')+'"></div></div>';
   h += '</div>';
-  h += '<div class="frow" style="margin-top:8px"><div class="flbl">此筆估價（元）</div><input class="fi" id="pi-val-'+idx+'" type="number" placeholder="0" value="'+(d.val||'')+'"></div>';
-  div.innerHTML = h;
+
+  // 個別估價
+  h += '<div class="frow" style="margin-top:10px"><div class="flbl">此筆估價（元）</div><input class="fi" id="pi-val-'+idx+'" type="number" placeholder="0" value="'+(d.val||'')+'" inputmode="numeric" oninput="updatePropItemSummary(\''+idx+'\')"></div>';
+
+  body.innerHTML = h;
+  div.appendChild(hdr);
+  div.appendChild(body);
   list.appendChild(div);
+
+  if (typeVal) setPropItemType(idx, typeVal);
+  updatePropItemSummary(idx);
 }
 
 function collectPropItemsEdit(leadId) {
@@ -4427,7 +4488,8 @@ async function saveLead() {
   document.getElementById('add-err').style.display='none';
   showLoading('儲存中…');
 
-  var hasProp = gv('n-property') === 'true';
+  // 自動偵測：有實際新增不動產項目才算「有」
+  var hasProp = collectPropItems().length > 0;
   var propVal = gi('n-prop-val');
   var p1 = gi('n-prop1-amt'), p2 = gi('n-prop2-amt'), p3 = gi('n-prop3-amt');
   var totalPropDebt = p1 + p2 + p3;
