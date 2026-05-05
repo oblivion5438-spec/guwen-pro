@@ -11,7 +11,7 @@
 <meta name="application-name" content="顧問PRO">
 <meta name="description" content="貸款顧問業務管理平台">
 <meta name="format-detection" content="telephone=no">
-<meta name="build-id" content="2026-05-03-r14-form-rev1">
+<meta name="build-id" content="2026-05-03-r16-form-full">
 <!-- PWA Manifest -->
 <link rel="manifest" href="/manifest.json">
 <!-- Apple Touch Icons -->
@@ -584,7 +584,7 @@ select.fi{-webkit-appearance:auto;appearance:auto;display:block;max-width:100%;w
 </div><!-- #app -->
 
 <script>
-console.log('[顧問PRO] JS 載入 build=2026-05-03-r14-form-rev1, 時間=' + new Date().toLocaleTimeString());
+console.log('[顧問PRO] JS 載入 build=2026-05-03-r16-form-full, 時間=' + new Date().toLocaleTimeString());
 // ══════════════════════════════
 // SUPABASE
 // ══════════════════════════════
@@ -1323,7 +1323,7 @@ function loadFinanceData() {
 }
 
 // 貸款計數器
-let loanCounters = { credit:0, car:0, bike:0, phone:0, pawn:0 };
+let loanCounters = { credit:0, cc:0, car:0, bike:0, phone:0, pawn:0 };
 
 // 詐騙辨識
 let antifraudTab = 0;
@@ -3394,7 +3394,7 @@ function renderAddLead() {
 
   // 各類貸款（DOM 方式建立，避免引號衝突）
   var loanDefs = [
-    {key:'credit', label:'🏦 銀行信用貸款'},
+    {key:'bank',   label:'🏦 銀行機構',     isBank:true},  // 特殊：含信用貸款+信用卡兩個按鈕
     {key:'car',    label:'🚗 汽車貸款'},
     {key:'bike',   label:'🛵 機車貸款'},
     {key:'phone',  label:'📱 商品貸／手機貸'},
@@ -3404,11 +3404,27 @@ function renderAddLead() {
   loanDefs.forEach(function(ld) {
     var sec = document.createElement('div'); sec.className = 'form-section';
     var ct = document.createElement('div'); ct.className = 'ct'; ct.textContent = ld.label + ' ';
-    var btn = document.createElement('button'); btn.className = 'btn-sm'; btn.textContent = '+ 新增一筆';
-    btn.onclick = (function(k) { return function() { addLoanRow(k + '-list', k); }; })(ld.key);
-    ct.appendChild(btn);
-    var list = document.createElement('div'); list.id = ld.key + '-list';
-    sec.appendChild(ct); sec.appendChild(list); el.appendChild(sec);
+    if (ld.isBank) {
+      // 銀行機構：兩個按鈕
+      var btn1 = document.createElement('button');
+      btn1.className = 'btn-sm';
+      btn1.textContent = '+ 信用貸款';
+      btn1.style.marginRight = '6px';
+      btn1.onclick = function() { addLoanRow('credit-list', 'credit'); };
+      var btn2 = document.createElement('button');
+      btn2.className = 'btn-sm';
+      btn2.textContent = '+ 信用卡';
+      btn2.onclick = function() { addLoanRow('credit-list', 'cc'); };
+      ct.appendChild(btn1); ct.appendChild(btn2);
+      var list = document.createElement('div'); list.id = 'credit-list';
+      sec.appendChild(ct); sec.appendChild(list); el.appendChild(sec);
+    } else {
+      var btn = document.createElement('button'); btn.className = 'btn-sm'; btn.textContent = '+ 新增' + ld.label.replace(/[🏦🚗🛵📱🏪]\s*/g,'');
+      btn.onclick = (function(k) { return function() { addLoanRow(k + '-list', k); }; })(ld.key);
+      ct.appendChild(btn);
+      var list = document.createElement('div'); list.id = ld.key + '-list';
+      sec.appendChild(ct); sec.appendChild(list); el.appendChild(sec);
+    }
   });
 
   // 不動產區塊（DOM 方式建立）
@@ -3694,15 +3710,58 @@ function addPropItem(data) {
   if (!list) return;
   var div = document.createElement('div');
   div.id = 'prop-item-' + idx;
-  div.style.cssText = 'background:var(--inp);border:0.5px solid var(--bdr2);border-radius:12px;padding:14px;margin-bottom:10px;position:relative';
+  div.style.cssText = 'background:var(--inp);border:0.5px solid var(--bdr2);border-radius:12px;margin-bottom:10px;overflow:hidden';
   var d = data || {};
   var typeVal = d.type || '';
 
-  var h = '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">';
-  h += '<div style="font-size:14px;font-weight:700;color:var(--acc)">不動產 #' + idx + '</div>';
-  h += '<button type="button" onclick="document.getElementById(\'prop-item-'+idx+'\').remove()" style="background:transparent;border:none;color:var(--red);font-size:18px;cursor:pointer;padding:2px">✕</button>';
-  h += '</div>';
+  // 抽屜式標題列
+  var hdr = document.createElement('div');
+  hdr.style.cssText = 'display:flex;align-items:center;justify-content:space-between;padding:12px 14px;cursor:pointer;background:var(--card)';
+  var titleArea = document.createElement('div');
+  titleArea.style.cssText = 'display:flex;align-items:center;gap:8px;flex:1;min-width:0';
+  var caretEl = document.createElement('span');
+  caretEl.id = 'pi-caret-' + idx;
+  caretEl.textContent = '▼';
+  caretEl.style.cssText = 'font-size:11px;color:var(--t2);transition:transform 0.2s';
+  var titleLbl = document.createElement('span');
+  titleLbl.style.cssText = 'font-size:14px;font-weight:700;color:var(--acc)';
+  titleLbl.textContent = '不動產 #' + idx;
+  var summaryLbl = document.createElement('span');
+  summaryLbl.id = 'pi-summary-' + idx;
+  summaryLbl.style.cssText = 'font-size:12px;color:var(--t3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap';
+  titleArea.appendChild(caretEl);
+  titleArea.appendChild(titleLbl);
+  titleArea.appendChild(summaryLbl);
+  var delBtn = document.createElement('button');
+  delBtn.type = 'button';
+  delBtn.style.cssText = 'background:transparent;border:none;color:var(--red);font-size:18px;cursor:pointer;padding:2px;flex-shrink:0';
+  delBtn.textContent = '✕';
+  delBtn.onclick = (function(targetId) {
+    return function(e) {
+      e.stopPropagation();
+      var el = document.getElementById(targetId);
+      if (el) el.remove();
+    };
+  })('prop-item-' + idx);
+  hdr.appendChild(titleArea);
+  hdr.appendChild(delBtn);
+  hdr.onclick = (function(bid, cid) {
+    return function() {
+      var b = document.getElementById(bid);
+      var c = document.getElementById(cid);
+      if (!b) return;
+      var collapsed = b.style.display === 'none';
+      b.style.display = collapsed ? 'block' : 'none';
+      if (c) c.style.transform = collapsed ? 'rotate(0deg)' : 'rotate(-90deg)';
+    };
+  })('pi-body-' + idx, 'pi-caret-' + idx);
 
+  // 內容區
+  var body = document.createElement('div');
+  body.id = 'pi-body-' + idx;
+  body.style.cssText = 'padding:12px 14px;border-top:0.5px solid var(--bdr)';
+
+  var h = '';
   // 類型選擇
   h += '<div class="frow"><div class="flbl">類型</div>';
   h += '<div style="display:flex;gap:8px;margin-top:4px">';
@@ -3716,7 +3775,7 @@ function addPropItem(data) {
 
   // 建物欄位
   h += '<div id="pi-bldg-fields-'+idx+'" style="display:'+(typeVal==='bldg'?'block':'none')+';margin-top:10px">';
-  h += '<div class="frow2"><div class="frow"><div class="flbl">房屋類型</div><select class="fi" id="pi-bldg-type-'+idx+'">';
+  h += '<div class="frow2"><div class="frow"><div class="flbl">房屋類型</div><select class="fi" id="pi-bldg-type-'+idx+'" onchange="updatePropItemSummary('+idx+')">';
   [['','選擇'],['elevator','電梯大樓'],['huaxia','華廈'],['apartment','公寓'],['townhouse','透天厝'],['shop','店面'],['office','辦公室'],['factory','廠房']].forEach(function(o){
     h += '<option value="'+o[0]+'"'+((d.bldgType||'')===o[0]?' selected':'')+'>'+o[1]+'</option>';
   });
@@ -3743,7 +3802,7 @@ function addPropItem(data) {
 
   // 土地欄位
   h += '<div id="pi-land-fields-'+idx+'" style="display:'+(typeVal==='land'?'block':'none')+';margin-top:10px">';
-  h += '<div class="frow"><div class="flbl">土地用地類型</div><select class="fi" id="pi-land-type-'+idx+'">';
+  h += '<div class="frow"><div class="flbl">土地用地類型</div><select class="fi" id="pi-land-type-'+idx+'" onchange="updatePropItemSummary('+idx+')">';
   [['','請選擇'],['build','建地（住宅區/商業區）'],['farm','農地'],['forest','林地'],['indigenous','原住民保留地'],['special_farm','特定農業區'],['industrial','工業用地'],['waterway','水利用地'],['other','其他']].forEach(function(o){
     h += '<option value="'+o[0]+'"'+((d.landType||'')===o[0]?' selected':'')+'>'+o[1]+'</option>';
   });
@@ -3753,13 +3812,41 @@ function addPropItem(data) {
   h += '</div>';
 
   // 個別估價
-  h += '<div class="frow" style="margin-top:10px"><div class="flbl">此筆估價（元）</div><input class="fi" id="pi-val-'+idx+'" type="number" placeholder="0" value="'+(d.val||'')+'" inputmode="numeric"></div>';
+  h += '<div class="frow" style="margin-top:10px"><div class="flbl">此筆估價（元）</div><input class="fi" id="pi-val-'+idx+'" type="number" placeholder="0" value="'+(d.val||'')+'" inputmode="numeric" oninput="updatePropItemSummary('+idx+')"></div>';
 
-  div.innerHTML = h;
+  body.innerHTML = h;
+  div.appendChild(hdr);
+  div.appendChild(body);
   list.appendChild(div);
 
   // 如果有初始類型，直接顯示對應欄位
   if (typeVal) setPropItemType(idx, typeVal);
+  // 初始化摘要
+  updatePropItemSummary(idx);
+}
+
+// 更新不動產項目摘要（收合時看）
+function updatePropItemSummary(idx) {
+  var summary = document.getElementById('pi-summary-' + idx);
+  if (!summary) return;
+  var typeEl = document.getElementById('pi-type-' + idx);
+  var typeVal = typeEl ? typeEl.value : '';
+  var parts = [];
+  if (typeVal === 'bldg') {
+    parts.push('🏢 建物');
+    var bt = document.getElementById('pi-bldg-type-' + idx);
+    var btMap = {elevator:'電梯',huaxia:'華廈',apartment:'公寓',townhouse:'透天',shop:'店面',office:'辦公',factory:'廠房'};
+    if (bt && bt.value && btMap[bt.value]) parts.push(btMap[bt.value]);
+  } else if (typeVal === 'land') {
+    parts.push('🌱 土地');
+    var lt = document.getElementById('pi-land-type-' + idx);
+    var ltMap = {build:'建地',farm:'農地',forest:'林地',indigenous:'原保地',special_farm:'特農',industrial:'工業',waterway:'水利',other:'其他'};
+    if (lt && lt.value && ltMap[lt.value]) parts.push(ltMap[lt.value]);
+  }
+  var valEl = document.getElementById('pi-val-' + idx);
+  var val = valEl ? parseInt(valEl.value)||0 : 0;
+  if (val > 0) parts.push('$' + val.toLocaleString());
+  summary.textContent = parts.length > 0 ? '· ' + parts.join(' · ') : '';
 }
 
 function setPropItemType(idx, type) {
@@ -4096,11 +4183,12 @@ function calcMaxLoanDisplay() {
 }
 
 var LOAN_CFG = {
-  credit: { ltype:'credit', itype:'bank',    ph:'例：玉山銀行、台新銀行', hasPenalty:false, isPawn:false },
-  car:    { ltype:'car_new', itype:'finance', ph:'例：和潤企業、裕融企業', hasPenalty:true,  isPawn:false },
-  bike:   { ltype:'bike',    itype:'finance', ph:'例：裕融企業、台灣金聯', hasPenalty:true,  isPawn:false },
-  phone:  { ltype:'phone',   itype:'finance', ph:'例：中租零顧、樂天金融', hasPenalty:true,  isPawn:false },
-  pawn:   { ltype:'pawn',    itype:'civil',   ph:'民間/當鋪名稱',           hasPenalty:false, isPawn:true  },
+  credit: { ltype:'credit', itype:'bank',    ph:'例：玉山銀行、台新銀行', hasPenalty:false, isPawn:false, hasResidual:true,  catLabel:'信用貸款' },
+  cc:     { ltype:'cc',     itype:'bank',    ph:'例：國泰世華、中信銀行', hasPenalty:false, isPawn:false, hasResidual:false, isCC:true,  catLabel:'信用卡' },
+  car:    { ltype:'car_new', itype:'finance', ph:'例：和潤企業、裕融企業', hasPenalty:true,  isPawn:false, hasResidual:true, catLabel:'汽車貸款' },
+  bike:   { ltype:'bike',    itype:'finance', ph:'例：裕融企業、台灣金聯', hasPenalty:true,  isPawn:false, hasResidual:true, catLabel:'機車貸款' },
+  phone:  { ltype:'phone',   itype:'finance', ph:'例：中租零顧、樂天金融', hasPenalty:true,  isPawn:false, hasResidual:true, catLabel:'手機商品貸' },
+  pawn:   { ltype:'pawn',    itype:'civil',   ph:'民間/當鋪名稱',           hasPenalty:false, isPawn:true,  hasResidual:false, catLabel:'當鋪／民間' },
 };
 
 function addLoanRow(listId, type) {
@@ -4111,43 +4199,118 @@ function addLoanRow(listId, type) {
 
   var div = document.createElement('div');
   div.id = 'row_' + id;
-  div.style.cssText = 'background:var(--inp);border-radius:8px;padding:10px 12px;margin-bottom:8px;border:0.5px solid var(--bdr)';
+  div.dataset.loanType = type;
+  div.style.cssText = 'background:var(--inp);border-radius:8px;margin-bottom:8px;border:0.5px solid var(--bdr);overflow:hidden';
 
-  // 標題列
-  var hdr = document.createElement('div'); hdr.style.cssText = 'display:flex;align-items:center;justify-content:space-between;margin-bottom:8px';
-  var lbl = document.createElement('span'); lbl.style.cssText = 'font-size:14px;font-weight:500;color:var(--t1)'; lbl.textContent = '第 ' + idx + ' 筆';
+  // 標題列（可點收合 / 展開）
+  var hdr = document.createElement('div');
+  hdr.style.cssText = 'display:flex;align-items:center;justify-content:space-between;padding:10px 12px;cursor:pointer;background:var(--card)';
+  hdr.id = id + '_hdr';
+
+  var titleArea = document.createElement('div');
+  titleArea.style.cssText = 'display:flex;align-items:center;gap:8px;flex:1;min-width:0';
+  var caret = document.createElement('span');
+  caret.id = id + '_caret';
+  caret.textContent = '▼';
+  caret.style.cssText = 'font-size:11px;color:var(--t2);transition:transform 0.2s';
+  var lbl = document.createElement('span');
+  lbl.style.cssText = 'font-size:14px;font-weight:500;color:var(--t1)';
+  lbl.textContent = cfg.catLabel + ' #' + idx;
+  // 摘要（收合時看）
+  var summary = document.createElement('span');
+  summary.id = id + '_summary';
+  summary.style.cssText = 'font-size:12px;color:var(--t3);margin-left:6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap';
+  titleArea.appendChild(caret);
+  titleArea.appendChild(lbl);
+  titleArea.appendChild(summary);
+
   var del = document.createElement('button');
-  del.style.cssText = 'font-size:13px;padding:2px 8px;border-radius:5px;border:0.5px solid rgba(192,64,48,.3);background:transparent;color:var(--red);cursor:pointer;font-family:var(--sans)';
+  del.style.cssText = 'font-size:12px;padding:2px 8px;border-radius:5px;border:0.5px solid rgba(192,64,48,.3);background:transparent;color:var(--red);cursor:pointer;font-family:var(--sans);flex-shrink:0;margin-left:6px';
   del.textContent = '刪除';
-  del.onclick = (function(rid){ return function(){ var e=document.getElementById(rid); if(e)e.remove(); }; })('row_'+id);
-  hdr.appendChild(lbl); hdr.appendChild(del); div.appendChild(hdr);
+  del.onclick = (function(rid){ return function(e){ e.stopPropagation(); var el=document.getElementById(rid); if(el)el.remove(); }; })('row_'+id);
+  hdr.appendChild(titleArea);
+  hdr.appendChild(del);
 
-  // 貸款單位名稱
-  var r0 = document.createElement('div'); r0.className = 'frow'; r0.style.marginBottom = '6px';
-  r0.innerHTML = '<div class="flbl">貸款單位名稱</div><input class="fi" id="' + id + '_inst" placeholder="' + cfg.ph + '">';
-  div.appendChild(r0);
+  // 內容區
+  var body = document.createElement('div');
+  body.id = id + '_body';
+  body.style.cssText = 'padding:10px 12px;border-top:0.5px solid var(--bdr)';
 
-  // 金額（元）+ 月繳（元）
-  var r1 = document.createElement('div'); r1.className = 'frow2';
-  var amtLabel = cfg.isPawn ? '借款金額（元）' : '貸款金額（元）';
-  r1.innerHTML =
-    '<div class="frow"><div class="flbl">' + amtLabel + '</div><input class="fi" id="' + id + '_amt" type="number" placeholder="例：500000" inputmode="numeric" step="1"></div>' +
-    '<div class="frow"><div class="flbl">月繳（元）</div><input class="fi" id="' + id + '_pay" type="number" placeholder="例：18500" inputmode="numeric" step="1"></div>';
-  div.appendChild(r1);
+  // 點標題收合/展開
+  hdr.onclick = (function(bid, cid) {
+    return function() {
+      var b = document.getElementById(bid);
+      var c = document.getElementById(cid);
+      if (!b) return;
+      var collapsed = b.style.display === 'none';
+      b.style.display = collapsed ? 'block' : 'none';
+      if (c) c.style.transform = collapsed ? 'rotate(0deg)' : 'rotate(-90deg)';
+    };
+  })(id + '_body', id + '_caret');
 
-  // 已繳期數 + 違約金（元）
-  var r2 = document.createElement('div'); r2.className = 'frow2'; r2.style.marginTop = '6px';
-  var r2h = '<div class="frow"><div class="flbl">已繳期數（期）</div><input class="fi" id="' + id + '_paid" type="number" placeholder="0" inputmode="numeric"></div>';
-  if (cfg.hasPenalty) r2h += '<div class="frow"><div class="flbl">違約金（元）</div><input class="fi" id="' + id + '_penalty" type="number" placeholder="例：30000" inputmode="numeric" step="1"></div>';
-  r2.innerHTML = r2h;
-  div.appendChild(r2);
+  if (cfg.isCC) {
+    // ── 信用卡欄位 ──
+    var c1 = document.createElement('div'); c1.className = 'frow'; c1.style.marginBottom = '6px';
+    c1.innerHTML = '<div class="flbl">機構名稱</div><input class="fi" id="' + id + '_inst" placeholder="' + cfg.ph + '" oninput="updateLoanRowSummary(\'' + id + '\')">';
+    body.appendChild(c1);
+    var c2 = document.createElement('div'); c2.className = 'frow2'; c2.style.marginBottom = '6px';
+    c2.innerHTML =
+      '<div class="frow"><div class="flbl">信用卡持卡時間</div><select class="fi" id="' + id + '_cc_age"><option value="3m+">3個月以上</option><option value="6m+">6個月以上</option><option value="1y+">1年以上</option><option value="2y+">2年以上</option><option value="3y+">3年以上</option><option value="5y+">5年以上</option></select></div>' +
+      '<div class="frow"><div class="flbl">額度（元）</div><input class="fi" id="' + id + '_amt" type="number" placeholder="例：100000" inputmode="numeric" oninput="updateLoanRowSummary(\'' + id + '\')"></div>';
+    body.appendChild(c2);
+    var c3 = document.createElement('div'); c3.className = 'frow';
+    c3.innerHTML = '<div class="flbl">繳款狀況</div><select class="fi" id="' + id + '_status"><option value="full">全額繳清</option><option value="min">繳最低</option><option value="late_1w">遲繳 1 週內</option><option value="late_2w">遲繳 2 週</option><option value="late_3w">遲繳 3 週</option><option value="late_1m+">遲繳超過 1 個月</option></select>';
+    body.appendChild(c3);
+  } else {
+    // ── 一般貸款欄位 ──
+    // 貸款單位名稱
+    var r0 = document.createElement('div'); r0.className = 'frow'; r0.style.marginBottom = '6px';
+    r0.innerHTML = '<div class="flbl">貸款單位名稱</div><input class="fi" id="' + id + '_inst" placeholder="' + cfg.ph + '" oninput="updateLoanRowSummary(\'' + id + '\')">';
+    body.appendChild(r0);
 
-  // 繳款狀況（跟客戶端一樣詳細）
-  var r3 = document.createElement('div'); r3.className = 'frow'; r3.style.marginTop = '6px';
-  r3.innerHTML = '<div class="flbl">繳款狀況</div><select class="fi" id="' + id + '_status"><option value="normal">正常</option><option value="1w">遲繳1週內</option><option value="2w">遲繳2週</option><option value="3w">遲繳3週</option><option value="1m+">遲繳超過1個月</option></select>';
-  div.appendChild(r3);
+    // 貸款金額 + 月繳
+    var r1 = document.createElement('div'); r1.className = 'frow2'; r1.style.marginBottom = '6px';
+    var amtLabel = cfg.isPawn ? '借款金額（元）' : '貸款金額（元）';
+    r1.innerHTML =
+      '<div class="frow"><div class="flbl">' + amtLabel + '</div><input class="fi" id="' + id + '_amt" type="number" placeholder="例：500000" inputmode="numeric" step="1" oninput="updateLoanRowSummary(\'' + id + '\')"></div>' +
+      '<div class="frow"><div class="flbl">月繳（元）</div><input class="fi" id="' + id + '_pay" type="number" placeholder="例：18500" inputmode="numeric" step="1"></div>';
+    body.appendChild(r1);
 
+    // 已繳期數 + 剩餘金額
+    var r2 = document.createElement('div'); r2.className = 'frow2'; r2.style.marginBottom = '6px';
+    r2.innerHTML =
+      '<div class="frow"><div class="flbl">已繳期數（期）</div><input class="fi" id="' + id + '_paid" type="number" placeholder="0" inputmode="numeric"></div>' +
+      '<div class="frow"><div class="flbl">剩餘金額（元）</div><input class="fi" id="' + id + '_residual" type="number" placeholder="例：380000" inputmode="numeric" step="1"></div>';
+    body.appendChild(r2);
+
+    // 違約金（僅汽車/機車/手機）
+    if (cfg.hasPenalty) {
+      var r3a = document.createElement('div'); r3a.className = 'frow'; r3a.style.marginBottom = '6px';
+      r3a.innerHTML = '<div class="flbl">違約金（元）</div><input class="fi" id="' + id + '_penalty" type="number" placeholder="例：30000" inputmode="numeric" step="1">';
+      body.appendChild(r3a);
+    }
+
+    // 繳款狀況
+    var r3 = document.createElement('div'); r3.className = 'frow';
+    r3.innerHTML = '<div class="flbl">繳款狀況</div><select class="fi" id="' + id + '_status"><option value="normal">正常</option><option value="1w">遲繳1週內</option><option value="2w">遲繳2週</option><option value="3w">遲繳3週</option><option value="1m+">遲繳超過1個月</option></select>';
+    body.appendChild(r3);
+  }
+
+  div.appendChild(hdr);
+  div.appendChild(body);
   list.appendChild(div);
+}
+
+// 更新貸款列摘要（收合時顯示）
+function updateLoanRowSummary(rowId) {
+  var summaryEl = document.getElementById(rowId + '_summary');
+  if (!summaryEl) return;
+  var inst = (document.getElementById(rowId + '_inst')||{}).value || '';
+  var amt = parseInt((document.getElementById(rowId + '_amt')||{}).value) || 0;
+  var parts = [];
+  if (inst) parts.push(inst);
+  if (amt > 0) parts.push('$' + amt.toLocaleString());
+  summaryEl.textContent = parts.length > 0 ? '· ' + parts.join(' · ') : '';
 }
 
 // 新增客戶文件暫存
@@ -4319,8 +4482,8 @@ async function saveLead() {
 
   // 收集貸款
   var loans = [];
-  var typeMap = { credit:'credit', car:'car_new', bike:'bike', phone:'phone', pawn:'pawn' };
-  var itypeMap = { credit:'bank', car:'finance', bike:'finance', phone:'finance', pawn:'civil' };
+  var typeMap = { credit:'credit', cc:'credit_card', car:'car_new', bike:'bike', phone:'phone', pawn:'pawn' };
+  var itypeMap = { credit:'bank', cc:'bank', car:'finance', bike:'finance', phone:'finance', pawn:'civil' };
   Object.keys(loanCounters).forEach(function(type) {
     for (var i = 1; i <= loanCounters[type]; i++) {
       var id = type + '_' + i;
@@ -4334,6 +4497,18 @@ async function saveLead() {
       if (instEl) loan.institution_name = instEl.value;
       var penEl = document.getElementById(id + '_penalty');
       if (penEl) loan.penalty_fee = parseInt(penEl.value) || 0;
+      // 剩餘金額
+      var residualEl = document.getElementById(id + '_residual');
+      if (residualEl) loan.residual_amount = parseInt(residualEl.value) || 0;
+      // 已繳期數
+      var paidEl = document.getElementById(id + '_paid');
+      if (paidEl) loan.paid_periods = parseInt(paidEl.value) || 0;
+      // 繳款狀況
+      var statusEl = document.getElementById(id + '_status');
+      if (statusEl) loan.payment_status = statusEl.value;
+      // 信用卡：持卡時間
+      var ccAgeEl = document.getElementById(id + '_cc_age');
+      if (ccAgeEl) loan.cc_age = ccAgeEl.value;
       loans.push(loan);
     }
   });
@@ -4374,7 +4549,7 @@ async function saveLead() {
     extraFilesStore = {};
   }
 
-  loanCounters = { credit:0, car:0, bike:0, phone:0, pawn:0 };
+  loanCounters = { credit:0, cc:0, car:0, bike:0, phone:0, pawn:0 };
   hideLoading();
   leads.unshift(r.data);
 
@@ -15847,7 +16022,7 @@ async function downloadShareZip(lead, btn) {
         return ['property_1st','property_2nd','property_3rd'].indexOf(l.loan_type) < 0;
       });
     } catch (e) { console.warn('[zip] 載入貸款失敗', e); }
-    var zipLoanLabels = {credit:'銀行信貸', car_new:'汽車貸', bike:'機車貸', phone:'手機貸', pawn:'民間借款', car_used:'中古車貸'};
+    var zipLoanLabels = {credit:'銀行信貸', credit_card:'信用卡', car_new:'汽車貸', bike:'機車貸', phone:'手機貸', pawn:'民間借款', car_used:'中古車貸'};
 
     // 加入文字摘要 README.txt
     var readme = '客戶分享資料包\n';
@@ -15859,25 +16034,37 @@ async function downloadShareZip(lead, btn) {
     readme += '產出時間：' + new Date().toLocaleString('zh-TW') + '\n';
     readme += '檔案數量：' + checkboxes.length + ' 筆\n';
 
-    // 🆕 現有貸款摘要
+    // 🆕 現有貸款摘要（含剩餘金額、已繳期數）
     if (zipLoans.length > 0) {
       readme += '\n【現有貸款】\n';
-      var totBal = 0, totMon = 0;
+      var totBal = 0, totMon = 0, totRes = 0;
       zipLoans.forEach(function(loan){
         var lbl = zipLoanLabels[loan.loan_type] || loan.loan_type || '貸款';
         var bal = Number(loan.balance) || 0;
         var mon = Number(loan.monthly_payment) || 0;
         var pen = Number(loan.penalty_fee) || 0;
+        var res = Number(loan.residual_amount) || 0;
+        var paid = Number(loan.paid_periods) || 0;
         totBal += bal;
         totMon += mon;
+        totRes += res;
         var row = '・' + lbl;
         if (loan.institution_name) row += '（' + loan.institution_name + '）';
-        row += ' 餘額 $' + bal.toLocaleString();
-        if (mon)  row += '・月繳 $' + mon.toLocaleString();
-        row += '・' + (pen ? '違約 $' + pen.toLocaleString() : '違約無');
+        if (loan.loan_type === 'credit_card') {
+          row += ' 額度 $' + bal.toLocaleString();
+          if (loan.cc_age) row += '・持卡 ' + loan.cc_age;
+        } else {
+          row += ' 貸款金額 $' + bal.toLocaleString();
+          if (mon)  row += '・月繳 $' + mon.toLocaleString();
+          if (paid > 0) row += '・已繳 ' + paid + '期';
+          if (res > 0) row += '・剩餘 $' + res.toLocaleString();
+          if (pen) row += '・違約 $' + pen.toLocaleString();
+        }
         readme += row + '\n';
       });
-      readme += '合計：餘額 $' + totBal.toLocaleString() + ' / 月繳 $' + totMon.toLocaleString() + '\n';
+      readme += '合計：貸款金額 $' + totBal.toLocaleString() + ' / 月繳 $' + totMon.toLocaleString();
+      if (totRes > 0) readme += ' / 剩餘 $' + totRes.toLocaleString();
+      readme += '\n';
     }
 
     readme += '═══════════════════════\n\n';
@@ -16248,25 +16435,47 @@ async function exportLeadPDF(leadId) {
 
   // 🆕 現有貸款（lead_loans 表，排除不動產貸款）
   var loanTypeLabelsPDF = {
-    credit:'🏦 銀行信貸', car_new:'🚗 汽車貸', bike:'🛵 機車貸',
+    credit:'🏦 銀行信貸', credit_card:'💳 信用卡',
+    car_new:'🚗 汽車貸', bike:'🛵 機車貸',
     phone:'📱 手機貸', pawn:'🏪 民間借款', car_used:'🚗 中古車貸款'
   };
   var leadLoansRows = '';
-  var leadLoansTotalBal = 0, leadLoansTotalMon = 0;
+  var leadLoansTotalBal = 0, leadLoansTotalMon = 0, leadLoansTotalRes = 0;
   if (leadLoansArr.length > 0) {
     leadLoansRows = leadLoansArr.map(function(loan){
       var label = loanTypeLabelsPDF[loan.loan_type] || loan.loan_type || '貸款';
       var bal = Number(loan.balance) || 0;
       var mon = Number(loan.monthly_payment) || 0;
       var pen = Number(loan.penalty_fee) || 0;
+      var res = Number(loan.residual_amount) || 0;
+      var paid = Number(loan.paid_periods) || 0;
       leadLoansTotalBal += bal;
       leadLoansTotalMon += mon;
+      leadLoansTotalRes += res;
+      // 信用卡的顯示不一樣
+      if (loan.loan_type === 'credit_card') {
+        var ccAge = loan.cc_age || '';
+        return '<tr>' +
+          '<td style="font-size:13px;width:110px">' + label + '</td>' +
+          '<td style="font-size:13px">' + (loan.institution_name || '—') + '</td>' +
+          '<td style="font-size:13px;font-weight:600;color:#C8511A">額度 $' + bal.toLocaleString() + '</td>' +
+          '<td style="font-size:13px">' + (ccAge ? '持卡 '+ccAge : '—') + '</td>' +
+          '<td style="font-size:13px">' + (loan.payment_status==='full'?'全額繳清':loan.payment_status==='min'?'繳最低':loan.payment_status||'—') + '</td>' +
+          '</tr>';
+      }
+      // 一般貸款
+      var detailParts = [];
+      if (mon)  detailParts.push('月繳 $' + mon.toLocaleString());
+      if (paid > 0) detailParts.push('已繳 ' + paid + '期');
+      var extraParts = [];
+      if (res > 0) extraParts.push('剩餘 $' + res.toLocaleString());
+      if (pen) extraParts.push('違約 $' + pen.toLocaleString());
       return '<tr>' +
         '<td style="font-size:13px;width:110px">' + label + '</td>' +
         '<td style="font-size:13px">' + (loan.institution_name || '—') + '</td>' +
         '<td style="font-size:13px;font-weight:600;color:#C8511A">$' + bal.toLocaleString() + '</td>' +
-        '<td style="font-size:13px">月繳 $' + mon.toLocaleString() + '</td>' +
-        '<td style="font-size:13px">' + (pen ? '違約 $'+pen.toLocaleString() : '違約無') + '</td>' +
+        '<td style="font-size:13px">' + (detailParts.join('・') || '—') + '</td>' +
+        '<td style="font-size:13px">' + (extraParts.join('・') || '—') + '</td>' +
         '</tr>';
     }).join('');
     // 合計列
@@ -16274,7 +16483,7 @@ async function exportLeadPDF(leadId) {
       '<td colspan="2" style="font-size:13px">合計（' + leadLoansArr.length + ' 筆）</td>' +
       '<td style="font-size:13px;color:#C8511A">$' + leadLoansTotalBal.toLocaleString() + '</td>' +
       '<td style="font-size:13px;color:#C8511A">月繳 $' + leadLoansTotalMon.toLocaleString() + '</td>' +
-      '<td></td></tr>';
+      '<td style="font-size:13px;color:#C8511A">' + (leadLoansTotalRes > 0 ? '剩餘 $' + leadLoansTotalRes.toLocaleString() : '') + '</td></tr>';
   }
 
   // 結案項目
@@ -16914,7 +17123,7 @@ async function shareLeadLine(id) {
       return ['property_1st','property_2nd','property_3rd'].indexOf(l.loan_type) < 0;
     });
   } catch (e) { console.warn('[shareLeadLine] 載入貸款失敗', e); }
-  var loanTypeMapLine = {credit:'銀行信貸', car_new:'汽車貸', bike:'機車貸', phone:'手機貸', pawn:'民間借款', car_used:'中古車貸'};
+  var loanTypeMapLine = {credit:'銀行信貸', credit_card:'信用卡', car_new:'汽車貸', bike:'機車貸', phone:'手機貸', pawn:'民間借款', car_used:'中古車貸'};
 
   var lines = [];
   lines.push('━━━━━━━━━━━━━━━');
@@ -17001,26 +17210,40 @@ async function shareLeadLine(id) {
     });
   }
 
-  // 🆕 現有貸款
+  // 🆕 現有貸款（含信用卡、剩餘金額、已繳期數）
   if (leadLoansLine.length > 0) {
     lines.push('');
     lines.push('💳 現有貸款');
-    var totalBal = 0, totalMon = 0;
+    var totalBal = 0, totalMon = 0, totalRes = 0;
     leadLoansLine.forEach(function(loan){
       var label = loanTypeMapLine[loan.loan_type] || loan.loan_type || '貸款';
       var bal = Number(loan.balance) || 0;
       var mon = Number(loan.monthly_payment) || 0;
       var pen = Number(loan.penalty_fee) || 0;
+      var res = Number(loan.residual_amount) || 0;
+      var paid = Number(loan.paid_periods) || 0;
       totalBal += bal;
       totalMon += mon;
+      totalRes += res;
       var row = '・' + label;
       if (loan.institution_name) row += '（' + loan.institution_name + '）';
-      row += ' 餘額 $' + bal.toLocaleString();
-      if (mon)  row += '・月繳 $' + mon.toLocaleString();
-      row += '・' + (pen ? '違約 $' + pen.toLocaleString() : '違約無');
+      if (loan.loan_type === 'credit_card') {
+        row += ' 額度 $' + bal.toLocaleString();
+        if (loan.cc_age) row += '・持卡 ' + loan.cc_age;
+        var psMap = {full:'全額繳清', min:'繳最低', late_1w:'遲繳1週', late_2w:'遲繳2週', late_3w:'遲繳3週', 'late_1m+':'遲繳超過1月'};
+        if (loan.payment_status && psMap[loan.payment_status]) row += '・' + psMap[loan.payment_status];
+      } else {
+        row += ' 貸款 $' + bal.toLocaleString();
+        if (mon)  row += '・月繳 $' + mon.toLocaleString();
+        if (paid > 0) row += '・已繳 ' + paid + '期';
+        if (res > 0) row += '・剩餘 $' + res.toLocaleString();
+        if (pen) row += '・違約 $' + pen.toLocaleString();
+      }
       lines.push(row);
     });
-    lines.push('合計：餘額 $' + totalBal.toLocaleString() + ' / 月繳 $' + totalMon.toLocaleString());
+    var totalLine = '合計：貸款 $' + totalBal.toLocaleString() + ' / 月繳 $' + totalMon.toLocaleString();
+    if (totalRes > 0) totalLine += ' / 剩餘 $' + totalRes.toLocaleString();
+    lines.push(totalLine);
   }
 
   // 貸款需求
@@ -17197,11 +17420,13 @@ function renderClientStep(step) {
 
 // 儲存目前所有 input/select 的值
 function saveClientFormData() {
-  var fields = ['c-name','c-phone','c-idno','c-age','c-company','c-position','c-biztel','c-alert','c-addr','c-huji','c-amount','c-purpose',
-    'c-salary','c-transfer','c-cc','c-cc-limit','c-cc-count','c-car-lic','c-bike-lic',
-    'c-labor-type','c-labor-this-years','c-labor-years',
+  var fields = ['c-name','c-phone','c-idno','c-age','c-bday-y','c-bday-m','c-bday-d','c-birthday',
+    'c-company','c-position','c-tax-id','c-tax-type','c-biztel','c-work-months',
+    'c-labor-type-2','c-labor-2','c-transfer-2','c-salary-2',
+    'c-alert','c-addr','c-huji','c-amount','c-purpose','c-purpose-other','c-housing',
+    'c-cc','c-cc-limit','c-cc-count','c-car-lic','c-bike-lic',
     'c-property','c-collateral','c-bank-rej','c-fin-rej',
-    'c-bank-rej-cnt','c-fin-rej-cnt','c-late-pay','c-debt-ratio','c-bank-new','c-has-car-loan','c-housing',
+    'c-bank-rej-cnt','c-fin-rej-cnt','c-late-pay','c-debt-ratio','c-bank-new','c-has-car-loan',
     'c-prop1-inst','c-prop1-amt','c-prop1-pay','c-prop1-penalty',
     'c-prop2-inst','c-prop2-amt','c-prop2-pay','c-prop2-penalty',
     'c-prop3-inst','c-prop3-amt','c-prop3-pay','c-prop3-penalty'];
@@ -17216,11 +17441,13 @@ function saveClientFormData() {
 
 // 還原指定步驟的欄位值
 function restoreClientFormData(step) {
-  var fields2 = ['c-name','c-phone','c-idno','c-age','c-company','c-position','c-biztel','c-alert','c-addr','c-huji','c-amount','c-purpose'];
-  var fields3 = ['c-salary','c-transfer','c-cc','c-cc-limit','c-cc-count','c-car-lic','c-bike-lic',
-    'c-labor-type','c-labor-this-years','c-labor-years',
+  var fields2 = ['c-name','c-phone','c-idno','c-age','c-bday-y','c-bday-m','c-bday-d','c-birthday',
+    'c-company','c-position','c-tax-id','c-tax-type','c-biztel','c-work-months',
+    'c-labor-type-2','c-labor-2','c-transfer-2','c-salary-2',
+    'c-alert','c-addr','c-huji','c-amount','c-purpose','c-purpose-other','c-housing'];
+  var fields3 = ['c-cc','c-cc-limit','c-cc-count','c-car-lic','c-bike-lic',
     'c-property','c-collateral','c-bank-rej','c-fin-rej',
-    'c-bank-rej-cnt','c-fin-rej-cnt','c-late-pay','c-debt-ratio','c-bank-new','c-has-car-loan','c-housing',
+    'c-bank-rej-cnt','c-fin-rej-cnt','c-late-pay','c-debt-ratio','c-bank-new','c-has-car-loan',
     'c-prop1-inst','c-prop1-amt','c-prop1-pay','c-prop1-penalty',
     'c-prop2-inst','c-prop2-amt','c-prop2-pay','c-prop2-penalty',
     'c-prop3-inst','c-prop3-amt','c-prop3-pay','c-prop3-penalty'];
@@ -17231,6 +17458,17 @@ function restoreClientFormData(step) {
       if (el) el.value = clientFormData[id];
     }
   });
+  // 還原 step 2 的條件式 UI（資金用途其他、職位負責人）
+  if (step === 2) {
+    if (clientFormData['c-purpose'] === '其他') {
+      var pr = document.getElementById('c-purpose-other-row');
+      if (pr) pr.style.display = 'block';
+    }
+    if (clientFormData['c-position'] === 'owner') {
+      var tr = document.getElementById('c-tax-id-row');
+      if (tr) tr.style.display = 'block';
+    }
+  }
   // 還原 checkbox
   if (step === 2 && clientFormData['c-same-addr'] !== undefined) {
     var sa = document.getElementById('c-same-addr');
@@ -17481,23 +17719,63 @@ function clientStep2() {
   var card = document.createElement('div'); card.className = 'card';
   card.innerHTML =
     '<div style="font-size:16px;font-weight:600;margin-bottom:10px">基本資料</div>' +
+    // 1. 姓名
     '<div class="frow"><div class="flbl">中文姓名 <span class="req">*</span></div><input class="fi" id="c-name" placeholder="真實姓名"></div>' +
-    '<div class="frow" style="margin-top:8px"><div class="flbl">手機號碼 <span class="req">*</span></div><input class="fi" id="c-phone" type="tel" placeholder="0912-345-678" inputmode="numeric"></div>' +
-    '<div class="frow" style="margin-top:8px"><div class="flbl">身分證字號</div><input class="fi" id="c-idno" placeholder="A123456789" maxlength="10" style="letter-spacing:2px;font-family:monospace"></div>' +
-    '<div class="frow2" style="margin-top:8px">' +
-      '<div class="frow"><div class="flbl">年齡 <span class="req">*</span></div><input class="fi" id="c-age" type="number" placeholder="38" inputmode="numeric"></div>' +
-      '<div class="frow2"><div class="frow"><div class="flbl">公司名稱</div><input class="fi" id="c-company" placeholder="XX 股份有限公司"></div>' +
-      '<div class="frow"><div class="flbl">職位</div><input class="fi" id="c-position" placeholder="業務專員"></div></div>' +
-      '<div class="frow" style="margin-top:0"><div class="flbl">公司電話 <span style="font-size:12px;color:rgba(255,255,255,.4)">（備註用，評估不來電打擾）</span></div><input class="fi" id="c-biztel" type="tel" placeholder="02-12345678"></div>' +
-    '</div>' +
-    '<div class="frow" style="margin-top:8px"><div class="flbl">警示/協商/更生/清算</div><select class="fi" id="c-alert"><option value="none">否</option><option value="alert">警示戶</option><option value="negotiation">協商中</option><option value="rehabilitation">更生</option><option value="liquidation">清算</option></select></div>' +
-    '<div class="frow" style="margin-top:8px"><div class="flbl">居住完整地址 <span class="req">*</span></div><input class="fi" id="c-addr" placeholder="縣市+區+路街+號"></div>' +
-    '<div style="display:flex;align-items:center;gap:6px;margin:8px 0 4px"><input type="checkbox" id="c-same-addr"><label for="c-same-addr" style="font-size:15px">戶籍地與居住地相同</label></div>' +
-    '<div id="c-huji-row"><input class="fi" id="c-huji" placeholder="戶籍完整地址"></div>' +
+    // 2. 需求資金 + 資金用途
     '<div class="frow2" style="margin-top:8px">' +
       '<div class="frow"><div class="flbl">需求資金（元）<span class="req">*</span></div><input class="fi" id="c-amount" type="number" placeholder="500000" inputmode="numeric"></div>' +
-      '<div class="frow"><div class="flbl">資金用途</div><select class="fi" id="c-purpose"><option>週轉</option><option>整合負債</option><option>購屋</option><option>購車</option><option>其他</option></select></div>' +
-    '</div>';
+      '<div class="frow"><div class="flbl">資金用途</div><select class="fi" id="c-purpose" onchange="togglePurposeOther(\'c-purpose\',\'c-purpose-other-row\')"><option value="週轉">週轉</option><option value="整合負債">整合負債</option><option value="購屋">購屋</option><option value="購車">購車</option><option value="醫療">醫療</option><option value="結婚">結婚</option><option value="旅遊">旅遊</option><option value="創業">創業</option><option value="教育">教育</option><option value="投資">投資</option><option value="還債">還債</option><option value="整修房屋">整修房屋</option><option value="其他">其他</option></select></div>' +
+    '</div>' +
+    '<div class="frow" id="c-purpose-other-row" style="display:none;margin-top:8px"><div class="flbl">請說明用途</div><input class="fi" id="c-purpose-other" placeholder="輸入具體用途"></div>' +
+    // 3. 手機號碼
+    '<div class="frow" style="margin-top:8px"><div class="flbl">手機號碼 <span class="req">*</span></div><input class="fi" id="c-phone" type="tel" placeholder="0912-345-678" inputmode="numeric"></div>' +
+    // 4. 身分證
+    '<div class="frow" style="margin-top:8px"><div class="flbl">身分證字號</div><input class="fi" id="c-idno" placeholder="A123456789" maxlength="10" style="letter-spacing:2px;font-family:monospace"></div>' +
+    // 5. 出生日期 / 年齡（保留 c-age 為自動計算）
+    '<div class="frow" style="margin-top:8px"><div class="flbl">出生日期（民國）</div>' +
+    '<div style="display:flex;gap:6px;align-items:center">' +
+    '<div style="display:flex;align-items:center;gap:3px;flex:1"><input class="fi" id="c-bday-y" type="number" placeholder="民國年" min="1" max="130" inputmode="numeric" style="text-align:center" oninput="calcAgeFromROC(\'c-bday-y\',\'c-bday-m\',\'c-bday-d\',\'c-birthday\',\'c-age-display\')"><span style="font-size:13px;color:var(--t2)">年</span></div>' +
+    '<div style="display:flex;align-items:center;gap:3px;flex:1"><input class="fi" id="c-bday-m" type="number" placeholder="月" min="1" max="12" inputmode="numeric" style="text-align:center" oninput="calcAgeFromROC(\'c-bday-y\',\'c-bday-m\',\'c-bday-d\',\'c-birthday\',\'c-age-display\')"><span style="font-size:13px;color:var(--t2)">月</span></div>' +
+    '<div style="display:flex;align-items:center;gap:3px;flex:1"><input class="fi" id="c-bday-d" type="number" placeholder="日" min="1" max="31" inputmode="numeric" style="text-align:center" oninput="calcAgeFromROC(\'c-bday-y\',\'c-bday-m\',\'c-bday-d\',\'c-birthday\',\'c-age-display\')"><span style="font-size:13px;color:var(--t2)">日</span></div>' +
+    '</div><input type="hidden" id="c-birthday">' +
+    '<div id="c-age-display" style="margin-top:8px;padding:10px 14px;background:var(--inp);border:0.5px solid var(--bdr2);border-radius:9px;font-size:14px;color:var(--t2)">填寫出生日期後自動顯示年齡</div>' +
+    '<input type="hidden" id="c-age"></div>' +
+    // 6. 公司名稱 + 職位
+    '<div class="frow2" style="margin-top:8px">' +
+      '<div class="frow"><div class="flbl">公司名稱</div><input class="fi" id="c-company" placeholder="XX 股份有限公司"></div>' +
+      '<div class="frow"><div class="flbl">職位</div><select class="fi" id="c-position" onchange="togglePositionOwner(\'c-position\',\'c-tax-id-row\')"><option value="employee">員工</option><option value="owner">負責人</option></select></div>' +
+    '</div>' +
+    // 6-1. 統編 + 報稅類型（負責人才顯示）
+    '<div id="c-tax-id-row" style="display:none">' +
+    '<div class="frow2" style="margin-top:8px">' +
+      '<div class="frow"><div class="flbl">統一編號</div><input class="fi" id="c-tax-id" placeholder="12345678" maxlength="8" inputmode="numeric"></div>' +
+      '<div class="frow"><div class="flbl">報稅類型</div><select class="fi" id="c-tax-type"><option value="">請選擇</option><option value="401">401 三聯式</option><option value="403">403 二聯式</option><option value="404">404 收銀機</option><option value="405">405 二聯式收銀機</option><option value="406">406 電子計算機</option></select></div>' +
+    '</div>' +
+    '</div>' +
+    // 7. 公司電話 + 工作多久
+    '<div class="frow2" style="margin-top:8px">' +
+      '<div class="frow"><div class="flbl">公司電話 <span style="font-size:12px;color:rgba(255,255,255,.4)">（備註用，不來電）</span></div><input class="fi" id="c-biztel" type="tel" placeholder="02-12345678"></div>' +
+      '<div class="frow"><div class="flbl">工作多久（月）</div><input class="fi" id="c-work-months" type="number" min="0" placeholder="例：3" inputmode="numeric"></div>' +
+    '</div>' +
+    // 8. 投保單位 + 投保年資 (移到此區塊較合適，不過保留在 step3 也可，先放這裡會更貼合用戶順序)
+    '<div class="frow2" style="margin-top:8px">' +
+      '<div class="frow"><div class="flbl">投保單位性質</div><select class="fi" id="c-labor-type-2"><option value="">未填</option><option value="company">一般公司（勞保）</option><option value="govt">政府機關（公保）</option><option value="farmer">農漁（農保）</option><option value="union">職業工會（自付）</option><option value="national">國民年金（國保）</option><option value="self">自營業主</option></select></div>' +
+      '<div class="frow"><div class="flbl">投保年資（月）</div><input class="fi" id="c-labor-2" type="number" min="0" step="1" placeholder="例：30" inputmode="numeric"></div>' +
+    '</div>' +
+    // 9. 有無薪轉 + 月薪
+    '<div class="frow2" style="margin-top:8px">' +
+      '<div class="frow"><div class="flbl">有無薪轉</div><select class="fi" id="c-transfer-2"><option value="true">有薪轉</option><option value="false">無薪轉</option></select></div>' +
+      '<div class="frow"><div class="flbl">月薪（元）</div><input class="fi" id="c-salary-2" type="number" placeholder="40000" inputmode="numeric"></div>' +
+    '</div>' +
+    // 10. 居住地址
+    '<div class="frow" style="margin-top:8px"><div class="flbl">居住完整地址 <span class="req">*</span></div><input class="fi" id="c-addr" placeholder="縣市+區+路街+號"></div>' +
+    // 11. 戶籍地址
+    '<div style="display:flex;align-items:center;gap:6px;margin:8px 0 4px"><input type="checkbox" id="c-same-addr"><label for="c-same-addr" style="font-size:15px">戶籍地與居住地相同</label></div>' +
+    '<div id="c-huji-row"><input class="fi" id="c-huji" placeholder="戶籍完整地址"></div>' +
+    // 12. 居住情況
+    '<div class="frow" style="margin-top:8px"><div class="flbl">居住情況</div><select class="fi" id="c-housing"><option value="none">未填</option><option value="self_own">本人名下（自有）</option><option value="self_live">自住（非本人名下）</option><option value="family">親屬/家人房子</option><option value="rent">租屋</option><option value="other">其他</option></select></div>' +
+    // 警示
+    '<div class="frow" style="margin-top:8px"><div class="flbl">警示/協商/更生/清算</div><select class="fi" id="c-alert"><option value="none">否</option><option value="alert">警示戶</option><option value="negotiation">協商中</option><option value="rehabilitation">更生</option><option value="liquidation">清算</option></select></div>';
   card.querySelector('#c-same-addr').addEventListener('change', function() {
     var r = document.getElementById('c-huji-row');
     if (r) r.style.display = this.checked ? 'none' : 'block';
@@ -17513,24 +17791,11 @@ function clientStep2() {
 function clientStep3() {
   var el = clientStepBase(3);
 
-  // ── 收入區塊 ──
+  // ── 信用 / 駕照 區塊（已從第 2 步移除月薪/薪轉/投保單位/投保年資）──
   var incomeCard = document.createElement('div'); incomeCard.className = 'card';
   incomeCard.innerHTML =
-    '<div style="font-size:16px;font-weight:600;margin-bottom:10px">💼 收入狀況</div>' +
-    '<div class="frow2">' +
-      '<div class="frow"><div class="flbl">月薪（萬）</div><input class="fi" id="c-salary" type="number" placeholder="4" inputmode="numeric" step="0.1"></div>' +
-      '<div class="frow"><div class="flbl">有無薪轉</div><select class="fi" id="c-transfer"><option value="true">有薪轉</option><option value="false">無薪轉</option></select></div>' +
-    '</div>' +
-    '<div class="frow2" style="margin-top:8px">' +
-      '<div class="frow"><div class="flbl">投保單位</div><select class="fi" id="c-labor-type" onchange="toggleLaborYears(this.value)"><option value="none">沒保（無投保）</option><option value="labor">勞保（一般公司）</option><option value="guild">公會保（職業工會）</option><option value="fish">漁保</option><option value="farm">農保</option><option value="national">國保（國民年金）</option></select></div>' +
-      '<div id="c-labor-years-row" style="display:none;margin-top:8px">' +
-      '<div class="frow2">' +
-        '<div class="frow"><div class="flbl">投保年資（年）</div><input class="fi" id="c-labor-this-years" type="number" placeholder="3" inputmode="numeric" step="0.5"></div>' +
-        '<div class="frow"><div class="flbl">總投保年資（選填）</div><input class="fi" id="c-labor-years" type="number" placeholder="" inputmode="numeric" step="0.5"></div>' +
-      '</div>' +
-      '<div style="font-size:12px;color:var(--t3);margin-top:4px">總投保年資：含所有工作累計年資，忘記可不填</div></div>' +
-      '<div class="frow"><div class="flbl">信用卡持卡時間</div><select class="fi" id="c-cc"><option value="none">無卡</option><option value="3m+">3個月以上</option><option value="6m+">6個月以上</option><option value="1y+">1年以上</option></select></div>' +
-    '</div>' +
+    '<div style="font-size:16px;font-weight:600;margin-bottom:10px">💳 信用 / 駕照</div>' +
+    '<div class="frow"><div class="flbl">信用卡持卡時間</div><select class="fi" id="c-cc"><option value="none">無卡</option><option value="3m+">3個月以上</option><option value="6m+">6個月以上</option><option value="1y+">1年以上</option></select></div>' +
     '<div class="frow2" style="margin-top:8px">' +
       '<div class="frow"><div class="flbl">信用卡總額度（萬）</div><input class="fi" id="c-cc-limit" type="number" placeholder="10" inputmode="numeric" step="0.1"></div>' +
       '<div class="frow"><div class="flbl">信用卡張數</div><input class="fi" id="c-cc-count" type="number" placeholder="2" inputmode="numeric"></div>' +
@@ -17547,7 +17812,7 @@ function clientStep3() {
   incomeCard.appendChild(maxDiv);
   el.appendChild(incomeCard);
 
-  ['c-salary','c-transfer','c-cc-limit'].forEach(function(id) {
+  ['c-salary-2','c-transfer-2','c-cc-limit'].forEach(function(id) {
     var inp = document.getElementById(id);
     if (inp) { inp.addEventListener('input', updateClientMaxLoan); inp.addEventListener('change', updateClientMaxLoan); }
   });
@@ -17951,9 +18216,9 @@ function toggleLaborYears(val) {
 }
 
 function updateClientMaxLoan() {
-  var salWan = parseFloat(document.getElementById('c-salary') ? document.getElementById('c-salary').value : 0) || 0;
-  var sal = Math.round(salWan * 10000); // 萬換元
-  var hasTransfer = document.getElementById('c-transfer') ? document.getElementById('c-transfer').value === 'true' : false;
+  // 月薪以「元」為單位（c-salary-2 是元，舊版 c-salary 是萬）
+  var sal = parseFloat(document.getElementById('c-salary-2') ? document.getElementById('c-salary-2').value : 0) || 0;
+  var hasTransfer = document.getElementById('c-transfer-2') ? document.getElementById('c-transfer-2').value === 'true' : false;
   var ccLimitWan = parseFloat(document.getElementById('c-cc-limit') ? document.getElementById('c-cc-limit').value : 0) || 0;
   var ccLimit = Math.round(ccLimitWan * 10000);
   var max = hasTransfer && sal > 0 ? Math.max(0, sal * 22 - ccLimit) : 0;
@@ -18075,12 +18340,21 @@ async function submitClientForm() {
   var gf = function(id) { return clientFormData[id] || ''; };
   var g  = function(id) { var el = document.getElementById(id); return (el ? el.value : '') || gf(id); };
 
-  var salaryWan = parseFloat(gf('c-salary')) || 0;
-  var salary = salaryWan > 0 ? Math.round(salaryWan * 10000) : null;
+  // 月薪改用 c-salary-2 (元為單位)
+  var salary = parseInt(g('c-salary-2')) || null;
   var ccLimitWan = parseFloat(g('c-cc-limit')) || 0;
   var ccLimitYuan = Math.round(ccLimitWan * 10000);
-  var laborType = g('c-labor-type') || 'none';
-  var laborYears = g('c-labor-years') || '';
+  var laborType = g('c-labor-type-2') || '';
+  var laborMonths = g('c-labor-2') || '';
+
+  // 處理職位 + 統編相關
+  var positionVal = g('c-position');
+  var positionLabel = positionVal === 'owner' ? '負責人' : '員工';
+  var taxIdVal = positionVal === 'owner' ? (g('c-tax-id') || null) : null;
+  var taxTypeVal = positionVal === 'owner' ? (g('c-tax-type') || null) : null;
+  // 資金用途：選「其他」時用手填值
+  var purposeVal = g('c-purpose');
+  if (purposeVal === '其他' && g('c-purpose-other')) purposeVal = g('c-purpose-other');
 
   // 只送 DB 確定存在的欄位
   var idnoCli = (g('c-idno') || '').trim().toUpperCase();
@@ -18090,15 +18364,21 @@ async function submitClientForm() {
     phone: g('c-phone') || null,
     id_number_hash: idnoCli || null,
     age: parseInt(g('c-age')) || null,
-    work_type: [gf('c-company'), gf('c-position')].filter(Boolean).join(' · ') || null,
+    birthday: g('c-birthday') || null,
+    work_type: [gf('c-company'), positionLabel].filter(Boolean).join(' · ') || null,
+    tax_id: taxIdVal,
+    tax_type: taxTypeVal,
+    work_months: parseInt(g('c-work-months')) || null,
+    company_phone: g('c-biztel') || null,
     alert_status: g('c-alert') || 'none',
     address: g('c-addr'),
     huji_address: g('c-huji'),
     required_amount: parseInt(g('c-amount')) || null,
-    fund_purpose: g('c-purpose'),
+    fund_purpose: purposeVal,
     monthly_salary: salary,
-    has_salary_transfer: g('c-transfer') === 'true',
-    labor_insurance_years: laborType,
+    has_salary_transfer: g('c-transfer-2') === 'true',
+    labor_insurance_years: laborMonths || null,
+    labor_type: laborType || null,
     credit_card_age: g('c-cc'),
     has_car_license: g('c-car-lic') === 'true',
     has_bike_license: g('c-bike-lic') === 'true',
@@ -18120,11 +18400,7 @@ async function submitClientForm() {
     consent_mydata_health: clientConsents.health,
     consent_asset_query: clientConsents.asset,
     consent_verdict_query: clientConsents.verdict,
-    // 額外資訊存在備註裡（待 DB 加欄位後可移出）
-    advisor_note: [
-      ccLimitYuan > 0 ? '信用卡額度：$' + ccLimitYuan.toLocaleString() : '',
-      laborYears ? '總投保年資：' + laborYears + '年' : '',
-    ].filter(Boolean).join('，'),
+    advisor_note: ccLimitYuan > 0 ? '信用卡額度：$' + ccLimitYuan.toLocaleString() : '',
   };
   var r = await sb.from('leads').insert(payload).select().single();
   hideLoading();
