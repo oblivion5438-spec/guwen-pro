@@ -11,7 +11,7 @@
 <meta name="application-name" content="顧問PRO">
 <meta name="description" content="貸款顧問業務管理平台">
 <meta name="format-detection" content="telephone=no">
-<meta name="build-id" content="2026-05-03-r18-form-cleanup">
+<meta name="build-id" content="2026-05-03-r19-bldg-addr">
 <!-- PWA Manifest -->
 <link rel="manifest" href="/manifest.json">
 <!-- Apple Touch Icons -->
@@ -584,7 +584,7 @@ select.fi{-webkit-appearance:auto;appearance:auto;display:block;max-width:100%;w
 </div><!-- #app -->
 
 <script>
-console.log('[顧問PRO] JS 載入 build=2026-05-03-r18-form-cleanup, 時間=' + new Date().toLocaleTimeString());
+console.log('[顧問PRO] JS 載入 build=2026-05-03-r19-bldg-addr, 時間=' + new Date().toLocaleTimeString());
 // ══════════════════════════════
 // SUPABASE
 // ══════════════════════════════
@@ -3790,7 +3790,8 @@ function addPropItem(data) {
 
   // 建物欄位
   h += '<div id="pi-bldg-fields-'+idx+'" style="display:'+(typeVal==='bldg'?'block':'none')+';margin-top:10px">';
-  h += '<div class="frow2"><div class="frow"><div class="flbl">房屋類型</div><select class="fi" id="pi-bldg-type-'+idx+'" onchange="updatePropItemSummary('+idx+')">';
+  h += '<div class="frow"><div class="flbl">建物地址</div><input class="fi" id="pi-bldg-addr-'+idx+'" placeholder="完整地址（例：台北市中山區XX路XX號）" value="'+((d.bldgAddr||'').replace(/"/g,'&quot;'))+'"></div>';
+  h += '<div class="frow2" style="margin-top:6px"><div class="frow"><div class="flbl">房屋類型</div><select class="fi" id="pi-bldg-type-'+idx+'" onchange="updatePropItemSummary('+idx+')">';
   [['','選擇'],['elevator','電梯大樓'],['huaxia','華廈'],['apartment','公寓'],['townhouse','透天厝'],['shop','店面'],['office','辦公室'],['factory','廠房']].forEach(function(o){
     h += '<option value="'+o[0]+'"'+((d.bldgType||'')===o[0]?' selected':'')+'>'+o[1]+'</option>';
   });
@@ -3897,6 +3898,7 @@ function collectPropItems() {
     if (!type) return;
     var item = { type: type };
     if (type === 'bldg') {
+      item.bldgAddr = (document.getElementById('pi-bldg-addr-'+idx)||{}).value || '';
       item.bldgType = (document.getElementById('pi-bldg-type-'+idx)||{}).value || '';
       item.bldgAge = parseInt((document.getElementById('pi-bldg-age-'+idx)||{}).value) || null;
       item.bldgSize = parseFloat((document.getElementById('pi-bldg-size-'+idx)||{}).value) || null;
@@ -3942,7 +3944,8 @@ function addPropItemEdit(leadId, data) {
   h += '</div>';
   // 建物欄位
   h += '<div id="pi-bldg-fields-'+idx+'" style="display:'+(typeVal==='bldg'?'block':'none')+'">';
-  h += '<div class="frow2"><div class="frow"><div class="flbl">房屋類型</div><select class="fi" id="pi-bldg-type-'+idx+'">';
+  h += '<div class="frow"><div class="flbl">建物地址</div><input class="fi" id="pi-bldg-addr-'+idx+'" placeholder="完整地址（例：台北市中山區XX路XX號）" value="'+((d.bldgAddr||'').replace(/"/g,'&quot;'))+'"></div>';
+  h += '<div class="frow2" style="margin-top:6px"><div class="frow"><div class="flbl">房屋類型</div><select class="fi" id="pi-bldg-type-'+idx+'">';
   [['','選擇'],['elevator','電梯大樓'],['huaxia','華廈'],['apartment','公寓'],['townhouse','透天厝'],['shop','店面'],['office','辦公室'],['factory','廠房']].forEach(function(o){
     h += '<option value="'+o[0]+'"'+((d.bldgType||'')===o[0]?' selected':'')+'>'+o[1]+'</option>';
   });
@@ -3984,6 +3987,7 @@ function collectPropItemsEdit(leadId) {
     if (!type) return;
     var item = { type: type };
     if (type === 'bldg') {
+      item.bldgAddr = (document.getElementById('pi-bldg-addr-'+idx)||{}).value || '';
       item.bldgType = (document.getElementById('pi-bldg-type-'+idx)||{}).value || '';
       item.bldgAge = parseInt((document.getElementById('pi-bldg-age-'+idx)||{}).value) || null;
       item.bldgSize = parseFloat((document.getElementById('pi-bldg-size-'+idx)||{}).value) || null;
@@ -4796,6 +4800,7 @@ function showLeadDetail(id) {
         html += '<div style="padding:8px 10px;background:var(--inp);border-radius:8px;margin-bottom:6px">';
         html += '<div style="font-size:13px;font-weight:600;color:var(--acc);margin-bottom:4px">' + piLabel + '</div>';
         if (pi.type === 'bldg') {
+          if (pi.bldgAddr) html += '<div class="ri" style="padding:3px 0"><span class="rl">地址</span><span class="rv">' + pi.bldgAddr + '</span></div>';
           if (pi.bldgType) html += '<div class="ri" style="padding:3px 0"><span class="rl">類型</span><span class="rv">' + (propTypeLabels3[pi.bldgType]||pi.bldgType) + '</span></div>';
           if (pi.bldgAge) html += '<div class="ri" style="padding:3px 0"><span class="rl">屋齡</span><span class="rv">' + pi.bldgAge + '年</span></div>';
           if (pi.bldgSize) html += '<div class="ri" style="padding:3px 0"><span class="rl">建坪</span><span class="rv">' + pi.bldgSize + '坪</span></div>';
@@ -17531,7 +17536,7 @@ function saveClientFormData() {
     'c-labor-type-2','c-labor-2','c-transfer-2','c-salary-2',
     'c-alert','c-addr','c-huji','c-amount','c-purpose','c-purpose-other','c-housing',
     'c-cc','c-cc-limit','c-cc-count','c-car-lic','c-bike-lic',
-    'c-property','c-collateral','c-bank-rej','c-fin-rej',
+    'c-property','c-collateral','c-bldg-addr','c-bank-rej','c-fin-rej',
     'c-bank-rej-cnt','c-fin-rej-cnt','c-late-pay','c-debt-ratio','c-bank-new','c-has-car-loan',
     'c-prop1-inst','c-prop1-amt','c-prop1-pay','c-prop1-penalty',
     'c-prop2-inst','c-prop2-amt','c-prop2-pay','c-prop2-penalty',
@@ -17981,6 +17986,14 @@ function clientStep3() {
   propNote.style.cssText = 'font-size:13px;color:var(--t2);margin-bottom:10px;line-height:1.6';
   propNote.textContent = '請依實際情況填寫各胎貸款資料，二胎三胎選填。';
   propDetail.appendChild(propNote);
+
+  // 🏠 建物地址（在所有胎次上方）
+  var bldgAddrWrap = document.createElement('div');
+  bldgAddrWrap.style.cssText = 'background:var(--inp);border-radius:10px;padding:12px;margin-bottom:10px;border:0.5px solid var(--bdr)';
+  bldgAddrWrap.innerHTML =
+    '<div class="frow"><div class="flbl">🏠 建物地址</div>' +
+    '<input class="fi" id="c-bldg-addr" placeholder="完整地址（例：台北市中山區XX路XX號）"></div>';
+  propDetail.appendChild(bldgAddrWrap);
 
   // 建立各胎的函數
   function buildPropTier(n, label, required) {
@@ -18502,6 +18515,8 @@ async function submitClientForm() {
     has_car_license: g('c-car-lic') === 'true',
     has_bike_license: g('c-bike-lic') === 'true',
     has_property: g('c-property') === 'true',
+    prop_items: g('c-property') === 'true' && g('c-bldg-addr') ?
+      JSON.stringify([{type:'bldg', bldgAddr: g('c-bldg-addr')}]) : null,
     has_collateral: g('c-collateral') === 'true',
     collateral_car: (document.getElementById('c-collateral-car')||{}).checked === true,
     collateral_bike: (document.getElementById('c-collateral-bike')||{}).checked === true,
