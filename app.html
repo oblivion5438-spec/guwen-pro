@@ -11,7 +11,7 @@
 <meta name="application-name" content="顧問PRO">
 <meta name="description" content="貸款顧問業務管理平台">
 <meta name="format-detection" content="telephone=no">
-<meta name="build-id" content="2026-05-03-r25-pdf-clean">
+<meta name="build-id" content="2026-05-03-r26-prop-total">
 <!-- PWA Manifest -->
 <link rel="manifest" href="/manifest.json">
 <!-- Apple Touch Icons -->
@@ -584,7 +584,7 @@ select.fi{-webkit-appearance:auto;appearance:auto;display:block;max-width:100%;w
 </div><!-- #app -->
 
 <script>
-console.log('[顧問PRO] JS 載入 build=2026-05-03-r25-pdf-clean, 時間=' + new Date().toLocaleTimeString());
+console.log('[顧問PRO] JS 載入 build=2026-05-03-r26-prop-total, 時間=' + new Date().toLocaleTimeString());
 // ══════════════════════════════
 // SUPABASE
 // ══════════════════════════════
@@ -3837,7 +3837,7 @@ function addPropItem(data) {
   h += '</div>';
 
   // 個別估價
-  h += '<div class="frow" style="margin-top:10px"><div class="flbl">此筆估價（元）</div><input class="fi" id="pi-val-'+idx+'" type="number" placeholder="0" value="'+(d.val||'')+'" inputmode="numeric" oninput="updatePropItemSummary('+idx+')"></div>';
+  h += '<div class="frow" style="margin-top:10px"><div class="flbl">此筆估價（元）</div><input class="fi" id="pi-val-'+idx+'" type="number" step="1" min="0" placeholder="0" value="'+(d.val||'')+'" inputmode="numeric" oninput="updatePropItemSummary('+idx+')"></div>';
 
   // 此筆貸款負債（一/二/三胎，每胎可選填）
   var propLoans = (d.loans && d.loans.length) ? d.loans : [{},{},{}];
@@ -3859,9 +3859,9 @@ function addPropItem(data) {
     h += '</select></div>';
     h += '<div class="frow" id="pi-loan'+n+'-inst-wrap-'+idx+'" style="display:'+(hasTypeI && !isCivilI ? 'flex' : 'none')+'"><div class="flbl">機構名稱</div><input class="fi" id="pi-loan'+n+'-inst-'+idx+'" placeholder="例：台灣銀行" value="'+((pl.inst||'').replace(/"/g,'&quot;'))+'"></div></div>';
     h += '<div class="frow" id="pi-loan'+n+'-rate-wrap-'+idx+'" style="display:'+(isCivilI ? 'flex' : 'none')+';margin-top:6px"><div class="flbl">月利息（%）</div><input class="fi" id="pi-loan'+n+'-rate-'+idx+'" type="number" step="0.01" placeholder="例：3" value="'+(pl.rate||'')+'" inputmode="decimal"></div>';
-    h += '<div class="frow2" style="margin-top:6px"><div class="frow"><div class="flbl">貸款餘額（元）</div><input class="fi" id="pi-loan'+n+'-amt-'+idx+'" type="number" placeholder="0" value="'+(pl.amt||'')+'" inputmode="numeric"></div>';
-    h += '<div class="frow"><div class="flbl">月繳（元）</div><input class="fi" id="pi-loan'+n+'-pay-'+idx+'" type="number" placeholder="0" value="'+(pl.pay||'')+'" inputmode="numeric"></div></div>';
-    h += '<div class="frow" style="margin-top:6px"><div class="flbl">違約金（元）</div><input class="fi" id="pi-loan'+n+'-penalty-'+idx+'" type="number" placeholder="未填顯示「無」" value="'+(pl.penalty||'')+'" inputmode="numeric"></div>';
+    h += '<div class="frow2" style="margin-top:6px"><div class="frow"><div class="flbl">貸款餘額（元）</div><input class="fi" id="pi-loan'+n+'-amt-'+idx+'" type="number" step="1" min="0" placeholder="0" value="'+(pl.amt||'')+'" inputmode="numeric"></div>';
+    h += '<div class="frow"><div class="flbl">月繳（元）</div><input class="fi" id="pi-loan'+n+'-pay-'+idx+'" type="number" step="1" min="0" placeholder="0" value="'+(pl.pay||'')+'" inputmode="numeric"></div></div>';
+    h += '<div class="frow" style="margin-top:6px"><div class="flbl">違約金（元）</div><input class="fi" id="pi-loan'+n+'-penalty-'+idx+'" type="number" step="1" min="0" placeholder="未填顯示「無」" value="'+(pl.penalty||'')+'" inputmode="numeric"></div>';
     h += '</div>';
   });
   h += '</div>';
@@ -3928,15 +3928,19 @@ function collectPiLoans(idx) {
   var loans = [];
   [0,1,2].forEach(function(n){
     var ltype = (document.getElementById('pi-loan'+n+'-ltype-'+idx)||{}).value || '';
-    var amt = parseFloat((document.getElementById('pi-loan'+n+'-amt-'+idx)||{}).value) || 0;
+    var rawAmt = (document.getElementById('pi-loan'+n+'-amt-'+idx)||{}).value || '';
+    // 移除千分位逗號（避免 parseFloat 截斷）
+    var amt = Math.round(parseFloat(String(rawAmt).replace(/,/g,'')) || 0);
     if (!ltype && !amt) return;
+    var rawPay = (document.getElementById('pi-loan'+n+'-pay-'+idx)||{}).value || '';
+    var rawPen = (document.getElementById('pi-loan'+n+'-penalty-'+idx)||{}).value || '';
     loans.push({
       ltype: ltype,
       inst: (document.getElementById('pi-loan'+n+'-inst-'+idx)||{}).value || '',
       rate: parseFloat((document.getElementById('pi-loan'+n+'-rate-'+idx)||{}).value) || 0,
       amt: amt,
-      pay: parseFloat((document.getElementById('pi-loan'+n+'-pay-'+idx)||{}).value) || 0,
-      penalty: parseFloat((document.getElementById('pi-loan'+n+'-penalty-'+idx)||{}).value) || 0
+      pay: Math.round(parseFloat(String(rawPay).replace(/,/g,'')) || 0),
+      penalty: Math.round(parseFloat(String(rawPen).replace(/,/g,'')) || 0)
     });
   });
   return loans;
@@ -3966,7 +3970,7 @@ function collectPropItems() {
       item.landSize = parseFloat((document.getElementById('pi-land-size-'+idx)||{}).value) || null;
       item.landShare = (document.getElementById('pi-land-share-'+idx)||{}).value || '';
     }
-    item.val = parseFloat((document.getElementById('pi-val-'+idx)||{}).value) || null;
+    var rawVal = (document.getElementById('pi-val-'+idx)||{}).value || ''; item.val = Math.round(parseFloat(String(rawVal).replace(/,/g,'')) || 0) || null;
     item.loans = collectPiLoans(idx);
     items.push(item);
   });
@@ -4083,7 +4087,7 @@ function addPropItemEdit(leadId, data) {
   h += '</div>';
 
   // 個別估價
-  h += '<div class="frow" style="margin-top:10px"><div class="flbl">此筆估價（元）</div><input class="fi" id="pi-val-'+idx+'" type="number" placeholder="0" value="'+(d.val||'')+'" inputmode="numeric" oninput="updatePropItemSummary(\''+idx+'\')"></div>';
+  h += '<div class="frow" style="margin-top:10px"><div class="flbl">此筆估價（元）</div><input class="fi" id="pi-val-'+idx+'" type="number" step="1" min="0" placeholder="0" value="'+(d.val||'')+'" inputmode="numeric" oninput="updatePropItemSummary(\''+idx+'\')"></div>';
 
   // 此筆貸款負債（一/二/三胎，每胎可選填）
   var propLoansE = (d.loans && d.loans.length) ? d.loans : [{},{},{}];
@@ -4105,9 +4109,9 @@ function addPropItemEdit(leadId, data) {
     h += '</select></div>';
     h += '<div class="frow" id="pi-loan'+n+'-inst-wrap-'+idx+'" style="display:'+(hasTypeI && !isCivilI ? 'flex' : 'none')+'"><div class="flbl">機構名稱</div><input class="fi" id="pi-loan'+n+'-inst-'+idx+'" placeholder="例：台灣銀行" value="'+((pl.inst||'').replace(/"/g,'&quot;'))+'"></div></div>';
     h += '<div class="frow" id="pi-loan'+n+'-rate-wrap-'+idx+'" style="display:'+(isCivilI ? 'flex' : 'none')+';margin-top:6px"><div class="flbl">月利息（%）</div><input class="fi" id="pi-loan'+n+'-rate-'+idx+'" type="number" step="0.01" placeholder="例：3" value="'+(pl.rate||'')+'" inputmode="decimal"></div>';
-    h += '<div class="frow2" style="margin-top:6px"><div class="frow"><div class="flbl">貸款餘額（元）</div><input class="fi" id="pi-loan'+n+'-amt-'+idx+'" type="number" placeholder="0" value="'+(pl.amt||'')+'" inputmode="numeric"></div>';
-    h += '<div class="frow"><div class="flbl">月繳（元）</div><input class="fi" id="pi-loan'+n+'-pay-'+idx+'" type="number" placeholder="0" value="'+(pl.pay||'')+'" inputmode="numeric"></div></div>';
-    h += '<div class="frow" style="margin-top:6px"><div class="flbl">違約金（元）</div><input class="fi" id="pi-loan'+n+'-penalty-'+idx+'" type="number" placeholder="未填顯示「無」" value="'+(pl.penalty||'')+'" inputmode="numeric"></div>';
+    h += '<div class="frow2" style="margin-top:6px"><div class="frow"><div class="flbl">貸款餘額（元）</div><input class="fi" id="pi-loan'+n+'-amt-'+idx+'" type="number" step="1" min="0" placeholder="0" value="'+(pl.amt||'')+'" inputmode="numeric"></div>';
+    h += '<div class="frow"><div class="flbl">月繳（元）</div><input class="fi" id="pi-loan'+n+'-pay-'+idx+'" type="number" step="1" min="0" placeholder="0" value="'+(pl.pay||'')+'" inputmode="numeric"></div></div>';
+    h += '<div class="frow" style="margin-top:6px"><div class="flbl">違約金（元）</div><input class="fi" id="pi-loan'+n+'-penalty-'+idx+'" type="number" step="1" min="0" placeholder="未填顯示「無」" value="'+(pl.penalty||'')+'" inputmode="numeric"></div>';
     h += '</div>';
   });
   h += '</div>';
@@ -4144,7 +4148,7 @@ function collectPropItemsEdit(leadId) {
       item.landSize = parseFloat((document.getElementById('pi-land-size-'+idx)||{}).value) || null;
       item.landShare = (document.getElementById('pi-land-share-'+idx)||{}).value || '';
     }
-    item.val = parseFloat((document.getElementById('pi-val-'+idx)||{}).value) || null;
+    var rawVal = (document.getElementById('pi-val-'+idx)||{}).value || ''; item.val = Math.round(parseFloat(String(rawVal).replace(/,/g,'')) || 0) || null;
     item.loans = collectPiLoans(idx);
     items.push(item);
   });
@@ -16372,6 +16376,7 @@ async function downloadShareZip(lead, btn) {
           if (pi.val) readme += '  估價：$' + Number(pi.val).toLocaleString() + '\n';
           if (pi.loans && pi.loans.length > 0) {
             var tierLabelsZ = ['一胎','二胎','三胎'];
+            var itemAmtZ = 0, itemPenZ = 0;
             pi.loans.forEach(function(pl, j){
               if (!pl || (!pl.ltype && !pl.amt)) return;
               var s = '  ' + (tierLabelsZ[j]||('胎次'+(j+1))) + '：';
@@ -16384,8 +16389,18 @@ async function downloadShareZip(lead, btn) {
               if (pl.amt) s += '餘額 $'+Number(pl.amt).toLocaleString();
               if (pl.pay) s += '・月繳 $'+Number(pl.pay).toLocaleString();
               if (pl.penalty) s += '・違約 $'+Number(pl.penalty).toLocaleString();
+              itemAmtZ += Number(pl.amt) || 0;
+              itemPenZ += Number(pl.penalty) || 0;
               readme += s + '\n';
             });
+            // 此筆合計
+            if (itemAmtZ > 0 || itemPenZ > 0) {
+              var grandZ = itemAmtZ + itemPenZ;
+              var totZ = '  ▸ 本筆合計：餘額 $' + itemAmtZ.toLocaleString();
+              if (itemPenZ > 0) totZ += '・違約 $' + itemPenZ.toLocaleString();
+              totZ += '・總額 $' + grandZ.toLocaleString();
+              readme += totZ + '\n';
+            }
           }
         });
       }
@@ -16804,8 +16819,9 @@ async function exportLeadPDF(leadId) {
           if (pi.landShare) propRowsArr.push('<tr><td style="color:#666;font-size:13px;padding:4px 8px">持分</td><td style="font-size:13px;padding:4px 8px">'+pi.landShare+'</td></tr>');
         }
         if (pi.val) propRowsArr.push('<tr><td style="color:#666;font-size:13px;padding:4px 8px">估價</td><td style="font-size:13px;font-weight:600;padding:4px 8px">$'+Number(pi.val).toLocaleString()+'</td></tr>');
-        // 此筆不動產的一/二/三胎
+        // 此筆不動產的一/二/三胎 + 累加合計
         var tierLabels = ['一胎','二胎','三胎'];
+        var itemTotalAmt = 0, itemTotalPenalty = 0;
         if (pi.loans && pi.loans.length > 0) {
           pi.loans.forEach(function(pl, j){
             if (!pl || (!pl.ltype && !pl.amt)) return;
@@ -16819,8 +16835,20 @@ async function exportLeadPDF(leadId) {
             if (pl.amt) parts.push('餘額 $'+Number(pl.amt).toLocaleString());
             if (pl.pay) parts.push('月繳 $'+Number(pl.pay).toLocaleString());
             if (pl.penalty) parts.push('違約 $'+Number(pl.penalty).toLocaleString());
+            itemTotalAmt += Number(pl.amt) || 0;
+            itemTotalPenalty += Number(pl.penalty) || 0;
             propRowsArr.push('<tr><td style="color:#666;font-size:13px;padding:4px 8px">'+(tierLabels[j]||('胎次'+(j+1)))+'</td><td style="font-size:13px;padding:4px 8px">'+parts.join('・')+'</td></tr>');
           });
+          // 此筆合計列
+          if (itemTotalAmt > 0 || itemTotalPenalty > 0) {
+            var totalLabel = '本筆合計';
+            var totalParts = [];
+            totalParts.push('餘額 $'+itemTotalAmt.toLocaleString());
+            if (itemTotalPenalty > 0) totalParts.push('違約 $'+itemTotalPenalty.toLocaleString());
+            var grandTotal = itemTotalAmt + itemTotalPenalty;
+            totalParts.push('<span style="color:#C8511A">總額 $'+grandTotal.toLocaleString()+'</span>');
+            propRowsArr.push('<tr style="background:#fff8f0"><td style="color:#C8511A;font-size:13px;padding:6px 8px;font-weight:700">'+totalLabel+'</td><td style="font-size:13px;padding:6px 8px;font-weight:600">'+totalParts.join('・')+'</td></tr>');
+          }
         }
       });
       propRows = propRowsArr.join('');
@@ -17642,6 +17670,7 @@ async function shareLeadLine(id) {
         // 此筆貸款負債
         if (pi.loans && pi.loans.length > 0) {
           var tierLabelsL = ['一胎','二胎','三胎'];
+          var itemAmtL = 0, itemPenL = 0;
           pi.loans.forEach(function(pl, j){
             if (!pl || (!pl.ltype && !pl.amt)) return;
             var s = '・'+(tierLabelsL[j]||('胎次'+(j+1)))+'：';
@@ -17654,8 +17683,18 @@ async function shareLeadLine(id) {
             if (pl.amt) s += '餘額 $'+Number(pl.amt).toLocaleString();
             if (pl.pay) s += '・月繳 $'+Number(pl.pay).toLocaleString();
             if (pl.penalty) s += '・違約 $'+Number(pl.penalty).toLocaleString();
+            itemAmtL += Number(pl.amt) || 0;
+            itemPenL += Number(pl.penalty) || 0;
             lines.push(s);
           });
+          // 此筆合計
+          if (itemAmtL > 0 || itemPenL > 0) {
+            var grandL = itemAmtL + itemPenL;
+            var totL = '▸ 本筆合計：餘額 $'+itemAmtL.toLocaleString();
+            if (itemPenL > 0) totL += '・違約 $'+itemPenL.toLocaleString();
+            totL += '・總額 $'+grandL.toLocaleString();
+            lines.push(totL);
+          }
         }
       });
     } else {
