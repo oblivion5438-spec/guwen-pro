@@ -11,7 +11,7 @@
 <meta name="application-name" content="顧問PRO">
 <meta name="description" content="貸款顧問業務管理平台">
 <meta name="format-detection" content="telephone=no">
-<meta name="build-id" content="2026-05-03-r17-edit-sync">
+<meta name="build-id" content="2026-05-03-r18-form-cleanup">
 <!-- PWA Manifest -->
 <link rel="manifest" href="/manifest.json">
 <!-- Apple Touch Icons -->
@@ -584,7 +584,7 @@ select.fi{-webkit-appearance:auto;appearance:auto;display:block;max-width:100%;w
 </div><!-- #app -->
 
 <script>
-console.log('[顧問PRO] JS 載入 build=2026-05-03-r17-edit-sync, 時間=' + new Date().toLocaleTimeString());
+console.log('[顧問PRO] JS 載入 build=2026-05-03-r18-form-cleanup, 時間=' + new Date().toLocaleTimeString());
 // ══════════════════════════════
 // SUPABASE
 // ══════════════════════════════
@@ -3366,30 +3366,25 @@ function renderAddLead() {
   html += '<div class="frow"><div class="flbl">警示/協商/更生/清算</div><select class="fi" id="n-alert"><option value="none">否</option><option value="alert">警示戶</option><option value="negotiation">協商中</option><option value="rehabilitation">更生</option><option value="liquidation">清算</option></select></div>';
   html += '</div>';
 
-  html += '<div class="form-section"><div class="fs-title">💼 駕照與信用</div>';
-  html += '<div class="frow2"><div class="frow"><div class="flbl">信用卡持卡</div><select class="fi" id="n-cc"><option value="none">無卡</option><option value="3m+">3個月以上</option><option value="6m+">6個月以上</option><option value="1y+">1年以上</option><option value="2y+">2年以上</option><option value="3y+">3年以上</option><option value="5y+">5年以上</option></select></div>';
-  html += '<div class="frow"><div class="flbl">汽車駕照</div><select class="fi" id="n-car-lic"><option value="true">有</option><option value="false">無</option></select></div></div>';
-  html += '<div class="frow2"><div class="frow"><div class="flbl">機車駕照</div><select class="fi" id="n-bike-lic"><option value="true">有</option><option value="false">無</option></select></div>';
-  html += '<div class="frow"><div class="flbl">名下不動產</div><select class="fi" id="n-property" onchange="togglePropFields(this.value)"><option value="false">無</option><option value="true">有</option></select></div></div>';
-  html += '<div class="frow2"><div class="frow"><div class="flbl">有無抵押品</div><select class="fi" id="n-collateral"><option value="false">無</option><option value="true">有實物抵押</option></select></div>';
-  html += '<div class="frow"><div class="flbl">負債比（%）</div><input class="fi" id="n-debt-ratio" type="number" min="0" max="100" placeholder="0" inputmode="numeric"></div></div>';
-  html += '</div>';
-
-  html += '<div class="form-section"><div class="fs-title">📋 未過件與貸款記錄</div>';
-  html += '<div class="frow2"><div class="frow"><div class="flbl">3個月內銀行婉拒次數</div><select class="fi" id="n-bank-rej-cnt"><option value="0">無</option><option value="1">1次</option><option value="2">2次</option><option value="3">3次</option><option value="4">4次以上（封鎖）</option></select></div>';
-  html += '<div class="frow"><div class="flbl">3個月內融資婉拒次數</div><select class="fi" id="n-fin-rej-cnt"><option value="0">無</option><option value="1">1次</option><option value="2">2次</option><option value="3">3次</option><option value="4">4次以上（封鎖）</option></select></div></div>';
-  html += '<div class="frow2" style="margin-top:6px"><div class="frow"><div class="flbl">銀行端未過件距今</div><select class="fi" id="n-bank-rej"><option value="none">無</option><option value="&lt;1m">未滿1個月</option><option value="1-3m">1–3個月</option><option value="3-6m">3–6個月</option></select></div>';
-  html += '<div class="frow"><div class="flbl">融資端未過件距今</div><select class="fi" id="n-fin-rej"><option value="none">無</option><option value="&lt;1m">未滿1個月</option><option value="1-3m">1–3個月</option><option value="3-6m">3–6個月</option></select></div></div>';
-  // 信貸6個月內申辦
-  html += '<div class="frow2"><div class="frow"><div class="flbl">信貸6個月內申辦</div><select class="fi" id="n-bank-new"><option value="false">否</option><option value="true">是（6個月內剛申辦）</option></select></div>';
-  // 目前有汽車貸款
-  html += '<div class="frow"><div class="flbl">目前有汽車貸款</div><select class="fi" id="n-has-car-loan" onchange="toggleCarLoan(this.value)"><option value="false">無</option><option value="true">有</option></select></div></div>';
-  // 汽車貸款時間
-  html += '<div class="frow2" id="n-car-loan-age-row" style="display:none"><div class="frow"><div class="flbl">汽車貸款貸款時間</div><select class="fi" id="n-car-loan-age"><option value="lt3m">3個月內</option><option value="3-6m">3~6個月</option><option value="6m+">6個月以上</option></select></div>';
-  html += '<div class="frow"></div></div>';
-  // 最長遲繳天數
-  html += '<div class="frow2"><div class="frow"><div class="flbl">最長遲繳天數</div><select class="fi" id="n-late-pay"><option value="0">無遲繳</option><option value="3">7天以內</option><option value="10">7~14天</option><option value="20">14~30天</option><option value="35">1個月以上</option></select></div>';
-  html += '<div class="frow"></div></div>';
+  html += '<div class="form-section"><div class="fs-title">💼 駕照與抵押</div>';
+  html += '<div class="frow2"><div class="frow"><div class="flbl">汽車駕照</div><select class="fi" id="n-car-lic"><option value="true">有</option><option value="false">無</option></select></div>';
+  html += '<div class="frow"><div class="flbl">機車駕照</div><select class="fi" id="n-bike-lic"><option value="true">有</option><option value="false">無</option></select></div></div>';
+  html += '<div class="frow"><div class="flbl">有無抵押品</div><select class="fi" id="n-collateral" onchange="toggleCollateralKinds(\'n-collateral\',\'n-collateral-kinds-row\')"><option value="false">無</option><option value="true">有實物抵押</option></select></div>';
+  // 抵押品種類（複選汽車/機車）
+  html += '<div id="n-collateral-kinds-row" style="display:none;margin-top:6px;background:var(--inp);border-radius:8px;padding:10px 12px">';
+  html += '<div style="font-size:13px;color:var(--t2);margin-bottom:8px">抵押品種類（可複選）</div>';
+  html += '<div style="display:flex;gap:14px;flex-wrap:wrap">';
+  html += '<label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:14px"><input type="checkbox" id="n-collateral-car" style="width:16px;height:16px;accent-color:var(--acc)"> 🚗 汽車</label>';
+  html += '<label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:14px"><input type="checkbox" id="n-collateral-bike" style="width:16px;height:16px;accent-color:var(--acc)"> 🛵 機車</label>';
+  html += '</div></div>';
+  // 隱藏欄位（保留資料相容）
+  html += '<input type="hidden" id="n-cc" value="none">';
+  html += '<input type="hidden" id="n-property" value="false">';
+  html += '<input type="hidden" id="n-debt-ratio" value="0">';
+  html += '<input type="hidden" id="n-bank-new" value="false">';
+  html += '<input type="hidden" id="n-has-car-loan" value="false">';
+  html += '<input type="hidden" id="n-car-loan-age" value="">';
+  html += '<input type="hidden" id="n-late-pay" value="0">';
   html += '</div>';
 
   // 各類貸款（DOM 方式建立，避免引號衝突）
@@ -3417,13 +3412,33 @@ function renderAddLead() {
       btn2.onclick = function() { addLoanRow('credit-list', 'cc'); };
       ct.appendChild(btn1); ct.appendChild(btn2);
       var list = document.createElement('div'); list.id = 'credit-list';
-      sec.appendChild(ct); sec.appendChild(list); el.appendChild(sec);
+      sec.appendChild(ct); sec.appendChild(list);
+      // 銀行婉拒欄位
+      var bankRej = document.createElement('div');
+      bankRej.style.cssText = 'margin-top:10px;padding-top:10px;border-top:0.5px dashed var(--bdr)';
+      bankRej.innerHTML =
+        '<div style="font-size:13px;color:var(--t2);margin-bottom:8px">📋 銀行端未過件記錄</div>' +
+        '<div class="frow2"><div class="frow"><div class="flbl">3個月內銀行婉拒次數</div><select class="fi" id="n-bank-rej-cnt"><option value="0">無</option><option value="1">1次</option><option value="2">2次</option><option value="3">3次</option><option value="4">4次以上（封鎖）</option></select></div>' +
+        '<div class="frow"><div class="flbl">銀行端未過件距今</div><select class="fi" id="n-bank-rej"><option value="none">無</option><option value="&lt;1m">未滿1個月</option><option value="1-3m">1–3個月</option><option value="3-6m">3–6個月</option></select></div></div>';
+      sec.appendChild(bankRej);
+      el.appendChild(sec);
     } else {
       var btn = document.createElement('button'); btn.className = 'btn-sm'; btn.textContent = '+ 新增' + ld.label.replace(/[🏦🚗🛵📱🏪]\s*/g,'');
       btn.onclick = (function(k) { return function() { addLoanRow(k + '-list', k); }; })(ld.key);
       ct.appendChild(btn);
       var list = document.createElement('div'); list.id = ld.key + '-list';
-      sec.appendChild(ct); sec.appendChild(list); el.appendChild(sec);
+      sec.appendChild(ct); sec.appendChild(list);
+      // 在手機商品貸下方插入融資婉拒欄位
+      if (ld.key === 'phone') {
+        var finRej = document.createElement('div');
+        finRej.style.cssText = 'margin-top:10px;padding-top:10px;border-top:0.5px dashed var(--bdr)';
+        finRej.innerHTML =
+          '<div style="font-size:13px;color:var(--t2);margin-bottom:8px">📋 融資端未過件記錄（影響汽車/機車/手機貸評分）</div>' +
+          '<div class="frow2"><div class="frow"><div class="flbl">3個月內融資婉拒次數</div><select class="fi" id="n-fin-rej-cnt"><option value="0">無</option><option value="1">1次</option><option value="2">2次</option><option value="3">3次</option><option value="4">4次以上（封鎖）</option></select></div>' +
+          '<div class="frow"><div class="flbl">融資端未過件距今</div><select class="fi" id="n-fin-rej"><option value="none">無</option><option value="&lt;1m">未滿1個月</option><option value="1-3m">1–3個月</option><option value="3-6m">3–6個月</option></select></div></div>';
+        sec.appendChild(finRej);
+      }
+      el.appendChild(sec);
     }
   });
 
@@ -4048,6 +4063,14 @@ function togglePurposeOther(selId, rowId) {
   rowEl.style.display = (selEl.value === '其他') ? 'block' : 'none';
 }
 
+// 「有無抵押品」選「有」時展開汽車/機車複選
+function toggleCollateralKinds(selId, rowId) {
+  var selEl = document.getElementById(selId);
+  var rowEl = document.getElementById(rowId);
+  if (!selEl || !rowEl) return;
+  rowEl.style.display = (selEl.value === 'true') ? 'block' : 'none';
+}
+
 function validateIDFieldEdit(el, leadId) {
   var val = el.value.toUpperCase();
   el.value = val;
@@ -4443,6 +4466,8 @@ async function saveLead() {
     credit_card_age: gv('n-cc'),
     has_car_license: gv('n-car-lic') === 'true', has_bike_license: gv('n-bike-lic') === 'true',
     has_property: hasProp, has_collateral: gv('n-collateral') === 'true',
+    collateral_car: (document.getElementById('n-collateral-car')||{}).checked === true,
+    collateral_bike: (document.getElementById('n-collateral-bike')||{}).checked === true,
     bank_recent_reject: gv('n-bank-rej'), finance_recent_reject: gv('n-fin-rej'),
     bank_reject_count: parseInt(gv('n-bank-rej-cnt')) || 0,
     fin_reject_count: parseInt(gv('n-fin-rej-cnt')) || 0,
@@ -4902,47 +4927,61 @@ function showLeadDetail(id) {
   // 警示
   html += '<div class="frow" style="margin-top:6px"><div class="flbl">警示/協商</div><select class="fi" id="ef-alert-' + id + '"><option value="none"' + (lead.alert_status==='none'?' selected':'') + '>否</option><option value="alert"' + (lead.alert_status==='alert'?' selected':'') + '>警示戶</option><option value="negotiation"' + (lead.alert_status==='negotiation'?' selected':'') + '>協商中</option><option value="rehabilitation"' + (lead.alert_status==='rehabilitation'?' selected':'') + '>更生</option><option value="liquidation"' + (lead.alert_status==='liquidation'?' selected':'') + '>清算</option></select></div>';
 
-  html += '<div class="sl">駕照與信用</div>';
-  html += '<div class="frow2"><div class="frow"><div class="flbl">信用卡持卡</div><select class="fi" id="ef-cc-' + id + '">';
-  [['none','無卡'],['3m+','3個月以上'],['6m+','6個月以上'],['1y+','1年以上'],['2y+','2年以上'],['3y+','3年以上'],['5y+','5年以上']].forEach(function(o){
-    html += '<option value="'+o[0]+'"'+(lead.credit_card_age===o[0]?' selected':'')+'>'+o[1]+'</option>';
-  });
-  html += '</select></div>';
-  html += '<div class="frow"><div class="flbl">汽車駕照</div><select class="fi" id="ef-carlic-' + id + '"><option value="true"' + (lead.has_car_license?' selected':'') + '>有</option><option value="false"' + (!lead.has_car_license?' selected':'') + '>無</option></select></div></div>';
-  html += '<div class="frow2" style="margin-top:6px"><div class="frow"><div class="flbl">機車駕照</div><select class="fi" id="ef-bikeic-' + id + '"><option value="true"' + (lead.has_bike_license?' selected':'') + '>有</option><option value="false"' + (!lead.has_bike_license?' selected':'') + '>無</option></select></div>';
-  html += '<div class="frow"></div></div>';
+  html += '<div class="sl">駕照與抵押</div>';
+  html += '<div class="frow2"><div class="frow"><div class="flbl">汽車駕照</div><select class="fi" id="ef-carlic-' + id + '"><option value="true"' + (lead.has_car_license?' selected':'') + '>有</option><option value="false"' + (!lead.has_car_license?' selected':'') + '>無</option></select></div>';
+  html += '<div class="frow"><div class="flbl">機車駕照</div><select class="fi" id="ef-bikeic-' + id + '"><option value="true"' + (lead.has_bike_license?' selected':'') + '>有</option><option value="false"' + (!lead.has_bike_license?' selected':'') + '>無</option></select></div></div>';
+  // 有無抵押品 + 種類複選
+  html += '<div class="frow" style="margin-top:6px"><div class="flbl">有無抵押品</div><select class="fi" id="ef-collateral-' + id + '" onchange="toggleCollateralKinds(\'ef-collateral-' + id + '\',\'ef-collateral-kinds-row-' + id + '\')"><option value="false"' + (!lead.has_collateral?' selected':'') + '>無</option><option value="true"' + (lead.has_collateral?' selected':'') + '>有實物抵押</option></select></div>';
+  html += '<div id="ef-collateral-kinds-row-' + id + '" style="display:' + (lead.has_collateral?'block':'none') + ';margin-top:6px;background:var(--inp);border-radius:8px;padding:10px 12px">';
+  html += '<div style="font-size:13px;color:var(--t2);margin-bottom:8px">抵押品種類（可複選）</div>';
+  html += '<div style="display:flex;gap:14px;flex-wrap:wrap">';
+  html += '<label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:14px"><input type="checkbox" id="ef-collateral-car-' + id + '" ' + (lead.collateral_car?'checked':'') + ' style="width:16px;height:16px;accent-color:var(--acc)"> 🚗 汽車</label>';
+  html += '<label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:14px"><input type="checkbox" id="ef-collateral-bike-' + id + '" ' + (lead.collateral_bike?'checked':'') + ' style="width:16px;height:16px;accent-color:var(--acc)"> 🛵 機車</label>';
+  html += '</div></div>';
+  // 信用卡持卡（隱藏，由信用卡欄位接管）
+  html += '<input type="hidden" id="ef-cc-' + id + '" value="' + (lead.credit_card_age||'none') + '">';
 
-  // ⭐ 信用紀錄（影響評分）
-  html += '<div class="sl" style="margin-top:14px">信用紀錄（會影響 AI 評分）</div>';
+  // 銀行端未過件記錄
+  html += '<div class="sl" style="margin-top:14px">📋 銀行端未過件記錄</div>';
   html += '<div class="frow2"><div class="frow"><div class="flbl">3個月內銀行婉拒次數</div><select class="fi" id="ef-bank-rej-cnt-' + id + '">';
   var brc = parseInt(lead.bank_reject_count) || 0;
   [[0,'無'],[1,'1次'],[2,'2次'],[3,'3次'],[4,'4次以上（封鎖）']].forEach(function(o){
     html += '<option value="'+o[0]+'"'+(brc===o[0]?' selected':'')+'>'+o[1]+'</option>';
   });
   html += '</select></div>';
-  html += '<div class="frow"><div class="flbl">3個月內融資婉拒次數</div><select class="fi" id="ef-fin-rej-cnt-' + id + '">';
+  html += '<div class="frow"><div class="flbl">銀行端未過件距今</div><select class="fi" id="ef-bank-rej-' + id + '">';
+  [['none','無'],['<1m','未滿1個月'],['1-3m','1–3個月'],['3-6m','3–6個月']].forEach(function(o){
+    html += '<option value="'+o[0]+'"'+((lead.bank_recent_reject||'none')===o[0]?' selected':'')+'>'+o[1]+'</option>';
+  });
+  html += '</select></div></div>';
+
+  // 融資端未過件記錄
+  html += '<div class="sl" style="margin-top:14px">📋 融資端未過件記錄</div>';
+  html += '<div class="frow2"><div class="frow"><div class="flbl">3個月內融資婉拒次數</div><select class="fi" id="ef-fin-rej-cnt-' + id + '">';
   var frc = parseInt(lead.fin_reject_count) || 0;
   [[0,'無'],[1,'1次'],[2,'2次'],[3,'3次'],[4,'4次以上（封鎖）']].forEach(function(o){
     html += '<option value="'+o[0]+'"'+(frc===o[0]?' selected':'')+'>'+o[1]+'</option>';
   });
-  html += '</select></div></div>';
-  html += '<div class="frow2" style="margin-top:6px"><div class="frow"><div class="flbl">最長遲繳天數</div><input class="fi" id="ef-late-pay-' + id + '" type="number" value="' + (lead.late_pay_days||0) + '" placeholder="0" inputmode="numeric"></div>';
-  html += '<div class="frow"><div class="flbl">負債比 %</div><input class="fi" id="ef-debt-ratio-' + id + '" type="number" value="' + (lead.debt_ratio||0) + '" placeholder="0" inputmode="numeric"></div></div>';
-  html += '<div class="frow2" style="margin-top:6px"><div class="frow"><div class="flbl">信貸6個月內剛申辦</div><select class="fi" id="ef-bank-new-' + id + '"><option value="false"'+(!lead.bank_new_credit?' selected':'')+'>否</option><option value="true"'+(lead.bank_new_credit?' selected':'')+'>是</option></select></div>';
-  html += '<div class="frow"><div class="flbl">名下有汽車貸款</div><select class="fi" id="ef-has-car-loan-' + id + '" onchange="document.getElementById(\'ef-car-loan-age-row-'+id+'\').style.display=this.value===\'true\'?\'block\':\'none\'"><option value="false"'+(!lead.has_car_loan?' selected':'')+'>否</option><option value="true"'+(lead.has_car_loan?' selected':'')+'>是</option></select></div></div>';
-  html += '<div class="frow" id="ef-car-loan-age-row-' + id + '" style="display:'+(lead.has_car_loan?'block':'none')+';margin-top:6px"><div class="flbl">汽車貸款辦理時間</div><select class="fi" id="ef-car-loan-age-' + id + '">';
-  [['lt3m','3個月內'],['3-6m','3-6個月'],['6m+','6個月以上']].forEach(function(o){
-    html += '<option value="'+o[0]+'"'+((lead.car_loan_age||'lt3m')===o[0]?' selected':'')+'>'+o[1]+'</option>';
-  });
   html += '</select></div>';
+  html += '<div class="frow"><div class="flbl">融資端未過件距今</div><select class="fi" id="ef-fin-rej-' + id + '">';
+  [['none','無'],['<1m','未滿1個月'],['1-3m','1–3個月'],['3-6m','3–6個月']].forEach(function(o){
+    html += '<option value="'+o[0]+'"'+((lead.finance_recent_reject||'none')===o[0]?' selected':'')+'>'+o[1]+'</option>';
+  });
+  html += '</select></div></div>';
+
+  // 隱藏欄位（保留資料相容，避免儲存時報錯）
+  html += '<input type="hidden" id="ef-late-pay-' + id + '" value="' + (lead.late_pay_days||0) + '">';
+  html += '<input type="hidden" id="ef-debt-ratio-' + id + '" value="' + (lead.debt_ratio||0) + '">';
+  html += '<input type="hidden" id="ef-bank-new-' + id + '" value="' + (lead.bank_new_credit?'true':'false') + '">';
+  html += '<input type="hidden" id="ef-has-car-loan-' + id + '" value="' + (lead.has_car_loan?'true':'false') + '">';
+  html += '<input type="hidden" id="ef-car-loan-age-' + id + '" value="' + (lead.car_loan_age||'') + '">';
 
   // 不動產（編輯模式）
   html += '<div class="sl">不動產</div>';
-  html += '<div class="frow2"><div class="frow"><div class="flbl">名下不動產</div><select class="fi" id="ef-property-' + id + '" onchange="(function(s,id){var el=document.getElementById(\'ef-prop-fields-\'+id);if(el){el.style.display=s.value===\'true\'?\'block\':\'none\';if(s.value===\'true\')setTimeout(function(){el.scrollIntoView({behavior:\'smooth\',block:\'start\'})},100)}})(this,\''+id+'\')">';
+  html += '<div class="frow"><div class="flbl">名下不動產</div><select class="fi" id="ef-property-' + id + '" onchange="(function(s,id){var el=document.getElementById(\'ef-prop-fields-\'+id);if(el){el.style.display=s.value===\'true\'?\'block\':\'none\';if(s.value===\'true\')setTimeout(function(){el.scrollIntoView({behavior:\'smooth\',block:\'start\'})},100)}})(this,\''+id+'\')">';
   html += '<option value="false"'+((!lead.has_property)?' selected':'')+'> 無 </option>';
   html += '<option value="true"'+((lead.has_property)?' selected':'')+'>有</option>';
   html += '</select></div>';
-  html += '<div class="frow"><div class="flbl">有無抵押品</div><select class="fi" id="ef-collateral-' + id + '"><option value="false"'+(!lead.has_collateral?' selected':'')+'> 無 </option><option value="true"'+(lead.has_collateral?' selected':'')+'>有</option></select></div></div>';
   html += '<div id="ef-prop-fields-' + id + '" style="display:' + (lead.has_property ? 'block' : 'none') + '">';
   html += '<div style="font-size:12px;color:var(--t2);margin-bottom:8px">可新增多筆不動產（建物或土地）</div>';
   // 多筆不動產清單（編輯模式用不同 container id）
@@ -5647,6 +5686,8 @@ async function saveLeadEdit(id) {
     has_bike_license:   gv('bikeic') === 'true',
     has_property:       gv('property') === 'true',
     has_collateral:     gv('collateral') === 'true',
+    collateral_car:     (document.getElementById('ef-collateral-car-' + id)||{}).checked === true,
+    collateral_bike:    (document.getElementById('ef-collateral-bike-' + id)||{}).checked === true,
     bank_reject_count:  parseInt(gv('bank-rej-cnt')) || 0,
     fin_reject_count:   parseInt(gv('fin-rej-cnt')) || 0,
     late_pay_days:      parseInt(gv('late-pay')) || 0,
@@ -17499,9 +17540,13 @@ function saveClientFormData() {
     var el = document.getElementById(id);
     if (el) clientFormData[id] = el.value;
   });
-  // 也儲存 same-addr checkbox
+  // checkboxes
   var sameAddr = document.getElementById('c-same-addr');
   if (sameAddr) clientFormData['c-same-addr'] = sameAddr.checked;
+  var collCar = document.getElementById('c-collateral-car');
+  if (collCar) clientFormData['c-collateral-car'] = collCar.checked;
+  var collBike = document.getElementById('c-collateral-bike');
+  if (collBike) clientFormData['c-collateral-bike'] = collBike.checked;
 }
 
 // 還原指定步驟的欄位值
@@ -17856,54 +17901,63 @@ function clientStep2() {
 function clientStep3() {
   var el = clientStepBase(3);
 
-  // ── 信用 / 駕照 區塊（已從第 2 步移除月薪/薪轉/投保單位/投保年資）──
+  // ── 駕照與抵押 ──
   var incomeCard = document.createElement('div'); incomeCard.className = 'card';
   incomeCard.innerHTML =
-    '<div style="font-size:16px;font-weight:600;margin-bottom:10px">💳 信用 / 駕照</div>' +
-    '<div class="frow"><div class="flbl">信用卡持卡時間</div><select class="fi" id="c-cc"><option value="none">無卡</option><option value="3m+">3個月以上</option><option value="6m+">6個月以上</option><option value="1y+">1年以上</option></select></div>' +
-    '<div class="frow2" style="margin-top:8px">' +
-      '<div class="frow"><div class="flbl">信用卡總額度（萬）</div><input class="fi" id="c-cc-limit" type="number" placeholder="10" inputmode="numeric" step="0.1"></div>' +
-      '<div class="frow"><div class="flbl">信用卡張數</div><input class="fi" id="c-cc-count" type="number" placeholder="2" inputmode="numeric"></div>' +
-    '</div>' +
-    '<div class="frow2" style="margin-top:8px">' +
+    '<div style="font-size:16px;font-weight:600;margin-bottom:10px">🪪 駕照與抵押</div>' +
+    '<div class="frow2">' +
       '<div class="frow"><div class="flbl">汽車駕照</div><select class="fi" id="c-car-lic"><option value="true">有</option><option value="false">無</option></select></div>' +
       '<div class="frow"><div class="flbl">機車駕照</div><select class="fi" id="c-bike-lic"><option value="true">有</option><option value="false">無</option></select></div>' +
-    '</div>';
+    '</div>' +
+    '<div class="frow" style="margin-top:8px"><div class="flbl">有無抵押品</div><select class="fi" id="c-collateral" onchange="toggleCollateralKinds(\'c-collateral\',\'c-collateral-kinds-row\')"><option value="false">無</option><option value="true">有實物抵押</option></select></div>' +
+    '<div id="c-collateral-kinds-row" style="display:none;margin-top:8px;background:var(--inp);border-radius:8px;padding:10px 12px">' +
+      '<div style="font-size:13px;color:var(--t2);margin-bottom:8px">抵押品種類（可複選）</div>' +
+      '<div style="display:flex;gap:14px;flex-wrap:wrap">' +
+        '<label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:14px"><input type="checkbox" id="c-collateral-car" style="width:16px;height:16px;accent-color:var(--acc)"> 🚗 汽車</label>' +
+        '<label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:14px"><input type="checkbox" id="c-collateral-bike" style="width:16px;height:16px;accent-color:var(--acc)"> 🛵 機車</label>' +
+      '</div>' +
+    '</div>' +
+    // 隱藏欄位（保留資料相容）
+    '<input type="hidden" id="c-cc" value="none">' +
+    '<input type="hidden" id="c-cc-limit" value="0">' +
+    '<input type="hidden" id="c-cc-count" value="0">' +
+    '<input type="hidden" id="c-late-pay" value="0">' +
+    '<input type="hidden" id="c-debt-ratio" value="0">' +
+    '<input type="hidden" id="c-bank-new" value="false">' +
+    '<input type="hidden" id="c-has-car-loan" value="false">';
 
   // 即時最高可貸
   var maxDiv = document.createElement('div');
   maxDiv.style.cssText = 'background:var(--gl);border:0.5px solid rgba(45,138,78,.3);border-radius:8px;padding:10px 12px;margin-top:10px';
-  maxDiv.innerHTML = '<div style="font-size:14px;font-weight:500;color:var(--grn);margin-bottom:4px">AI 估算最高可貸金額</div><div style="font-size:20px;font-weight:700" id="c-max-loan">—</div><div style="font-size:12px;color:var(--t2);margin-top:2px">薪轉×22 扣信用卡額度，僅供參考</div>';
+  maxDiv.innerHTML = '<div style="font-size:14px;font-weight:500;color:var(--grn);margin-bottom:4px">AI 估算最高可貸金額</div><div style="font-size:20px;font-weight:700" id="c-max-loan">—</div><div style="font-size:12px;color:var(--t2);margin-top:2px">薪轉×22 計算，僅供參考</div>';
   incomeCard.appendChild(maxDiv);
   el.appendChild(incomeCard);
 
-  ['c-salary-2','c-transfer-2','c-cc-limit'].forEach(function(id) {
+  ['c-salary-2','c-transfer-2'].forEach(function(id) {
     var inp = document.getElementById(id);
     if (inp) { inp.addEventListener('input', updateClientMaxLoan); inp.addEventListener('change', updateClientMaxLoan); }
   });
 
-  // ── 信用紀錄（影響 AI 評分）──
-  var rejCard = document.createElement('div'); rejCard.className = 'card';
-  rejCard.innerHTML =
-    '<div style="font-size:16px;font-weight:600;margin-bottom:10px">📋 信用紀錄（影響 AI 評分）</div>' +
+  // ── 銀行端未過件記錄 ──
+  var bankRejCard = document.createElement('div'); bankRejCard.className = 'card';
+  bankRejCard.innerHTML =
+    '<div style="font-size:16px;font-weight:600;margin-bottom:10px">📋 銀行端未過件記錄</div>' +
     '<div class="frow2">' +
       '<div class="frow"><div class="flbl">銀行婉拒次數（3 個月內）</div><select class="fi" id="c-bank-rej-cnt"><option value="0">無</option><option value="1">1次</option><option value="2">2次</option><option value="3">3次</option><option value="4">4次以上（封鎖）</option></select></div>' +
-      '<div class="frow"><div class="flbl">融資婉拒次數（3 個月內）</div><select class="fi" id="c-fin-rej-cnt"><option value="0">無</option><option value="1">1次</option><option value="2">2次</option><option value="3">3次</option><option value="4">4次以上（封鎖）</option></select></div>' +
-    '</div>' +
-    '<div class="frow2" style="margin-top:8px">' +
       '<div class="frow"><div class="flbl">銀行端未過件距今</div><select class="fi" id="c-bank-rej"><option value="none">無</option><option value="&lt;1m">未滿1個月</option><option value="1-3m">1–3個月</option><option value="3-6m">3–6個月</option></select></div>' +
+    '</div>';
+  el.appendChild(bankRejCard);
+
+  // ── 融資端未過件記錄 ──
+  var finRejCard = document.createElement('div'); finRejCard.className = 'card';
+  finRejCard.innerHTML =
+    '<div style="font-size:16px;font-weight:600;margin-bottom:10px">📋 融資端未過件記錄</div>' +
+    '<div style="font-size:12px;color:var(--t2);margin-bottom:8px">影響汽車/機車/手機貸評分</div>' +
+    '<div class="frow2">' +
+      '<div class="frow"><div class="flbl">融資婉拒次數（3 個月內）</div><select class="fi" id="c-fin-rej-cnt"><option value="0">無</option><option value="1">1次</option><option value="2">2次</option><option value="3">3次</option><option value="4">4次以上（封鎖）</option></select></div>' +
       '<div class="frow"><div class="flbl">融資端未過件距今</div><select class="fi" id="c-fin-rej"><option value="none">無</option><option value="&lt;1m">未滿1個月</option><option value="1-3m">1–3個月</option><option value="3-6m">3–6個月</option></select></div>' +
-    '</div>' +
-    '<div class="frow2" style="margin-top:8px">' +
-      '<div class="frow"><div class="flbl">最長遲繳天數</div><select class="fi" id="c-late-pay"><option value="0">無遲繳</option><option value="3">7天以內</option><option value="10">7~14天</option><option value="20">14~30天</option><option value="35">1個月以上</option></select></div>' +
-      '<div class="frow"><div class="flbl">負債比 (%)</div><input class="fi" id="c-debt-ratio" type="number" min="0" max="100" placeholder="0" inputmode="numeric"></div>' +
-    '</div>' +
-    '<div class="frow2" style="margin-top:8px">' +
-      '<div class="frow"><div class="flbl">信貸6個月內申辦</div><select class="fi" id="c-bank-new"><option value="false">否</option><option value="true">是（6個月內剛申辦）</option></select></div>' +
-      '<div class="frow"><div class="flbl">目前有汽車貸款</div><select class="fi" id="c-has-car-loan"><option value="false">無</option><option value="true">有</option></select></div>' +
-    '</div>' +
-    '<div class="frow" style="margin-top:8px"><div class="flbl">居住狀況</div><select class="fi" id="c-housing"><option value="none">未填</option><option value="self_own">本人名下（自有）</option><option value="self_live">自住（非本人名下）</option><option value="family">親屬房子</option><option value="rent">租屋</option><option value="other">其他</option></select></div>';
-  el.appendChild(rejCard);
+    '</div>';
+  el.appendChild(finRejCard);
 
   // ── 不動產 ──
   var propCard = document.createElement('div'); propCard.className = 'card';
@@ -18449,6 +18503,8 @@ async function submitClientForm() {
     has_bike_license: g('c-bike-lic') === 'true',
     has_property: g('c-property') === 'true',
     has_collateral: g('c-collateral') === 'true',
+    collateral_car: (document.getElementById('c-collateral-car')||{}).checked === true,
+    collateral_bike: (document.getElementById('c-collateral-bike')||{}).checked === true,
     bank_recent_reject: g('c-bank-rej') || 'none',
     finance_recent_reject: g('c-fin-rej') || 'none',
     bank_reject_count: parseInt(g('c-bank-rej-cnt')) || 0,
