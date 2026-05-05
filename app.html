@@ -11,7 +11,7 @@
 <meta name="application-name" content="顧問PRO">
 <meta name="description" content="貸款顧問業務管理平台">
 <meta name="format-detection" content="telephone=no">
-<meta name="build-id" content="2026-05-03-r21-finrej-3way">
+<meta name="build-id" content="2026-05-03-r22-prop-loans">
 <!-- PWA Manifest -->
 <link rel="manifest" href="/manifest.json">
 <!-- Apple Touch Icons -->
@@ -584,7 +584,7 @@ select.fi{-webkit-appearance:auto;appearance:auto;display:block;max-width:100%;w
 </div><!-- #app -->
 
 <script>
-console.log('[顧問PRO] JS 載入 build=2026-05-03-r21-finrej-3way, 時間=' + new Date().toLocaleTimeString());
+console.log('[顧問PRO] JS 載入 build=2026-05-03-r22-prop-loans, 時間=' + new Date().toLocaleTimeString());
 // ══════════════════════════════
 // SUPABASE
 // ══════════════════════════════
@@ -3461,23 +3461,21 @@ function renderAddLead() {
   ph += '<div id="prop-items-list"></div>';
   ph += '<button type="button" onclick="addPropItem()" style="width:100%;padding:10px;background:var(--inp);border:1.5px dashed var(--bdr2);border-radius:10px;color:var(--acc);font-size:14px;font-weight:600;cursor:pointer;font-family:var(--sans);margin-bottom:12px">＋ 新增不動產</button>';
 
-  // 業務估價（共用）
+  // 業務估價（共用）— 隱藏起來，因為每筆不動產都有自己的估價
+  ph += '<div style="display:none">';
   ph += '<div style="background:var(--al);border:0.5px solid rgba(200,81,26,.3);border-radius:8px;padding:10px 12px;margin:8px 0">';
   ph += '<div style="font-size:14px;font-weight:500;color:var(--acc);margin-bottom:6px">業務估價（整體估價）</div>';
   ph += '<div class="frow"><div class="flbl">總估價金額（元）</div><input class="fi" id="n-prop-val" type="number" placeholder="12000000" inputmode="numeric" oninput="updatePropRatio()"></div>';
   ph += '<div style="font-size:12px;color:var(--t2);margin-top:4px">參考：<a href="https://lvr.land.moi.gov.tw" target="_blank" style="color:var(--blu)">實價登錄</a> · <a href="https://www.sinyi.com.tw" target="_blank" style="color:var(--blu)">信義房屋</a></div>';
   ph += '</div>';
 
-  // 一二三胎
+  // 一二三胎（舊全局版，保留 ID 但隱藏，不再使用）
   ['一胎','二胎（若有）','三胎（若有，通常民間）'].forEach(function(t, i) {
     var n = i + 1;
-    ph += '<div style="font-size:13px;font-weight:500;color:var(--t2);margin:10px 0 5px;border-bottom:0.5px solid var(--bdr);padding-bottom:3px">' + t + '</div>';
     ph += '<div class="frow2">';
-    ph += '<div class="frow"><div class="flbl">借款類型</div><select class="fi" id="n-prop'+n+'-ltype" onchange="toggleNewPropLoanType('+n+')"><option value="">選擇</option><option value="bank">銀行</option><option value="finance">融資</option><option value="civil">民間</option></select></div>';
-    // 機構名稱（銀行/融資）
+    ph += '<div class="frow"><div class="flbl">借款類型</div><select class="fi" id="n-prop'+n+'-ltype"><option value="">選擇</option><option value="bank">銀行</option><option value="finance">融資</option><option value="civil">民間</option></select></div>';
     ph += '<div class="frow" id="n-prop'+n+'-inst-wrap" style="display:none"><div class="flbl">借款機構名稱</div><input class="fi" id="n-prop' + n + '-inst" placeholder="例：台灣銀行"></div>';
     ph += '</div>';
-    // 月利息（民間）
     ph += '<div class="frow" id="n-prop'+n+'-rate-wrap" style="display:none;margin-top:6px"><div class="flbl">月利息（%）</div><input class="fi" id="n-prop' + n + '-rate" type="number" step="0.01" placeholder="例：3" inputmode="decimal"></div>';
     ph += '<div class="frow2">';
     ph += '<div class="frow"><div class="flbl">貸款餘額（元）</div><input class="fi" id="n-prop' + n + '-amt" type="number" placeholder="0" inputmode="numeric" oninput="updatePropRatio()"></div>';
@@ -3485,7 +3483,8 @@ function renderAddLead() {
     ph += '</div>';
     ph += '<div class="frow"><div class="flbl">違約金（元）</div><input class="fi" id="n-prop' + n + '-penalty" type="number" placeholder="未填寫顯示「無」" inputmode="numeric"></div>';
   });
-  ph += '<div id="prop-ratio-display" style="margin-top:8px"></div>';
+  ph += '<div id="prop-ratio-display"></div>';
+  ph += '</div>';
   propSec.innerHTML = ph;
   el.appendChild(propSec);
 
@@ -3840,6 +3839,33 @@ function addPropItem(data) {
   // 個別估價
   h += '<div class="frow" style="margin-top:10px"><div class="flbl">此筆估價（元）</div><input class="fi" id="pi-val-'+idx+'" type="number" placeholder="0" value="'+(d.val||'')+'" inputmode="numeric" oninput="updatePropItemSummary('+idx+')"></div>';
 
+  // 此筆貸款負債（一/二/三胎，每胎可選填）
+  var propLoans = (d.loans && d.loans.length) ? d.loans : [{},{},{}];
+  h += '<div style="margin-top:14px;padding-top:12px;border-top:0.5px dashed var(--bdr)">';
+  h += '<div style="font-size:14px;font-weight:600;color:var(--t1);margin-bottom:8px">💰 此筆不動產貸款負債</div>';
+  h += '<div style="font-size:12px;color:var(--t2);margin-bottom:8px">一胎/二胎/三胎可分別填寫，沒有就留空</div>';
+  [['一胎', 0],['二胎（選填）', 1],['三胎（選填）', 2]].forEach(function(t){
+    var n = t[1];
+    var pl = propLoans[n] || {};
+    var ltypeI = pl.ltype || '';
+    var isCivilI = ltypeI === 'civil';
+    var hasTypeI = !!ltypeI;
+    h += '<div style="background:var(--card);border-radius:8px;padding:10px;margin-bottom:8px">';
+    h += '<div style="font-size:13px;font-weight:600;color:var(--t2);margin-bottom:6px">'+t[0]+'</div>';
+    h += '<div class="frow2"><div class="frow"><div class="flbl">借款類型</div><select class="fi" id="pi-loan'+n+'-ltype-'+idx+'" onchange="togglePiLoanType(\''+idx+'\','+n+')">';
+    [['','選擇'],['bank','銀行'],['finance','融資'],['civil','民間']].forEach(function(o){
+      h += '<option value="'+o[0]+'"'+(ltypeI===o[0]?' selected':'')+'>'+o[1]+'</option>';
+    });
+    h += '</select></div>';
+    h += '<div class="frow" id="pi-loan'+n+'-inst-wrap-'+idx+'" style="display:'+(hasTypeI && !isCivilI ? 'flex' : 'none')+'"><div class="flbl">機構名稱</div><input class="fi" id="pi-loan'+n+'-inst-'+idx+'" placeholder="例：台灣銀行" value="'+((pl.inst||'').replace(/"/g,'&quot;'))+'"></div></div>';
+    h += '<div class="frow" id="pi-loan'+n+'-rate-wrap-'+idx+'" style="display:'+(isCivilI ? 'flex' : 'none')+';margin-top:6px"><div class="flbl">月利息（%）</div><input class="fi" id="pi-loan'+n+'-rate-'+idx+'" type="number" step="0.01" placeholder="例：3" value="'+(pl.rate||'')+'" inputmode="decimal"></div>';
+    h += '<div class="frow2" style="margin-top:6px"><div class="frow"><div class="flbl">貸款餘額（元）</div><input class="fi" id="pi-loan'+n+'-amt-'+idx+'" type="number" placeholder="0" value="'+(pl.amt||'')+'" inputmode="numeric"></div>';
+    h += '<div class="frow"><div class="flbl">月繳（元）</div><input class="fi" id="pi-loan'+n+'-pay-'+idx+'" type="number" placeholder="0" value="'+(pl.pay||'')+'" inputmode="numeric"></div></div>';
+    h += '<div class="frow" style="margin-top:6px"><div class="flbl">違約金（元）</div><input class="fi" id="pi-loan'+n+'-penalty-'+idx+'" type="number" placeholder="未填顯示「無」" value="'+(pl.penalty||'')+'" inputmode="numeric"></div>';
+    h += '</div>';
+  });
+  h += '</div>';
+
   body.innerHTML = h;
   div.appendChild(hdr);
   div.appendChild(body);
@@ -3897,6 +3923,25 @@ function setPropItemType(idx, type) {
 }
 
 // 讀取所有不動產項目
+// helper: 收集 prop item 內的 loans (n=0,1,2 對應一/二/三胎)
+function collectPiLoans(idx) {
+  var loans = [];
+  [0,1,2].forEach(function(n){
+    var ltype = (document.getElementById('pi-loan'+n+'-ltype-'+idx)||{}).value || '';
+    var amt = parseFloat((document.getElementById('pi-loan'+n+'-amt-'+idx)||{}).value) || 0;
+    if (!ltype && !amt) return;
+    loans.push({
+      ltype: ltype,
+      inst: (document.getElementById('pi-loan'+n+'-inst-'+idx)||{}).value || '',
+      rate: parseFloat((document.getElementById('pi-loan'+n+'-rate-'+idx)||{}).value) || 0,
+      amt: amt,
+      pay: parseFloat((document.getElementById('pi-loan'+n+'-pay-'+idx)||{}).value) || 0,
+      penalty: parseFloat((document.getElementById('pi-loan'+n+'-penalty-'+idx)||{}).value) || 0
+    });
+  });
+  return loans;
+}
+
 function collectPropItems() {
   var items = [];
   var list = document.getElementById('prop-items-list');
@@ -3922,6 +3967,7 @@ function collectPropItems() {
       item.landShare = (document.getElementById('pi-land-share-'+idx)||{}).value || '';
     }
     item.val = parseFloat((document.getElementById('pi-val-'+idx)||{}).value) || null;
+    item.loans = collectPiLoans(idx);
     items.push(item);
   });
   return items;
@@ -4039,6 +4085,33 @@ function addPropItemEdit(leadId, data) {
   // 個別估價
   h += '<div class="frow" style="margin-top:10px"><div class="flbl">此筆估價（元）</div><input class="fi" id="pi-val-'+idx+'" type="number" placeholder="0" value="'+(d.val||'')+'" inputmode="numeric" oninput="updatePropItemSummary(\''+idx+'\')"></div>';
 
+  // 此筆貸款負債（一/二/三胎，每胎可選填）
+  var propLoansE = (d.loans && d.loans.length) ? d.loans : [{},{},{}];
+  h += '<div style="margin-top:14px;padding-top:12px;border-top:0.5px dashed var(--bdr)">';
+  h += '<div style="font-size:14px;font-weight:600;color:var(--t1);margin-bottom:8px">💰 此筆不動產貸款負債</div>';
+  h += '<div style="font-size:12px;color:var(--t2);margin-bottom:8px">一胎/二胎/三胎可分別填寫，沒有就留空</div>';
+  [['一胎', 0],['二胎（選填）', 1],['三胎（選填）', 2]].forEach(function(t){
+    var n = t[1];
+    var pl = propLoansE[n] || {};
+    var ltypeI = pl.ltype || '';
+    var isCivilI = ltypeI === 'civil';
+    var hasTypeI = !!ltypeI;
+    h += '<div style="background:var(--card);border-radius:8px;padding:10px;margin-bottom:8px">';
+    h += '<div style="font-size:13px;font-weight:600;color:var(--t2);margin-bottom:6px">'+t[0]+'</div>';
+    h += '<div class="frow2"><div class="frow"><div class="flbl">借款類型</div><select class="fi" id="pi-loan'+n+'-ltype-'+idx+'" onchange="togglePiLoanType(\''+idx+'\','+n+')">';
+    [['','選擇'],['bank','銀行'],['finance','融資'],['civil','民間']].forEach(function(o){
+      h += '<option value="'+o[0]+'"'+(ltypeI===o[0]?' selected':'')+'>'+o[1]+'</option>';
+    });
+    h += '</select></div>';
+    h += '<div class="frow" id="pi-loan'+n+'-inst-wrap-'+idx+'" style="display:'+(hasTypeI && !isCivilI ? 'flex' : 'none')+'"><div class="flbl">機構名稱</div><input class="fi" id="pi-loan'+n+'-inst-'+idx+'" placeholder="例：台灣銀行" value="'+((pl.inst||'').replace(/"/g,'&quot;'))+'"></div></div>';
+    h += '<div class="frow" id="pi-loan'+n+'-rate-wrap-'+idx+'" style="display:'+(isCivilI ? 'flex' : 'none')+';margin-top:6px"><div class="flbl">月利息（%）</div><input class="fi" id="pi-loan'+n+'-rate-'+idx+'" type="number" step="0.01" placeholder="例：3" value="'+(pl.rate||'')+'" inputmode="decimal"></div>';
+    h += '<div class="frow2" style="margin-top:6px"><div class="frow"><div class="flbl">貸款餘額（元）</div><input class="fi" id="pi-loan'+n+'-amt-'+idx+'" type="number" placeholder="0" value="'+(pl.amt||'')+'" inputmode="numeric"></div>';
+    h += '<div class="frow"><div class="flbl">月繳（元）</div><input class="fi" id="pi-loan'+n+'-pay-'+idx+'" type="number" placeholder="0" value="'+(pl.pay||'')+'" inputmode="numeric"></div></div>';
+    h += '<div class="frow" style="margin-top:6px"><div class="flbl">違約金（元）</div><input class="fi" id="pi-loan'+n+'-penalty-'+idx+'" type="number" placeholder="未填顯示「無」" value="'+(pl.penalty||'')+'" inputmode="numeric"></div>';
+    h += '</div>';
+  });
+  h += '</div>';
+
   body.innerHTML = h;
   div.appendChild(hdr);
   div.appendChild(body);
@@ -4072,6 +4145,7 @@ function collectPropItemsEdit(leadId) {
       item.landShare = (document.getElementById('pi-land-share-'+idx)||{}).value || '';
     }
     item.val = parseFloat((document.getElementById('pi-val-'+idx)||{}).value) || null;
+    item.loans = collectPiLoans(idx);
     items.push(item);
   });
   return items;
@@ -4160,6 +4234,17 @@ function syncFinRej(val) {
     var el = document.getElementById(id);
     if (el && el.value !== val) el.value = val;
   });
+}
+
+// 不動產項目內的貸款類型切換（顯示/隱藏 機構名稱 vs 月利息）
+function togglePiLoanType(idx, n) {
+  var sel = document.getElementById('pi-loan'+n+'-ltype-'+idx);
+  if (!sel) return;
+  var v = sel.value;
+  var instWrap = document.getElementById('pi-loan'+n+'-inst-wrap-'+idx);
+  var rateWrap = document.getElementById('pi-loan'+n+'-rate-wrap-'+idx);
+  if (instWrap) instWrap.style.display = (v && v !== 'civil') ? 'flex' : 'none';
+  if (rateWrap) rateWrap.style.display = (v === 'civil') ? 'flex' : 'none';
 }
 
 function validateIDFieldEdit(el, leadId) {
@@ -5076,35 +5161,28 @@ function showLeadDetail(id) {
   html += '<option value="true"'+((lead.has_property)?' selected':'')+'>有</option>';
   html += '</select></div>';
   html += '<div id="ef-prop-fields-' + id + '" style="display:' + (lead.has_property ? 'block' : 'none') + '">';
-  html += '<div style="font-size:12px;color:var(--t2);margin-bottom:8px">可新增多筆不動產（建物或土地）</div>';
+  html += '<div style="font-size:12px;color:var(--t2);margin-bottom:8px">可新增多筆不動產（建物或土地），每筆都有自己的貸款負債</div>';
   // 多筆不動產清單（編輯模式用不同 container id）
   html += '<div id="ef-prop-items-list-'+id+'"></div>';
   html += '<button type="button" onclick="addPropItemEdit(\''+id+'\')" style="width:100%;padding:9px;background:var(--inp);border:1.5px dashed var(--bdr2);border-radius:10px;color:var(--acc);font-size:13px;font-weight:600;cursor:pointer;font-family:var(--sans);margin-bottom:10px">＋ 新增不動產</button>';
-  html += '<div class="frow"><div class="flbl">總估價金額（元）</div><input class="fi" id="ef-prop-val-' + id + '" type="number" value="' + (lead.property_valuation||'') + '" placeholder="10000000"></div>';
-  // 一二三胎
+
+  // 舊的全局「總估價 + 一二三胎」隱藏（保留 ID 以兼容 saveLeadEdit）
+  html += '<div style="display:none">';
+  html += '<input class="fi" id="ef-prop-val-' + id + '" type="number" value="' + (lead.property_valuation||'') + '">';
   var propLoans = [];
   try { propLoans = lead.prop_loans ? JSON.parse(lead.prop_loans) : []; } catch(e) { propLoans = []; }
-  [['一胎', lead.property_loan1||''],['二胎（若有）', lead.property_loan2||''],['三胎（若有）', lead.property_loan3||'']].forEach(function(t, i) {
+  [['一胎', lead.property_loan1||''],['二胎', lead.property_loan2||''],['三胎', lead.property_loan3||'']].forEach(function(t, i) {
     var n = i + 1;
     var pl = propLoans[i] || {};
     var ltype = pl.ltype || '';
-    var isCivil = ltype === 'civil';
-    var hasType = !!ltype;
-    html += '<div style="font-size:13px;font-weight:600;color:var(--t2);margin:10px 0 5px;border-bottom:0.5px solid var(--bdr);padding-bottom:3px">' + t[0] + '</div>';
-    html += '<div class="frow2"><div class="frow"><div class="flbl">借款類型</div><select class="fi" id="ef-prop'+n+'-ltype-'+id+'" onchange="togglePropLoanType(\''+id+'\','+n+')">';
-    [['','選擇'],['bank','銀行'],['finance','融資'],['civil','民間']].forEach(function(o){
-      html += '<option value="'+o[0]+'"'+(ltype===o[0]?' selected':'')+'>'+o[1]+'</option>';
-    });
-    html += '</select></div>';
-    // 機構名稱（銀行/融資 顯示）
-    html += '<div class="frow" id="ef-prop'+n+'-inst-wrap-'+id+'" style="display:'+(hasType && !isCivil ? 'flex' : 'none')+'"><div class="flbl">借款機構名稱</div><input class="fi" id="ef-prop'+n+'-inst-'+id+'" placeholder="例：台灣銀行" value="'+(pl.inst||'')+'"></div></div>';
-    // 月利息（民間 顯示）
-    html += '<div class="frow" id="ef-prop'+n+'-rate-wrap-'+id+'" style="display:'+(isCivil ? 'flex' : 'none')+';margin-top:6px"><div class="flbl">月利息（%）</div><input class="fi" id="ef-prop'+n+'-rate-'+id+'" type="number" step="0.01" placeholder="例：3" value="'+(pl.rate||'')+'" inputmode="decimal"></div>';
-    html += '<div class="frow2"><div class="frow"><div class="flbl">貸款餘額（元）</div><input class="fi" id="ef-prop'+n+'-'+id+'" type="number" value="'+(t[1])+'" placeholder="0" inputmode="numeric"></div>';
-    html += '<div class="frow"><div class="flbl">月繳（元）</div><input class="fi" id="ef-prop'+n+'-pay-'+id+'" type="number" value="'+(pl.pay||'')+'" placeholder="0" inputmode="numeric"></div></div>';
-    html += '<div class="frow"><div class="flbl">違約金（元）</div><input class="fi" id="ef-prop'+n+'-penalty-'+id+'" type="number" value="'+(pl.penalty||'')+'" placeholder="未填寫顯示「無」" inputmode="numeric"></div>';
+    html += '<select class="fi" id="ef-prop'+n+'-ltype-'+id+'"><option value="'+ltype+'">'+ltype+'</option></select>';
+    html += '<input class="fi" id="ef-prop'+n+'-inst-'+id+'" value="'+((pl.inst||'').replace(/"/g,'&quot;'))+'">';
+    html += '<input class="fi" id="ef-prop'+n+'-rate-'+id+'" value="'+(pl.rate||'')+'">';
+    html += '<input class="fi" id="ef-prop'+n+'-'+id+'" value="'+(t[1])+'">';
+    html += '<input class="fi" id="ef-prop'+n+'-pay-'+id+'" value="'+(pl.pay||'')+'">';
+    html += '<input class="fi" id="ef-prop'+n+'-penalty-'+id+'" value="'+(pl.penalty||'')+'">';
   });
-  html += '</div>';
+  html += '</div></div>';
 
   html += '<div class="sl">需求</div>';
   html += '<div class="frow2"><div class="frow"><div class="flbl">需求資金（元）</div><input class="fi" id="ef-amount-' + id + '" type="number" value="' + (lead.required_amount||'') + '"></div>';
