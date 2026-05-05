@@ -11,7 +11,7 @@
 <meta name="application-name" content="顧問PRO">
 <meta name="description" content="貸款顧問業務管理平台">
 <meta name="format-detection" content="telephone=no">
-<meta name="build-id" content="2026-05-03-r22-prop-loans">
+<meta name="build-id" content="2026-05-03-r23-prop-display">
 <!-- PWA Manifest -->
 <link rel="manifest" href="/manifest.json">
 <!-- Apple Touch Icons -->
@@ -584,7 +584,7 @@ select.fi{-webkit-appearance:auto;appearance:auto;display:block;max-width:100%;w
 </div><!-- #app -->
 
 <script>
-console.log('[顧問PRO] JS 載入 build=2026-05-03-r22-prop-loans, 時間=' + new Date().toLocaleTimeString());
+console.log('[顧問PRO] JS 載入 build=2026-05-03-r23-prop-display, 時間=' + new Date().toLocaleTimeString());
 // ══════════════════════════════
 // SUPABASE
 // ══════════════════════════════
@@ -16344,6 +16344,53 @@ async function downloadShareZip(lead, btn) {
       readme += '\n';
     }
 
+    // 🆕 不動產資訊（多筆，每筆有自己的一/二/三胎）
+    if (lead.has_property) {
+      var propItemsZ = [];
+      try { propItemsZ = lead.prop_items ? JSON.parse(lead.prop_items) : []; } catch(e) { propItemsZ = []; }
+      if (propItemsZ.length > 0) {
+        var ltypeLabelsZ = {bank:'銀行', finance:'融資', civil:'民間'};
+        var propTypeMapZ = {elevator:'電梯大樓',huaxia:'華廈',apartment:'公寓',townhouse:'透天厝',shop:'店面',office:'辦公室',factory:'廠房'};
+        var landTypeMapZ = {build:'建地',farm:'農地',forest:'林地',indigenous:'原住民保留地',special_farm:'特定農業區',industrial:'工業用地',waterway:'水利用地',other:'其他'};
+        var parkingMapZ = {none:'無',flat:'平面',mech:'機械',slope:'坡道'};
+        readme += '\n【不動產】\n';
+        propItemsZ.forEach(function(pi, idx){
+          var typeLbl = pi.type === 'bldg' ? '🏢 建物' : '🌱 土地';
+          readme += '\n● 不動產 #' + (idx+1) + '　' + typeLbl + '\n';
+          if (pi.type === 'bldg') {
+            if (pi.bldgAddr) readme += '  地址：' + pi.bldgAddr + '\n';
+            if (pi.bldgType) readme += '  房屋類型：' + (propTypeMapZ[pi.bldgType]||pi.bldgType) + '\n';
+            if (pi.bldgAge) readme += '  屋齡：' + pi.bldgAge + ' 年\n';
+            if (pi.bldgSize) readme += '  建坪：' + pi.bldgSize + ' 坪\n';
+            if (pi.parking && pi.parking !== 'none') readme += '  車位：' + (parkingMapZ[pi.parking]||pi.parking) + '\n';
+            if (pi.unregistered) readme += '  ⚠️ 未保存登記（' + (pi.taxCert==='yes'?'有稅籍':'無稅籍') + '）\n';
+          } else {
+            if (pi.landType) readme += '  用地類型：' + (landTypeMapZ[pi.landType]||pi.landType) + '\n';
+            if (pi.landSize) readme += '  地坪：' + pi.landSize + ' 坪\n';
+            if (pi.landShare) readme += '  持分：' + pi.landShare + '\n';
+          }
+          if (pi.val) readme += '  估價：$' + Number(pi.val).toLocaleString() + '\n';
+          if (pi.loans && pi.loans.length > 0) {
+            var tierLabelsZ = ['一胎','二胎','三胎'];
+            pi.loans.forEach(function(pl, j){
+              if (!pl || (!pl.ltype && !pl.amt)) return;
+              var s = '  ' + (tierLabelsZ[j]||('胎次'+(j+1))) + '：';
+              if (pl.ltype && ltypeLabelsZ[pl.ltype]) s += '['+ltypeLabelsZ[pl.ltype]+'] ';
+              if (pl.ltype === 'civil') {
+                if (pl.rate) s += '月息'+pl.rate+'% ';
+              } else if (pl.inst) {
+                s += pl.inst + ' ';
+              }
+              if (pl.amt) s += '餘額 $'+Number(pl.amt).toLocaleString();
+              if (pl.pay) s += '・月繳 $'+Number(pl.pay).toLocaleString();
+              if (pl.penalty) s += '・違約 $'+Number(pl.penalty).toLocaleString();
+              readme += s + '\n';
+            });
+          }
+        });
+      }
+    }
+
     readme += '═══════════════════════\n\n';
     readme += '【檔案清單】\n';
 
@@ -16659,55 +16706,96 @@ async function exportLeadPDF(leadId) {
   ].filter(function(r){ return r[1] && r[1] !== '—'; })
    .map(function(r){ return '<tr><td style="color:#666;width:110px;font-size:13px">'+r[0]+'</td><td style="font-weight:500;font-size:13px">'+r[1]+'</td></tr>'; }).join('');
 
-  // 不動產資料
+  // 不動產資料（多筆，每筆有自己的地址 / 估價 / 一二三胎）
   var propRows = '';
   if (lead.has_property) {
-    var propTypeArr2 = [];
-    if (lead.prop_has_bldg) propTypeArr2.push('建物');
-    if (lead.prop_has_land) propTypeArr2.push('土地');
     var landTypeLabels2 = {build:'建地',farm:'農地',forest:'林地',indigenous:'原住民保留地',special_farm:'特定農業區',industrial:'工業用地',waterway:'水利用地',other:'其他'};
     var propTypeMap2 = {elevator:'電梯大樓',huaxia:'華廈',apartment:'公寓',townhouse:'透天厝',shop:'店面',office:'辦公室',factory:'廠房'};
-    var propData = [
-      ['不動產類型', propTypeArr2.join('、')||'—'],
-    ];
-    if (lead.prop_has_bldg) {
-      if (lead.prop_type) propData.push(['房屋類型', propTypeMap2[lead.prop_type]||lead.prop_type]);
-      if (lead.prop_age) propData.push(['屋齡', lead.prop_age+'年']);
-      if (lead.prop_unregistered) propData.push(['保存登記', '未保存登記（'+(lead.prop_has_tax_cert?'有稅籍':'無稅籍')+'）']);
-    }
-    if (lead.prop_has_land) {
-      if (lead.prop_land_type) propData.push(['土地用地', landTypeLabels2[lead.prop_land_type]||lead.prop_land_type]);
-      if (lead.prop_land_size) propData.push(['地坪', lead.prop_land_size+'坪']);
-      if (lead.prop_land_share) propData.push(['持分', lead.prop_land_share]);
-    }
-    propData.push(['估價', lead.property_valuation?'$'+lead.property_valuation.toLocaleString():'—']);
-    // 讀取每胎詳細
-    var propLoansData = [];
-    try { propLoansData = lead.prop_loans ? JSON.parse(lead.prop_loans) : []; } catch(e) { propLoansData = []; }
-    var tierLabels = ['一胎','二胎','三胎'];
+    var parkingMap2 = {none:'無',flat:'平面',mech:'機械',slope:'坡道'};
     var ltypeLabels = {bank:'銀行', finance:'融資', civil:'民間'};
-    [lead.property_loan1, lead.property_loan2, lead.property_loan3].forEach(function(amt, i) {
-      if (amt) {
-        var pl = propLoansData[i] || {};
-        var parts = [];
-        // 類型
-        if (pl.ltype && ltypeLabels[pl.ltype]) parts.push('['+ltypeLabels[pl.ltype]+']');
-        // 機構名稱（銀行/融資）或 月利息（民間）
-        if (pl.ltype === 'civil') {
-          if (pl.rate) parts.push('月息'+pl.rate+'%');
-        } else if (pl.inst) {
-          parts.push(pl.inst);
+
+    // 讀取多筆不動產
+    var propItemsPDF = [];
+    try { propItemsPDF = lead.prop_items ? JSON.parse(lead.prop_items) : []; } catch(e) { propItemsPDF = []; }
+
+    if (propItemsPDF.length > 0) {
+      // 多筆：每筆獨立顯示
+      var propRowsArr = [];
+      propItemsPDF.forEach(function(pi, idx) {
+        var typeLbl = pi.type === 'bldg' ? '🏢 建物' : '🌱 土地';
+        // 標題列：不動產 #N
+        propRowsArr.push('<tr><td colspan="2" style="background:#f5f5f5;padding:8px;font-weight:600;color:#C8511A;font-size:13px">不動產 #'+(idx+1)+'　'+typeLbl+'</td></tr>');
+        if (pi.type === 'bldg') {
+          if (pi.bldgAddr) propRowsArr.push('<tr><td style="color:#666;width:110px;font-size:13px;padding:4px 8px">地址</td><td style="font-weight:500;font-size:13px;padding:4px 8px">'+pi.bldgAddr+'</td></tr>');
+          if (pi.bldgType) propRowsArr.push('<tr><td style="color:#666;font-size:13px;padding:4px 8px">房屋類型</td><td style="font-size:13px;padding:4px 8px">'+(propTypeMap2[pi.bldgType]||pi.bldgType)+'</td></tr>');
+          if (pi.bldgAge) propRowsArr.push('<tr><td style="color:#666;font-size:13px;padding:4px 8px">屋齡</td><td style="font-size:13px;padding:4px 8px">'+pi.bldgAge+' 年</td></tr>');
+          if (pi.bldgSize) propRowsArr.push('<tr><td style="color:#666;font-size:13px;padding:4px 8px">建坪</td><td style="font-size:13px;padding:4px 8px">'+pi.bldgSize+' 坪</td></tr>');
+          if (pi.parking && pi.parking !== 'none') propRowsArr.push('<tr><td style="color:#666;font-size:13px;padding:4px 8px">車位</td><td style="font-size:13px;padding:4px 8px">'+(parkingMap2[pi.parking]||pi.parking)+'</td></tr>');
+          if (pi.unregistered) propRowsArr.push('<tr><td style="color:#666;font-size:13px;padding:4px 8px">保存登記</td><td style="font-size:13px;padding:4px 8px;color:#B88020">⚠️ 未保存登記（'+(pi.taxCert==='yes'?'有稅籍':'無稅籍')+'）</td></tr>');
+        } else {
+          if (pi.landType) propRowsArr.push('<tr><td style="color:#666;width:110px;font-size:13px;padding:4px 8px">用地類型</td><td style="font-size:13px;padding:4px 8px">'+(landTypeLabels2[pi.landType]||pi.landType)+'</td></tr>');
+          if (pi.landSize) propRowsArr.push('<tr><td style="color:#666;font-size:13px;padding:4px 8px">地坪</td><td style="font-size:13px;padding:4px 8px">'+pi.landSize+' 坪</td></tr>');
+          if (pi.landShare) propRowsArr.push('<tr><td style="color:#666;font-size:13px;padding:4px 8px">持分</td><td style="font-size:13px;padding:4px 8px">'+pi.landShare+'</td></tr>');
         }
-        // 餘額
-        parts.push('$'+amt.toLocaleString());
-        // 月繳
-        if (pl.pay) parts.push('月繳$'+(pl.pay||0).toLocaleString());
-        // 違約金
-        parts.push(pl.penalty ? '違約金$'+(pl.penalty||0).toLocaleString() : '違約金無');
-        propData.push([tierLabels[i], parts.join('・')]);
+        if (pi.val) propRowsArr.push('<tr><td style="color:#666;font-size:13px;padding:4px 8px">估價</td><td style="font-size:13px;font-weight:600;padding:4px 8px">$'+Number(pi.val).toLocaleString()+'</td></tr>');
+        // 此筆不動產的一/二/三胎
+        var tierLabels = ['一胎','二胎','三胎'];
+        if (pi.loans && pi.loans.length > 0) {
+          pi.loans.forEach(function(pl, j){
+            if (!pl || (!pl.ltype && !pl.amt)) return;
+            var parts = [];
+            if (pl.ltype && ltypeLabels[pl.ltype]) parts.push('['+ltypeLabels[pl.ltype]+']');
+            if (pl.ltype === 'civil') {
+              if (pl.rate) parts.push('月息'+pl.rate+'%');
+            } else if (pl.inst) {
+              parts.push(pl.inst);
+            }
+            if (pl.amt) parts.push('餘額 $'+Number(pl.amt).toLocaleString());
+            if (pl.pay) parts.push('月繳 $'+Number(pl.pay).toLocaleString());
+            if (pl.penalty) parts.push('違約 $'+Number(pl.penalty).toLocaleString());
+            propRowsArr.push('<tr><td style="color:#666;font-size:13px;padding:4px 8px">'+(tierLabels[j]||('胎次'+(j+1)))+'</td><td style="font-size:13px;padding:4px 8px">'+parts.join('・')+'</td></tr>');
+          });
+        }
+      });
+      propRows = propRowsArr.join('');
+    } else {
+      // 退回舊版顯示（單筆 / 全局一二三胎）
+      var propTypeArr2 = [];
+      if (lead.prop_has_bldg) propTypeArr2.push('建物');
+      if (lead.prop_has_land) propTypeArr2.push('土地');
+      var propData = [['不動產類型', propTypeArr2.join('、')||'—']];
+      if (lead.prop_has_bldg) {
+        if (lead.prop_type) propData.push(['房屋類型', propTypeMap2[lead.prop_type]||lead.prop_type]);
+        if (lead.prop_age) propData.push(['屋齡', lead.prop_age+'年']);
+        if (lead.prop_unregistered) propData.push(['保存登記', '未保存登記（'+(lead.prop_has_tax_cert?'有稅籍':'無稅籍')+'）']);
       }
-    });
-    propRows = propData.map(function(r){ return '<tr><td style="color:#666;width:110px;font-size:13px">'+r[0]+'</td><td style="font-weight:500;font-size:13px">'+r[1]+'</td></tr>'; }).join('');
+      if (lead.prop_has_land) {
+        if (lead.prop_land_type) propData.push(['土地用地', landTypeLabels2[lead.prop_land_type]||lead.prop_land_type]);
+        if (lead.prop_land_size) propData.push(['地坪', lead.prop_land_size+'坪']);
+        if (lead.prop_land_share) propData.push(['持分', lead.prop_land_share]);
+      }
+      propData.push(['估價', lead.property_valuation?'$'+lead.property_valuation.toLocaleString():'—']);
+      var propLoansData = [];
+      try { propLoansData = lead.prop_loans ? JSON.parse(lead.prop_loans) : []; } catch(e) { propLoansData = []; }
+      var tierLabelsOld = ['一胎','二胎','三胎'];
+      [lead.property_loan1, lead.property_loan2, lead.property_loan3].forEach(function(amt, i) {
+        if (amt) {
+          var pl = propLoansData[i] || {};
+          var parts = [];
+          if (pl.ltype && ltypeLabels[pl.ltype]) parts.push('['+ltypeLabels[pl.ltype]+']');
+          if (pl.ltype === 'civil') {
+            if (pl.rate) parts.push('月息'+pl.rate+'%');
+          } else if (pl.inst) {
+            parts.push(pl.inst);
+          }
+          parts.push('$'+amt.toLocaleString());
+          if (pl.pay) parts.push('月繳$'+(pl.pay||0).toLocaleString());
+          parts.push(pl.penalty ? '違約金$'+(pl.penalty||0).toLocaleString() : '違約金無');
+          propData.push([tierLabelsOld[i], parts.join('・')]);
+        }
+      });
+      propRows = propData.map(function(r){ return '<tr><td style="color:#666;width:110px;font-size:13px">'+r[0]+'</td><td style="font-weight:500;font-size:13px">'+r[1]+'</td></tr>'; }).join('');
+    }
   }
 
   // 🆕 現有貸款（lead_loans 表，排除不動產貸款）
@@ -17454,37 +17542,80 @@ async function shareLeadLine(id) {
   if (lead.has_property) {
     lines.push('');
     lines.push('🏠 不動產');
-    var propTypeArr3 = [];
-    if (lead.prop_has_bldg) propTypeArr3.push('建物');
-    if (lead.prop_has_land) propTypeArr3.push('土地');
-    if (propTypeArr3.length) lines.push('類型：' + propTypeArr3.join('、'));
-    if (lead.prop_unregistered) lines.push('⚠️ 未保存登記（'+(lead.prop_has_tax_cert?'有稅籍':'無稅籍')+')');
-    if (lead.prop_has_land && lead.prop_land_type) lines.push('土地用地：' + (landTypeMap3[lead.prop_land_type]||lead.prop_land_type));
-    if (lead.property_valuation) lines.push('估價：$' + lead.property_valuation.toLocaleString());
-    var propLoansL = [];
-    try { propLoansL = lead.prop_loans ? JSON.parse(lead.prop_loans) : []; } catch(e) { propLoansL = []; }
     var ltypeLabelsL = {bank:'銀行', finance:'融資', civil:'民間'};
-    [lead.property_loan1, lead.property_loan2, lead.property_loan3].forEach(function(amt, i) {
-      if (amt) {
-        var pl = propLoansL[i] || {};
-        var s2 = ['一胎','二胎','三胎'][i] + '：';
-        // 類型
-        if (pl.ltype && ltypeLabelsL[pl.ltype]) s2 += '['+ltypeLabelsL[pl.ltype]+'] ';
-        // 機構名稱（銀行/融資）或 月利息（民間）
-        if (pl.ltype === 'civil') {
-          if (pl.rate) s2 += '月息'+pl.rate+'% ';
-        } else if (pl.inst) {
-          s2 += pl.inst + ' ';
+    var propTypeMapL = {elevator:'電梯大樓',huaxia:'華廈',apartment:'公寓',townhouse:'透天厝',shop:'店面',office:'辦公室',factory:'廠房'};
+    var parkingMapL = {none:'無',flat:'平面',mech:'機械',slope:'坡道'};
+
+    // 讀取多筆不動產
+    var propItemsL = [];
+    try { propItemsL = lead.prop_items ? JSON.parse(lead.prop_items) : []; } catch(e) { propItemsL = []; }
+
+    if (propItemsL.length > 0) {
+      // 多筆：每筆獨立顯示
+      propItemsL.forEach(function(pi, idx){
+        var typeLbl = pi.type === 'bldg' ? '🏢 建物' : '🌱 土地';
+        lines.push('');
+        lines.push('【不動產 #'+(idx+1)+'】'+typeLbl);
+        if (pi.type === 'bldg') {
+          if (pi.bldgAddr) lines.push('地址：'+pi.bldgAddr);
+          if (pi.bldgType) lines.push('房屋類型：'+(propTypeMapL[pi.bldgType]||pi.bldgType));
+          if (pi.bldgAge) lines.push('屋齡：'+pi.bldgAge+' 年');
+          if (pi.bldgSize) lines.push('建坪：'+pi.bldgSize+' 坪');
+          if (pi.parking && pi.parking !== 'none') lines.push('車位：'+(parkingMapL[pi.parking]||pi.parking));
+          if (pi.unregistered) lines.push('⚠️ 未保存登記（'+(pi.taxCert==='yes'?'有稅籍':'無稅籍')+'）');
+        } else {
+          if (pi.landType) lines.push('用地類型：'+(landTypeMap3[pi.landType]||pi.landType));
+          if (pi.landSize) lines.push('地坪：'+pi.landSize+' 坪');
+          if (pi.landShare) lines.push('持分：'+pi.landShare);
         }
-        // 餘額
-        s2 += '$' + amt.toLocaleString();
-        // 月繳
-        if (pl.pay) s2 += '・月繳$'+pl.pay.toLocaleString();
-        // 違約金
-        s2 += '・' + (pl.penalty ? '違約金$'+pl.penalty.toLocaleString() : '違約金無');
-        lines.push(s2);
-      }
-    });
+        if (pi.val) lines.push('估價：$'+Number(pi.val).toLocaleString());
+        // 此筆貸款負債
+        if (pi.loans && pi.loans.length > 0) {
+          var tierLabelsL = ['一胎','二胎','三胎'];
+          pi.loans.forEach(function(pl, j){
+            if (!pl || (!pl.ltype && !pl.amt)) return;
+            var s = '・'+(tierLabelsL[j]||('胎次'+(j+1)))+'：';
+            if (pl.ltype && ltypeLabelsL[pl.ltype]) s += '['+ltypeLabelsL[pl.ltype]+'] ';
+            if (pl.ltype === 'civil') {
+              if (pl.rate) s += '月息'+pl.rate+'% ';
+            } else if (pl.inst) {
+              s += pl.inst + ' ';
+            }
+            if (pl.amt) s += '餘額 $'+Number(pl.amt).toLocaleString();
+            if (pl.pay) s += '・月繳 $'+Number(pl.pay).toLocaleString();
+            if (pl.penalty) s += '・違約 $'+Number(pl.penalty).toLocaleString();
+            lines.push(s);
+          });
+        }
+      });
+    } else {
+      // 退回舊版（單筆 / 全局一二三胎）
+      var propTypeArr3 = [];
+      if (lead.prop_has_bldg) propTypeArr3.push('建物');
+      if (lead.prop_has_land) propTypeArr3.push('土地');
+      if (propTypeArr3.length) lines.push('類型：' + propTypeArr3.join('、'));
+      if (lead.prop_unregistered) lines.push('⚠️ 未保存登記（'+(lead.prop_has_tax_cert?'有稅籍':'無稅籍')+')');
+      if (lead.prop_has_land && lead.prop_land_type) lines.push('土地用地：' + (landTypeMap3[lead.prop_land_type]||lead.prop_land_type));
+      if (lead.property_valuation) lines.push('估價：$' + lead.property_valuation.toLocaleString());
+      var propLoansL = [];
+      try { propLoansL = lead.prop_loans ? JSON.parse(lead.prop_loans) : []; } catch(e) { propLoansL = []; }
+      [lead.property_loan1, lead.property_loan2, lead.property_loan3].forEach(function(amt, i) {
+        if (amt) {
+          var pl = propLoansL[i] || {};
+          var s2 = ['一胎','二胎','三胎'][i] + '：';
+          if (pl.ltype && ltypeLabelsL[pl.ltype]) s2 += '['+ltypeLabelsL[pl.ltype]+'] ';
+          if (pl.ltype === 'civil') {
+            if (pl.rate) s2 += '月息'+pl.rate+'% ';
+          } else if (pl.inst) {
+            s2 += pl.inst + ' ';
+          }
+          s2 += '$' + amt.toLocaleString();
+          if (pl.pay) s2 += '・月繳$'+pl.pay.toLocaleString();
+          s2 += '・' + (pl.penalty ? '違約金$'+pl.penalty.toLocaleString() : '違約金無');
+          lines.push(s2);
+        }
+      });
+    }
   }
 
   // 🆕 現有貸款（含信用卡、剩餘金額、已繳期數）
